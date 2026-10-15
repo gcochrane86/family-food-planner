@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens from mockup/family-food-planner.html. Slot colours: breakfast = yolk, lunch = teal, dinner = accent, 8pm prep = evening. */
+:root {
+  --bg: #F3F4EF; --surface: #FFFFFF; --surface-2: #E9ECE4; --ink: #1B211D; --muted: #5D6760; --line: #D9DDD3;
+  --accent: #2D6A3E; --accent-ink: #FFFFFF; --accent-soft: #DCEADF;
+  --yolk: #B87A06; --yolk-soft: #FBEFD0;
+  --teal: #21706D; --teal-soft: #D9ECEA;
+  --evening: #4447A0; --evening-soft: #E2E3F5;
+  --warn: #B63B27; --warn-soft: #F8E0DA;
+  --lcd: #18201B; --lcd-ink: #A9F2BE;
+  --font-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --font-body: "Figtree", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111512; --surface: #1A1F1B; --surface-2: #232A25; --ink: #E7EBE5; --muted: #9BA59D; --line: #2F3832;
+    --accent: #73C088; --accent-ink: #0D1510; --accent-soft: #1E3325;
+    --yolk: #F2BC4E; --yolk-soft: #3A2E12;
+    --teal: #63C6C0; --teal-soft: #163433;
+    --evening: #A3A6F2; --evening-soft: #25274B;
+    --warn: #F2806A; --warn-soft: #3E221C;
+    --lcd: #0A0E0B; --lcd-ink: #9DEFB2;
+    color-scheme: dark;
+  }
+}
+
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+/* 16px minimum stops iOS zooming into form fields */
+input, select, textarea { font: inherit; font-size: max(16px, 1em); color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.gutter {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
