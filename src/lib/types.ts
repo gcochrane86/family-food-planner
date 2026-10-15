@@ -67,3 +67,63 @@ export interface Household {
   name: string;
   invite_code: string;
 }
+
+// Recipes (Phase 2) ------------------------------------------------------------
+
+export type Phase = 'prep_8pm' | 'finish' | 'reheat';
+export type Machine = 'tm7' | 'apo' | 'hy24' | 'meater' | 'hob' | 'oven' | 'kettle';
+
+export interface RecipeIngredient {
+  id?: string;
+  position: number;
+  group_name: string | null;
+  name: string;
+  qty: number | null;
+  unit: string;
+  note: string | null;
+  qty_approx: boolean;
+}
+
+export interface RecipeStep {
+  id?: string;
+  phase: Phase;
+  position: number;
+  at_minute: number | null;
+  title: string;
+  body: string; // **word** is shown in bold
+  machine: Machine | null;
+  settings: string | null;
+  timer_minutes: number | null;
+  image_path: string | null;
+}
+
+export interface Recipe {
+  id: string;
+  household_id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  kind: 'meal' | 'component';
+  component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;
+  source: 'hellofresh' | 'own_doc' | 'claude';
+  base_portions: number;
+  reheats_well: boolean;
+  freezes_well: boolean;
+  toddler_ok: boolean;
+  toddler_note: string | null;
+  salt_per_portion_g: number | null;
+  prep_minutes: number;
+  finish_minutes: number;
+  hands_off_minutes: number;
+  tags: string[];
+  equipment: string[];
+  reheat: string | null;
+  hero_image_path: string | null;
+  hero_image_source: 'generated' | 'own' | null;
+  status: 'draft' | 'active' | 'archived';
+}
+
+export interface RecipeDetail extends Recipe {
+  ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
+}
