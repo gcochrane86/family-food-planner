@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { fetchWithTimeout } from './fetchWithTimeout';
+import { projectUrl } from './supabaseUrl';
 
 export class MissingConfigError extends Error {
   constructor() {
@@ -16,7 +17,7 @@ export function getSupabase(): SupabaseClient {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
   if (!url || !key) throw new MissingConfigError();
-  client = createClient(url, key, {
+  client = createClient(projectUrl(url), key, {
     auth: { persistSession: true, flowType: 'pkce' },
     global: { fetch: fetchWithTimeout((...args) => fetch(...args), 10_000) },
   });

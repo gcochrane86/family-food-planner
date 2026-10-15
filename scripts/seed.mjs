@@ -28,7 +28,7 @@ if (problems.length) fail(`${file} has problems:\n- ${problems.join('\n- ')}`);
 
 const env = loadEnv();
 if (!env.VITE_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) fail('Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
-const db = createClient(env.VITE_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+const db = createClient(new URL(env.VITE_SUPABASE_URL.trim()).origin, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 const must = ({ data, error }, what) => {
   if (error) fail(`${what}: ${error.message}`);

@@ -8,7 +8,7 @@ if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
   console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in .env');
   process.exit(1);
 }
-const anon = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+const anon = createClient(new URL(env.VITE_SUPABASE_URL.trim()).origin, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 const tables = ['households', 'household_users', 'members', 'member_week_pattern', 'settings',
   'house_rules', 'equipment', 'ingredients', 'pantry_items', 'join_attempts'];
