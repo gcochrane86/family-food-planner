@@ -251,7 +251,7 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 | **Ingredient icons** | **AI-generated once per ingredient**, in one consistent style (a single item on a plain background, like the HelloFresh grid), then reused in every recipe |
 | **Step photos** | **Not AI-generated** (they come out inconsistent and get equipment wrong). Steps show their ingredient icons and machine badge. HelloFresh imports keep their original step photos. **"Add photo" in cook mode** lets you photograph a step, and your photo replaces the default |
 
-- **How it works:** a `generate-images` Edge Function calls an image API (**OpenAI or Google**, chosen at the start of Phase 2), stores the result in Supabase Storage, and saves where each image came from. Regenerating a hero image is one tap ("try another").
+- **How it works:** a `generate-images` Edge Function calls **Google's Gemini image API** (key from Google AI Studio, stored only as the Edge Function secret `GOOGLE_AI_API_KEY`), stores the result in Supabase Storage, and saves where each image came from. Regenerating a hero image is one tap ("try another").
 - **Prompts** are built from the recipe title, its main ingredients and the house style, so a whole library looks like one set.
 - **Cost:** a few pence per image. Ingredient icons are a one-off; after the initial library, it's roughly one hero image per new recipe.
 - **Marking:** generated images get a small ✨ marker, so it's clear the dish might look a bit different in real life.
@@ -482,7 +482,7 @@ The app is usable from Phase 3 onwards; each phase after that adds automation.
 ## 12. Open questions and risks
 
 1. **Pantry gaps:** confirm the basics listed in §3.
-2. **Image provider:** OpenAI or Google, to be chosen at the start of Phase 2. You'll need an account and an API key for it.
+2. **Image provider: Google (decided).** The exact Gemini image model is confirmed at the start of Phase 2.
 3. **Boiled eggs:** served with sourdough toast or soldiers? (Assumed yes for now.)
 4. **Bowl sauce:** Greek yoghurt and lime, or chipotle yoghurt by default? (Chipotle paste is often ultra-processed. Dried chipotle chillies blended in the TM7 avoid that.)
 5. **Doner salt test:** the doner uses salt to bind the meat (2 tsp per kg). We'll try ¾ tsp, with the adults' portions seasoned at the table, and check the texture still holds the first time you make it.
