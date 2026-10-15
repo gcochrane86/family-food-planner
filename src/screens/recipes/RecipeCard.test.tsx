@@ -57,6 +57,21 @@ test('a recipe without a photo shows a placeholder, not a broken image', async (
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
 });
 
+test('"New photo" generates a hero image and shows it', async () => {
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'New photo ✨' }));
+  expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
+  expect(await screen.findByRole('img', { name: HONEY.title })).toHaveAttribute('src', 'https://img.test/h1/hero/r-honey-1.jpg');
+});
+
+test('a failed photo generation says so and keeps the placeholder', async () => {
+  h.repo.generateHero.mockRejectedValueOnce(new Error("Google couldn't make the image: quota"));
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'New photo ✨' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make a photo: Google couldn't make the image: quota");
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+});
+
 test('a recipe that does not exist says so', async () => {
   open('nope');
   expect(await screen.findByText("This recipe isn't in your library.")).toBeInTheDocument();

@@ -132,6 +132,17 @@ export const repo = {
     };
   },
 
+  /** Asks the generate-hero Edge Function for a new photo (about $0.034 each). Returns the new image path. */
+  async generateHero(recipeId: string): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-hero', { body: { recipeId } });
+    if (error) {
+      const context = (error as { context?: Response }).context;
+      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
+      throw new Error(detail ?? error.message);
+    }
+    return (data as { path: string }).path;
+  },
+
   heroUrl(path: string): string {
     return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
   },

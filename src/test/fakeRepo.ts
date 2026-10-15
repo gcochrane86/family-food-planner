@@ -32,6 +32,7 @@ export function fakeRepo() {
     listRecipes: vi.fn(async (): Promise<Recipe[]> => [HONEY, DONER, TACOS]),
     getRecipe: vi.fn(async (id: string): Promise<RecipeDetail | null> => ({ 'r-honey': HONEY, 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null),
     heroUrl: vi.fn((path: string) => `https://img.test/${path}`),
+    generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
     uploadStepPhoto: vi.fn(async (_hid: string, stepId: string) => `h1/steps/${stepId}.jpg`),
   };
 }

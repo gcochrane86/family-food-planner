@@ -46,11 +46,27 @@ function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: s
 export default function RecipeCard() {
   const { id = '' } = useParams();
   const { householdId } = useAuth();
-  const { data, error, loading, reload } = useAsync(async () => {
+  const { data, setData, error, loading, reload } = useAsync(async () => {
     const [recipe, members, staples] = await Promise.all([repo.getRecipe(id), repo.listMembers(householdId!), repo.listStaples(householdId!)]);
     return { recipe, members, staples };
   }, [id, householdId]);
   const [portions, setPortions] = useState<number | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function newPhoto() {
+    if (!data?.recipe) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const path = await repo.generateHero(data.recipe.id);
+      setData({ ...data, recipe: { ...data.recipe, hero_image_path: path, hero_image_source: 'generated' } });
+    } catch (e) {
+      setPhotoError(`Couldn't make a photo: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   if (error) return <div className="py-6"><ErrorBanner message={error} onRetry={reload} /></div>;
   if (loading || !data) return <p className="py-6 text-muted">Loading…</p>;
@@ -80,6 +96,10 @@ export default function RecipeCard() {
       <div className="flex items-center justify-between gap-3 print:hidden">
         <Link to="/recipes" className="text-sm font-semibold text-muted no-underline">← Recipes</Link>
         <div className="flex gap-2">
+          <button type="button" onClick={() => void newPhoto()} disabled={photoBusy}
+            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold disabled:opacity-60">
+            {photoBusy ? 'Making photo…' : 'New photo ✨'}
+          </button>
           <button type="button" onClick={() => window.print()} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Print</button>
           {finish.length > 0 && (
             <Link to={`/recipes/${recipe.id}/cook`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
@@ -87,7 +107,8 @@ export default function RecipeCard() {
         </div>
       </div>
 
-      <HeroImage recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
+      {photoError && <ErrorBanner message={photoError} />}
+      <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
