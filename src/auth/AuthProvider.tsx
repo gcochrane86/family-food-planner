@@ -36,7 +36,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sessionError) throw sessionError;
       setSession(data.session);
       if (data.session) {
-        const { data: rows, error: hhError } = await sb.from('household_users').select('household_id').limit(1);
+        const { data: rows, error: hhError } = await sb.from('household_users').select('household_id')
+          .order('created_at', { ascending: false }).limit(1);
         if (hhError) throw hhError;
         setHouseholdId(rows?.[0]?.household_id ?? null);
       } else {

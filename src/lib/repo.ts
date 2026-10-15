@@ -16,6 +16,13 @@ export const repo = {
     return must(await db().from('households').select('id, name, invite_code').eq('id', householdId).single());
   },
 
+  /** Leaves the current household for the one with this code. Returns null when no household has the code. */
+  async joinHousehold(code: string): Promise<string | null> {
+    const { data, error } = await getSupabase().rpc('join_household', { p_code: code });
+    if (error) throw new Error(error.message);
+    return (data as string | null) ?? null;
+  },
+
   async listMembers(householdId: string): Promise<Member[]> {
     const rows = must<Member[]>(await db().from('members').select('*').eq('household_id', householdId).order('kind').order('name'));
     return rows.map((m) => ({ ...m, portion_weight: Number(m.portion_weight) }));
@@ -83,6 +90,12 @@ export const repo = {
       await db().from('ingredients').upsert({ household_id: householdId, name: name.trim(), is_staple: true }, { onConflict: 'household_id,name' })
         .select('id, name').single(),
     );
+    // Already tracked: return it rather than adding a second tile.
+    const existing = must<{ id: string; staple_status: StapleStatus } | null>(
+      await db().from('pantry_items').select('id, staple_status').eq('household_id', householdId)
+        .eq('ingredient_id', ing.id).not('staple_status', 'is', null).maybeSingle(),
+    );
+    if (existing) return { id: existing.id, ingredient_id: ing.id, name: ing.name, status: existing.staple_status };
     const item = must<{ id: string }>(
       await db().from('pantry_items').insert({ household_id: householdId, ingredient_id: ing.id, staple_status: 'have' }).select('id').single(),
     );

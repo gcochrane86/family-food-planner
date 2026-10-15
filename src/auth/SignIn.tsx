@@ -20,7 +20,12 @@ export default function SignIn() {
     setError(null);
     const { error: e } = await getSupabase().auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
     setBusy(false);
-    if (e) { setError(`Couldn't send the code: ${e.message}`); return; }
+    if (e) {
+      setError(/rate limit/i.test(e.message)
+        ? 'Too many codes sent. Wait a few minutes, then try again.'
+        : `Couldn't send the code: ${e.message}`);
+      return;
+    }
     setCode('');
     setStage('code');
   }

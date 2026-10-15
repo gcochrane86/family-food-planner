@@ -6,9 +6,30 @@ import Household from './Household';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
-vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
+const auth = vi.hoisted(() => ({ refresh: vi.fn(async () => {}) }));
+vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1', refresh: auth.refresh }) }));
 
-beforeEach(() => { h.repo = fakeRepo(); });
+beforeEach(() => { h.repo = fakeRepo(); auth.refresh.mockClear(); });
+
+test('joining another household asks first, then switches', async () => {
+  render(<Household />, { wrapper: MemoryRouter });
+  await userEvent.click(await screen.findByRole('button', { name: 'Join another household' }));
+  expect(screen.getByText(/You'll leave this household/)).toBeInTheDocument();
+  await userEvent.type(screen.getByLabelText('Their invite code'), 'abcd234567');
+  await userEvent.click(screen.getByRole('button', { name: 'Leave and join' }));
+  expect(h.repo.joinHousehold).toHaveBeenCalledWith('ABCD234567');
+  expect(auth.refresh).toHaveBeenCalled();
+});
+
+test('a wrong code when switching households says so and stays put', async () => {
+  h.repo.joinHousehold.mockResolvedValueOnce(null);
+  render(<Household />, { wrapper: MemoryRouter });
+  await userEvent.click(await screen.findByRole('button', { name: 'Join another household' }));
+  await userEvent.type(screen.getByLabelText('Their invite code'), 'ABCD234567');
+  await userEvent.click(screen.getByRole('button', { name: 'Leave and join' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('No household has that code.');
+  expect(auth.refresh).not.toHaveBeenCalled();
+});
 
 test('shows the household total and the invite code', async () => {
   render(<Household />, { wrapper: MemoryRouter });

@@ -11,10 +11,11 @@ if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
 const anon = createClient(env.VITE_SUPABASE_URL, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 const tables = ['households', 'household_users', 'members', 'member_week_pattern', 'settings',
-  'house_rules', 'equipment', 'ingredients', 'pantry_items'];
+  'house_rules', 'equipment', 'ingredients', 'pantry_items', 'join_attempts'];
 let failed = false;
 for (const t of tables) {
   const { data, error } = await anon.from(t).select('*').limit(1);
+  if (error && /permission denied/i.test(error.message)) continue; // no access at all is the safest result
   if (error) { console.error(`${t}: error ${error.message}`); failed = true; continue; }
   if (data.length) { console.error(`${t}: LEAK, signed-out read returned rows`); failed = true; }
 }

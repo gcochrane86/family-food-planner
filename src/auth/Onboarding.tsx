@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getSupabase } from '../lib/supabase';
 import ErrorBanner from '../components/ErrorBanner';
 import { useAuth } from './AuthProvider';
+import { INVITE_LENGTH, joinErrorMessage, normaliseCode } from '../lib/invite';
 import { field, primaryButton, secondaryButton } from './SignIn';
 
 export default function Onboarding() {
@@ -22,9 +23,9 @@ export default function Onboarding() {
   async function join() {
     setBusy(true);
     setError(null);
-    const { error: e } = await getSupabase().rpc('join_household', { p_code: code.trim() });
+    const { data, error: e } = await getSupabase().rpc('join_household', { p_code: code });
     setBusy(false);
-    if (e) { setError(e.message.includes('invalid_code') ? 'No household has that code.' : `Couldn't join: ${e.message}`); return; }
+    if (e || !data) { setError(joinErrorMessage(e)); return; }
     await refresh();
   }
 
@@ -38,10 +39,10 @@ export default function Onboarding() {
       <form className="grid gap-3 rounded-2xl border border-line bg-surface p-4" onSubmit={(e) => { e.preventDefault(); void join(); }}>
         <label className="grid gap-1.5 font-semibold">
           I have a code
-          <input id="invite" autoCapitalize="characters" autoComplete="off" maxLength={6} value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())} className={`${field} font-mono tracking-[0.3em]`} />
+          <input id="invite" autoCapitalize="characters" autoComplete="off" value={code}
+            onChange={(e) => setCode(normaliseCode(e.target.value))} className={`${field} font-mono tracking-[0.2em]`} />
         </label>
-        <button type="submit" className={secondaryButton} disabled={busy || code.trim().length < 6}>Join</button>
+        <button type="submit" className={secondaryButton} disabled={busy || code.length < INVITE_LENGTH}>Join</button>
       </form>
       {error && <ErrorBanner message={error} />}
       <button type="button" className="text-sm text-muted underline" onClick={() => void signOut()}>Sign out</button>

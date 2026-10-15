@@ -3,10 +3,26 @@
 
 -- Households and who belongs to them ---------------------------------------
 
+-- 10 characters from 31 unambiguous ones (no 0/O, 1/I/L): about 8 × 10^14 codes.
+-- Only fully random bytes of the UUIDs are used (bytes 6 and 8 carry version bits).
+create function public.new_invite_code() returns text
+language plpgsql volatile set search_path = public as $$
+declare
+  alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  b bytea := uuid_send(gen_random_uuid());
+  code text := '';
+  i int;
+begin
+  foreach i in array array[0, 1, 2, 3, 4, 5, 7, 9, 10, 11] loop
+    code := code || substr(alphabet, get_byte(b, i) % 31 + 1, 1);
+  end loop;
+  return code;
+end $$;
+
 create table public.households (
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  invite_code text not null unique default upper(substr(md5(gen_random_uuid()::text), 1, 6)),
+  invite_code text not null unique default public.new_invite_code(),
   created_at timestamptz not null default now()
 );
 
@@ -88,6 +104,16 @@ create table public.pantry_items (
   location text not null default 'cupboard' check (location in ('fridge', 'freezer', 'cupboard'))
 );
 
+-- A staple (have / low / out) is tracked once per ingredient.
+create unique index pantry_items_one_staple on public.pantry_items (household_id, ingredient_id) where staple_status is not null;
+
+-- Wrong invite codes, so guessing can be limited. Only the join function reads or writes this.
+create table public.join_attempts (
+  user_id uuid not null,
+  at timestamptz not null default now()
+);
+create index join_attempts_user_at on public.join_attempts (user_id, at);
+
 -- Row-level security ---------------------------------------------------------
 
 alter table public.households enable row level security;
@@ -131,22 +157,43 @@ language plpgsql security definer set search_path = public as $$
 declare hid uuid;
 begin
   if auth.uid() is null then raise exception 'not_signed_in'; end if;
+  -- One household per person; switching is done by joining another one.
+  if exists (select 1 from public.household_users where user_id = auth.uid()) then raise exception 'already_member'; end if;
   insert into public.households (name) values (coalesce(nullif(trim(p_name), ''), 'Our household')) returning id into hid;
   insert into public.household_users (household_id, user_id) values (hid, auth.uid());
   insert into public.settings (household_id) values (hid);
   return hid;
 end $$;
 
+-- Returns the household ID, or null for a wrong code (no exception, so the failed attempt is kept).
+-- After 5 wrong codes in an hour, refuses every attempt for that user until the hour has passed.
+-- Joining leaves any previous household, and deletes it if nobody else is in it.
 create function public.join_household(p_code text) returns uuid
 language plpgsql security definer set search_path = public as $$
-declare hid uuid;
+declare
+  uid uuid := auth.uid();
+  hid uuid;
+  previous uuid[];
 begin
-  if auth.uid() is null then raise exception 'not_signed_in'; end if;
+  if uid is null then raise exception 'not_signed_in'; end if;
+  if (select count(*) from public.join_attempts where user_id = uid and at > now() - interval '1 hour') >= 5 then
+    raise exception 'too_many_attempts';
+  end if;
   select id into hid from public.households where invite_code = upper(trim(p_code));
-  if hid is null then raise exception 'invalid_code'; end if;
-  insert into public.household_users (household_id, user_id) values (hid, auth.uid()) on conflict do nothing;
+  if hid is null then
+    insert into public.join_attempts (user_id) values (uid);
+    return null;
+  end if;
+  select coalesce(array_agg(household_id), '{}') into previous from public.household_users where user_id = uid and household_id <> hid;
+  delete from public.household_users where user_id = uid and household_id <> hid;
+  delete from public.households h where h.id = any (previous)
+    and not exists (select 1 from public.household_users u where u.household_id = h.id);
+  insert into public.household_users (household_id, user_id) values (hid, uid) on conflict do nothing;
   return hid;
 end $$;
 
+alter table public.join_attempts enable row level security;
+revoke all on public.join_attempts from anon, authenticated;
+revoke execute on function public.new_invite_code() from public, anon, authenticated;
 revoke execute on function public.create_household(text), public.join_household(text), public.is_member(uuid) from public, anon;
 grant execute on function public.create_household(text), public.join_household(text), public.is_member(uuid) to authenticated;

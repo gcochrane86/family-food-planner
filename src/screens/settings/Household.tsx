@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions, parseWeight } from '../../lib/household';
+import { INVITE_LENGTH, joinErrorMessage, normaliseCode } from '../../lib/invite';
 import { repo } from '../../lib/repo';
 import type { Member, MemberKind } from '../../lib/types';
 import { button, card, copyText, input, Page, primary } from './ui';
@@ -12,7 +13,7 @@ export function formatPortions(n: number): string {
 }
 
 export default function Household() {
-  const { householdId } = useAuth();
+  const { householdId, refresh } = useAuth();
   const hid = householdId!;
   const { data, setData, error, loading, reload } = useAsync(
     async () => {
@@ -28,6 +29,19 @@ export default function Household() {
   const [copied, setCopied] = useState(false);
   const [newName, setNewName] = useState('');
   const [newKind, setNewKind] = useState<MemberKind>('adult');
+  const [switching, setSwitching] = useState(false);
+  const [switchCode, setSwitchCode] = useState('');
+
+  async function switchHousehold() {
+    setBanner(null);
+    try {
+      const joined = await repo.joinHousehold(switchCode);
+      if (!joined) { setBanner(joinErrorMessage(null)); return; }
+      await refresh();
+    } catch (e) {
+      setBanner(joinErrorMessage({ message: e instanceof Error ? e.message : String(e) }));
+    }
+  }
 
   const members = data?.members ?? [];
   const setMembers = (next: Member[]) => setData((d) => (d ? { ...d, members: next } : d));
@@ -135,12 +149,35 @@ export default function Household() {
           <p className="font-semibold">Invite your partner</p>
           <p className="text-sm text-muted">They sign in on their phone, tap “I have a code” and enter:</p>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="font-mono text-2xl tracking-[0.3em]">{data.household.invite_code}</span>
+            <span className="font-mono text-2xl tracking-[0.2em]">{data.household.invite_code}</span>
             <button type="button" className={button} onClick={async () => setCopied(await copyText(data.household.invite_code))}>
               {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
           <p className="mt-2 break-all text-xs text-muted">Household ID (for the seed script): <span className="select-all font-mono">{hid}</span></p>
+        </div>
+      )}
+
+      {data && (
+        <div className={`${card} grid gap-3 p-4`}>
+          {!switching ? (
+            <button type="button" className={`${button} justify-self-start`} onClick={() => setSwitching(true)}>Join another household</button>
+          ) : (
+            <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); void switchHousehold(); }}>
+              <p className="text-sm">
+                You'll leave this household and join theirs. If nobody else is in this one, it's deleted along with its settings.
+              </p>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Their invite code
+                <input id="switch-code" autoCapitalize="characters" autoComplete="off" className={`${input} font-mono tracking-[0.2em]`}
+                  value={switchCode} onChange={(e) => setSwitchCode(normaliseCode(e.target.value))} />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" className={primary} disabled={switchCode.length < INVITE_LENGTH}>Leave and join</button>
+                <button type="button" className={button} onClick={() => { setSwitching(false); setSwitchCode(''); }}>Cancel</button>
+              </div>
+            </form>
+          )}
         </div>
       )}
     </Page>

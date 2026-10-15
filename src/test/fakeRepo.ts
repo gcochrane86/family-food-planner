@@ -8,6 +8,7 @@ export const TODDLER: Member = { id: 'm-toddler', household_id: 'h1', name: 'Tod
 export function fakeRepo() {
   return {
     getHousehold: vi.fn(async () => ({ id: 'h1', name: 'Our household', invite_code: 'K7Q2XA' })),
+    joinHousehold: vi.fn(async (): Promise<string | null> => 'h2'),
     listMembers: vi.fn(async () => [YOU, PARTNER, TODDLER]),
     saveMember: vi.fn(async (m: Member) => m),
     deleteMember: vi.fn(async () => {}),

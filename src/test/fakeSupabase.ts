@@ -5,7 +5,10 @@ interface FakeOptions {
   /** household the user turns out to have after signing in */
   householdAfterSignIn?: string | null;
   verifyFails?: boolean;
-  joinError?: string;
+  /** what join_household does: 'ok' joins, 'wrong' returns null, anything else is an error message */
+  join?: 'ok' | 'wrong' | string;
+  /** error message from signInWithOtp, e.g. the email rate limit */
+  sendError?: string;
   unreachable?: boolean;
 }
 
@@ -20,7 +23,7 @@ export function fakeSupabase(opts: FakeOptions = {}) {
       getSession: vi.fn(async () =>
         unreachable ? { data: { session: null }, error: { message: 'Failed to fetch' } } : { data: { session }, error: null }),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: () => {} } } })),
-      signInWithOtp: vi.fn(async () => ({ error: null })),
+      signInWithOtp: vi.fn(async () => ({ error: opts.sendError ? { message: opts.sendError } : null })),
       verifyOtp: vi.fn(async () => {
         if (opts.verifyFails) return { data: { session: null }, error: { message: 'Token has expired or is invalid' } };
         session = { user: { id: 'u1' } };
@@ -31,14 +34,17 @@ export function fakeSupabase(opts: FakeOptions = {}) {
     },
     from: vi.fn(() => ({
       select: () => ({
-        limit: async () =>
-          unreachable
-            ? { data: null, error: { message: 'Failed to fetch' } }
-            : { data: householdId ? [{ household_id: householdId }] : [], error: null },
+        order: () => ({
+          limit: async () =>
+            unreachable
+              ? { data: null, error: { message: 'Failed to fetch' } }
+              : { data: householdId ? [{ household_id: householdId }] : [], error: null },
+        }),
       }),
     })),
     rpc: vi.fn(async (name: string) => {
-      if (name === 'join_household' && opts.joinError) return { data: null, error: { message: opts.joinError } };
+      if (name === 'join_household' && opts.join === 'wrong') return { data: null, error: null };
+      if (name === 'join_household' && opts.join && opts.join !== 'ok') return { data: null, error: { message: opts.join } };
       householdId = 'h1';
       return { data: 'h1', error: null };
     }),

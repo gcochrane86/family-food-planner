@@ -31,11 +31,20 @@ test('signed in without household shows create and join', async () => {
 });
 
 test('join with bad code shows message', async () => {
-  h.client = fakeSupabase({ signedIn: true, householdId: null, joinError: 'invalid_code' });
+  h.client = fakeSupabase({ signedIn: true, householdId: null, join: 'wrong' });
   renderAt('/week');
-  await userEvent.type(await screen.findByLabelText('I have a code'), 'ABC123');
+  await userEvent.type(await screen.findByLabelText('I have a code'), 'abcd234567');
   await userEvent.click(screen.getByRole('button', { name: 'Join' }));
+  expect(h.client.rpc).toHaveBeenCalledWith('join_household', { p_code: 'ABCD234567' });
   expect(await screen.findByRole('alert')).toHaveTextContent('No household has that code.');
+});
+
+test('too many wrong codes says to wait', async () => {
+  h.client = fakeSupabase({ signedIn: true, householdId: null, join: 'too_many_attempts' });
+  renderAt('/week');
+  await userEvent.type(await screen.findByLabelText('I have a code'), 'ABCD234567');
+  await userEvent.click(screen.getByRole('button', { name: 'Join' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Too many wrong codes. Try again in an hour.');
 });
 
 test('creating a household shows the app', async () => {

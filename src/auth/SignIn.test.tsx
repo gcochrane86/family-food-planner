@@ -23,6 +23,14 @@ test('sends a code then verifies it', async () => {
   expect(h.client.auth.verifyOtp).toHaveBeenCalledWith({ email: 'me@example.com', token: '123456', type: 'email' });
 });
 
+test('hitting the email limit says to wait', async () => {
+  h.client = fakeSupabase({ sendError: 'email rate limit exceeded' });
+  renderSignIn();
+  await userEvent.type(await screen.findByLabelText('Email'), 'me@example.com');
+  await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Too many codes sent. Wait a few minutes, then try again.');
+});
+
 test('wrong code shows message and keeps email', async () => {
   h.client = fakeSupabase({ verifyFails: true });
   renderSignIn();
