@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+
+# Secrets and personal data never go in the repo
+.env
+.env.*
+!.env.example
+seed/private/
+supabase/.temp/
