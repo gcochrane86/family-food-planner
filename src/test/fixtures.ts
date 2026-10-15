@@ -16,9 +16,9 @@ export const HONEY: RecipeDetail = {
     { position: 2, group_name: 'The carb', name: 'basmati rice', qty: 400, unit: 'g', note: null, qty_approx: false },
   ],
   steps: [
-    { phase: 'prep_8pm', position: 1, at_minute: null, title: 'The bulk sauce', body: 'Chop the **garlic** and reduce.', machine: 'tm7', settings: '12 min · Varoma · speed 2', timer_minutes: 12, image_path: null },
-    { phase: 'finish', position: 1, at_minute: 0, title: 'Rice on', body: 'Rinse the **rice** and start.', machine: 'tm7', settings: '20 min · 100°C · speed 4', timer_minutes: 20, image_path: null },
-    { phase: 'finish', position: 2, at_minute: 20, title: 'Final toss', body: 'Toss with the warm **sauce**.', machine: null, settings: null, timer_minutes: null, image_path: null },
+    { id: 's-sauce', phase: 'prep_8pm', position: 1, at_minute: null, title: 'The bulk sauce', body: 'Chop the **garlic** and reduce.', machine: 'tm7', settings: '12 min · Varoma · speed 2', timer_minutes: 12, image_path: null },
+    { id: 's-rice', phase: 'finish', position: 1, at_minute: 0, title: 'Rice on', body: 'Rinse the **rice** and start.', machine: 'tm7', settings: '20 min · 100°C · speed 4', timer_minutes: 20, image_path: null },
+    { id: 's-toss', phase: 'finish', position: 2, at_minute: 20, title: 'Final toss', body: 'Toss with the warm **sauce**.', machine: null, settings: null, timer_minutes: null, image_path: null },
   ],
 };
 
