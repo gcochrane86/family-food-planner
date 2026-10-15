@@ -3,6 +3,13 @@ import { AuthProvider } from './auth/AuthProvider';
 import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
 import Placeholder from './screens/Placeholder';
+import Household from './screens/settings/Household';
+import HouseRules from './screens/settings/HouseRules';
+import Kitchen from './screens/settings/Kitchen';
+import SettingsHome from './screens/settings/SettingsHome';
+import Shopping from './screens/settings/Shopping';
+import Staples from './screens/settings/Staples';
+import WeekPattern from './screens/settings/WeekPattern';
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -30,7 +37,15 @@ export function AppRoutes() {
       <Route path="/recipes" element={<Placeholder title="Recipes" phase={2} />} />
       <Route path="/pantry" element={<Placeholder title="Pantry" phase={3} />} />
       <Route path="/shop" element={<Placeholder title="Shop" phase={3} />} />
-      <Route path="/settings/*" element={<Placeholder title="Settings" phase={1} />} />
+      <Route path="/settings">
+        <Route index element={<SettingsHome />} />
+        <Route path="household" element={<Household />} />
+        <Route path="week" element={<WeekPattern />} />
+        <Route path="kitchen" element={<Kitchen />} />
+        <Route path="rules" element={<HouseRules />} />
+        <Route path="shopping" element={<Shopping />} />
+        <Route path="staples" element={<Staples />} />
+      </Route>
       <Route path="*" element={<Navigate to="/week" replace />} />
     </Routes>
   );
