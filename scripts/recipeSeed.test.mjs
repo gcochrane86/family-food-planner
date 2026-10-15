@@ -1,0 +1,53 @@
+// @vitest-environment node
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { validateRecipeSeed } from './recipeSeed.mjs';
+
+const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
+const example = read('seed/recipes.example.json');
+const clone = () => JSON.parse(JSON.stringify(example));
+
+test('the example recipe file is valid', () => {
+  expect(validateRecipeSeed(example)).toEqual([]);
+});
+
+test('your private recipe files are valid (when present)', () => {
+  const dir = 'seed/private/recipes';
+  if (!existsSync(dir)) return;
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.json'))) {
+    expect({ file: f, problems: validateRecipeSeed(read(`${dir}/${f}`)) }).toEqual({ file: f, problems: [] });
+  }
+});
+
+test('a missing title, bad phase and unknown machine are reported', () => {
+  const s = clone();
+  delete s.recipes[0].title;
+  s.recipes[0].steps[0].phase = 'lunch';
+  s.recipes[0].steps[0].machine = 'toaster';
+  expect(validateRecipeSeed(s)).toEqual(expect.arrayContaining([
+    'recipes[0].title missing',
+    'recipes[0].steps[0].phase must be prep_8pm, finish or reheat',
+    'recipes[0].steps[0].machine must be one of tm7, apo, hy24, meater, hob, oven, kettle',
+  ]));
+});
+
+test('slugs must be unique and kebab-case', () => {
+  const s = clone();
+  s.recipes.push({ ...s.recipes[0] });
+  s.recipes[0].slug = 'Bad Slug';
+  expect(validateRecipeSeed(s)).toEqual(expect.arrayContaining([
+    'recipes[0].slug must be lower-case-with-dashes',
+  ]));
+  const t = clone();
+  t.recipes.push({ ...t.recipes[0] });
+  expect(validateRecipeSeed(t)).toContain(`recipes[1].slug "${t.recipes[0].slug}" is used twice`);
+});
+
+test('ingredient quantities must be numbers or null', () => {
+  const s = clone();
+  s.recipes[0].ingredients[0].qty = 'lots';
+  expect(validateRecipeSeed(s)).toContain('recipes[0].ingredients[0].qty must be a number or null');
+});
+
+test('a file that is not { recipes: [...] } is rejected', () => {
+  expect(validateRecipeSeed([])).toEqual(['file must be an object with a "recipes" list']);
+});

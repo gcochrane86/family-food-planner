@@ -1,0 +1,34 @@
+{
+  "recipes": [
+    {
+      "slug": "example-tomato-sauce",
+      "title": "Example Tomato Sauce",
+      "subtitle": "a generic example of the recipe file format",
+      "kind": "component",
+      "component_role": "sauce",
+      "source": "claude",
+      "base_portions": 6,
+      "reheats_well": true,
+      "freezes_well": true,
+      "toddler_ok": true,
+      "toddler_note": null,
+      "salt_per_portion_g": 0.3,
+      "prep_minutes": 0,
+      "finish_minutes": 25,
+      "hands_off_minutes": 20,
+      "tags": ["Sauce"],
+      "equipment": ["tm7"],
+      "reheat": "Reheat in a pan until bubbling.",
+      "status": "draft",
+      "ingredients": [
+        { "group": "The sauce", "name": "onion", "qty": 1, "unit": "" },
+        { "group": "The sauce", "name": "tinned tomatoes", "qty": 800, "unit": "g", "note": "2 tins" },
+        { "group": "The sauce", "name": "olive oil", "qty": 1, "unit": "tbsp" }
+      ],
+      "steps": [
+        { "phase": "finish", "at": 0, "title": "Chop", "body": "Chop the **onion**.", "machine": "tm7", "settings": "5 sec · speed 5" },
+        { "phase": "finish", "at": 2, "title": "Cook", "body": "Add the **oil** and **tomatoes** and cook.", "machine": "tm7", "settings": "20 min · 100°C · speed 1", "timer": 20 }
+      ]
+    }
+  ]
+}
