@@ -1,10 +1,12 @@
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './auth/AuthProvider';
+import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
 import Placeholder from './screens/Placeholder';
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="gutter mx-auto max-w-5xl pb-28">
+    <div className="mx-auto max-w-5xl pb-28">
       <header
         className="sticky z-10 flex items-center justify-between bg-bg py-3"
         style={{ top: 'env(safe-area-inset-top, 0px)' }}
@@ -37,9 +39,15 @@ export function AppRoutes() {
 export default function App() {
   return (
     <HashRouter>
-      <Shell>
-        <AppRoutes />
-      </Shell>
+      <AuthProvider>
+        <div className="gutter">
+          <RequireHousehold>
+            <Shell>
+              <AppRoutes />
+            </Shell>
+          </RequireHousehold>
+        </div>
+      </AuthProvider>
     </HashRouter>
   );
 }

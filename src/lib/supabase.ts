@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 export class MissingConfigError extends Error {
   constructor() {
     super('The app is missing its Supabase settings (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+    this.name = 'MissingConfigError';
   }
 }
 
