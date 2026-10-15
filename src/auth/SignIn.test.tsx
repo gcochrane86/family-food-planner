@@ -7,40 +7,44 @@ import SignIn from './SignIn';
 const h = vi.hoisted(() => ({ client: null as unknown as FakeSupabase }));
 vi.mock('../lib/supabase', () => ({ getSupabase: () => h.client }));
 
-function renderSignIn() {
-  return render(<AuthProvider><SignIn /></AuthProvider>);
+async function signIn(email: string, password: string) {
+  render(<AuthProvider><SignIn /></AuthProvider>);
+  await userEvent.type(await screen.findByLabelText('Email'), email);
+  await userEvent.type(screen.getByLabelText('Password'), password);
+  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 }
 
-test('sends a code then verifies it', async () => {
+test('signs in with email and password', async () => {
   h.client = fakeSupabase();
-  renderSignIn();
-  await userEvent.type(await screen.findByLabelText('Email'), 'me@example.com');
-  await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
-  expect(h.client.auth.signInWithOtp).toHaveBeenCalledWith({ email: 'me@example.com', options: { shouldCreateUser: true } });
-
-  await userEvent.type(await screen.findByLabelText('6-digit code'), '123456');
-  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
-  expect(h.client.auth.verifyOtp).toHaveBeenCalledWith({ email: 'me@example.com', token: '123456', type: 'email' });
+  await signIn(' me@example.com ', 'correct horse');
+  expect(h.client.auth.signInWithPassword).toHaveBeenCalledWith({ email: 'me@example.com', password: 'correct horse' });
+  expect(h.client.auth.signInWithOtp).not.toHaveBeenCalled();
 });
 
-test('hitting the email limit says to wait', async () => {
-  h.client = fakeSupabase({ sendError: 'email rate limit exceeded' });
-  renderSignIn();
-  await userEvent.type(await screen.findByLabelText('Email'), 'me@example.com');
-  await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('Too many codes sent. Wait a few minutes, then try again.');
+test('fields are set up for password managers', async () => {
+  h.client = fakeSupabase();
+  render(<AuthProvider><SignIn /></AuthProvider>);
+  expect(await screen.findByLabelText('Email')).toHaveAttribute('autocomplete', 'username');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password');
+  expect(screen.getByLabelText('Password')).toHaveAttribute('autocomplete', 'current-password');
 });
 
-test('wrong code shows message and keeps email', async () => {
-  h.client = fakeSupabase({ verifyFails: true });
-  renderSignIn();
-  await userEvent.type(await screen.findByLabelText('Email'), 'me@example.com');
-  await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
-  await userEvent.type(await screen.findByLabelText('6-digit code'), '000000');
-  await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+test('wrong password shows a message and keeps the email', async () => {
+  h.client = fakeSupabase({ passwordError: 'Invalid login credentials' });
+  await signIn('me@example.com', 'wrong');
+  expect(await screen.findByRole('alert')).toHaveTextContent("That email and password don't match. Check them and try again.");
+  expect(screen.getByLabelText('Email')).toHaveValue('me@example.com');
+});
 
-  expect(await screen.findByRole('alert')).toHaveTextContent("That code didn't work. Check it or send a new one.");
-  expect(screen.getByText('me@example.com')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Send a new code' }));
-  expect(h.client.auth.signInWithOtp).toHaveBeenCalledTimes(2);
+test('no connection says so instead of blaming the password', async () => {
+  h.client = fakeSupabase({ passwordError: 'Failed to fetch' });
+  await signIn('me@example.com', 'correct horse');
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't reach the server. Check your connection and try again.");
+});
+
+test('there is no way to sign up from the app', async () => {
+  h.client = fakeSupabase();
+  render(<AuthProvider><SignIn /></AuthProvider>);
+  await screen.findByLabelText('Email');
+  expect(screen.queryByRole('button', { name: /sign up|create account|send code/i })).not.toBeInTheDocument();
 });

@@ -3,7 +3,7 @@ import { getSupabase } from '../lib/supabase';
 import ErrorBanner from '../components/ErrorBanner';
 import { useAuth } from './AuthProvider';
 import { INVITE_LENGTH, joinErrorMessage, normaliseCode } from '../lib/invite';
-import { field, primaryButton, secondaryButton } from './SignIn';
+import { field, primaryButton, secondaryButton } from './styles';
 
 export default function Onboarding() {
   const { refresh, signOut } = useAuth();

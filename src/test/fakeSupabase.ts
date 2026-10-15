@@ -5,6 +5,8 @@ interface FakeOptions {
   /** household the user turns out to have after signing in */
   householdAfterSignIn?: string | null;
   verifyFails?: boolean;
+  /** error message from signInWithPassword, e.g. 'Invalid login credentials' */
+  passwordError?: string;
   /** what join_household does: 'ok' joins, 'wrong' returns null, anything else is an error message */
   join?: 'ok' | 'wrong' | string;
   /** error message from signInWithOtp, e.g. the email rate limit */
@@ -26,6 +28,12 @@ export function fakeSupabase(opts: FakeOptions = {}) {
       signInWithOtp: vi.fn(async () => ({ error: opts.sendError ? { message: opts.sendError } : null })),
       verifyOtp: vi.fn(async () => {
         if (opts.verifyFails) return { data: { session: null }, error: { message: 'Token has expired or is invalid' } };
+        session = { user: { id: 'u1' } };
+        if (opts.householdAfterSignIn !== undefined) householdId = opts.householdAfterSignIn;
+        return { data: { session }, error: null };
+      }),
+      signInWithPassword: vi.fn(async () => {
+        if (opts.passwordError) return { data: { session: null }, error: { message: opts.passwordError } };
         session = { user: { id: 'u1' } };
         if (opts.householdAfterSignIn !== undefined) householdId = opts.householdAfterSignIn;
         return { data: { session }, error: null };

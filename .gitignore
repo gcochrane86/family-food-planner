@@ -9,3 +9,4 @@ dist/
 seed/private/
 supabase/.temp/
 *.tsbuildinfo
+.claude/

@@ -59,8 +59,7 @@ test('returns to requested route after sign in', async () => {
   h.client = fakeSupabase({ signedIn: false, householdAfterSignIn: 'h1' });
   renderAt('/settings');
   await userEvent.type(await screen.findByLabelText('Email'), 'me@example.com');
-  await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
-  await userEvent.type(await screen.findByLabelText('6-digit code'), '123456');
+  await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
   await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
   expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
 });
