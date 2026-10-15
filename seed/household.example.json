@@ -1,0 +1,30 @@
+{
+  "members": [
+    { "name": "Adult 1", "kind": "adult", "portion_weight": 1.25 },
+    { "name": "Adult 2", "kind": "adult", "portion_weight": 1.25 },
+    { "name": "Child", "kind": "child", "portion_weight": 0.5 }
+  ],
+  "office_days": [
+    { "member": "Adult 1", "weekday": 0 }
+  ],
+  "settings": {
+    "weekday_dinner_max_min": 30,
+    "default_plan_days": 7,
+    "shops_per_week": 2,
+    "delivery_slots": [
+      { "day": "sun", "start": "19:00", "end": "20:00" },
+      { "day": "tue", "start": "19:00", "end": "20:00" }
+    ],
+    "delivery_pass": false,
+    "use_nectar": false,
+    "adventure": 1
+  },
+  "equipment": [
+    { "code": "oven", "name": "Oven" },
+    { "code": "hob", "name": "Hob" }
+  ],
+  "house_rules": [
+    { "kind": "substitute", "match": "Shop-bought wraps", "replacement": "Homemade flatbreads", "note": null }
+  ],
+  "staples": ["Olive oil", "Sea salt"]
+}
