@@ -47,6 +47,25 @@ test('a comma weight saves and updates the total', async () => {
   expect(await screen.findByText('Household dinner = 3.25 portions')).toBeInTheDocument();
 });
 
+test('renaming a person saves the new name', async () => {
+  render(<Household />, { wrapper: MemoryRouter });
+  const name = await screen.findByLabelText('Toddler name');
+  await userEvent.clear(name);
+  await userEvent.type(name, ' Ellie ');
+  await userEvent.tab();
+  expect(h.repo.saveMember).toHaveBeenCalledWith({ ...TODDLER, name: 'Ellie' });
+  expect(await screen.findByLabelText('Ellie portion weight')).toBeInTheDocument();
+});
+
+test('an empty name is not saved', async () => {
+  render(<Household />, { wrapper: MemoryRouter });
+  const name = await screen.findByLabelText('Toddler name');
+  await userEvent.clear(name);
+  await userEvent.tab();
+  expect(screen.getByText('Enter a name')).toBeInTheDocument();
+  expect(h.repo.saveMember).not.toHaveBeenCalled();
+});
+
 test('zero is rejected and not saved', async () => {
   render(<Household />, { wrapper: MemoryRouter });
   const input = await screen.findByLabelText('Toddler portion weight');

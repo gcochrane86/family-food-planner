@@ -24,6 +24,8 @@ export default function Household() {
   );
   const [text, setText] = useState<Record<string, string>>({});
   const [fieldError, setFieldError] = useState<Record<string, string>>({});
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [nameError, setNameError] = useState<Record<string, string>>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -66,6 +68,25 @@ export default function Household() {
     }
   }
 
+  async function commitName(m: Member) {
+    const name = (names[m.id] ?? m.name).trim();
+    if (!name) { setNameError((e) => ({ ...e, [m.id]: 'Enter a name' })); return; }
+    setNameError((e) => ({ ...e, [m.id]: '' }));
+    setNames((n) => ({ ...n, [m.id]: name }));
+    if (name === m.name) return;
+    const before = members;
+    const updated = { ...m, name };
+    setMembers(members.map((x) => (x.id === m.id ? updated : x)));
+    setBanner(null);
+    try {
+      await repo.saveMember(updated);
+    } catch {
+      setMembers(before);
+      setNames((n) => ({ ...n, [m.id]: m.name }));
+      setBanner(SAVE_ERROR);
+    }
+  }
+
   async function addMember() {
     setBanner(null);
     try {
@@ -99,9 +120,12 @@ export default function Household() {
         {members.map((m) => (
           <li key={m.id} className="grid gap-2 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-semibold">{m.name}</p>
-                <p className="text-sm text-muted">{m.kind === 'adult' ? 'Adult' : 'Child'}</p>
+              <div className="min-w-0 flex-1">
+                <input id={`name-${m.id}`} aria-label={`${m.name} name`} autoComplete="off"
+                  className={`${input} max-w-[16rem] font-semibold`} value={names[m.id] ?? m.name}
+                  onChange={(e) => setNames((n) => ({ ...n, [m.id]: e.target.value }))}
+                  onBlur={() => void commitName(m)} />
+                <p className="mt-1 text-sm text-muted">{m.kind === 'adult' ? 'Adult' : 'Child'}</p>
               </div>
               <span className="flex items-center gap-2 text-sm text-muted">
                 <input id={`weight-${m.id}`} aria-label={`${m.name} portion weight`} inputMode="decimal"
@@ -112,6 +136,7 @@ export default function Household() {
               </span>
             </div>
             {fieldError[m.id] && <p className="text-sm font-semibold text-warn">{fieldError[m.id]}</p>}
+            {nameError[m.id] && <p className="text-sm font-semibold text-warn">{nameError[m.id]}</p>}
             <div>
               {confirmRemove === m.id ? (
                 <span className="flex flex-wrap gap-2">
