@@ -1,4 +1,5 @@
-import type { Member, Staple } from '../lib/types';
+import type { Member, Recipe, RecipeDetail, Staple } from '../lib/types';
+import { DONER, HONEY, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
 export const PARTNER: Member = { id: 'm-partner', household_id: 'h1', name: 'Partner', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -28,6 +29,10 @@ export function fakeRepo() {
     ]),
     setStaple: vi.fn(async () => {}),
     addStaple: vi.fn(),
+    listRecipes: vi.fn(async (): Promise<Recipe[]> => [HONEY, DONER, TACOS]),
+    getRecipe: vi.fn(async (id: string): Promise<RecipeDetail | null> => ({ 'r-honey': HONEY, 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null),
+    heroUrl: vi.fn((path: string) => `https://img.test/${path}`),
+    uploadStepPhoto: vi.fn(async (_hid: string, stepId: string) => `h1/steps/${stepId}.jpg`),
   };
 }
 export type FakeRepo = ReturnType<typeof fakeRepo>;

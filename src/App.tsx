@@ -3,6 +3,8 @@ import { AuthProvider } from './auth/AuthProvider';
 import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
 import Placeholder from './screens/Placeholder';
+import RecipeCard from './screens/recipes/RecipeCard';
+import RecipeLibrary from './screens/recipes/RecipeLibrary';
 import Household from './screens/settings/Household';
 import HouseRules from './screens/settings/HouseRules';
 import Kitchen from './screens/settings/Kitchen';
@@ -15,7 +17,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto max-w-5xl pb-28">
       <header
-        className="sticky z-10 flex items-center justify-between bg-bg py-3"
+        className="sticky z-10 flex items-center justify-between bg-bg py-3 print:hidden"
         style={{ top: 'env(safe-area-inset-top, 0px)' }}
       >
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">Family Food Planner</span>
@@ -34,7 +36,8 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/week" replace />} />
       <Route path="/week" element={<Placeholder title="Week" phase={3} />} />
-      <Route path="/recipes" element={<Placeholder title="Recipes" phase={2} />} />
+      <Route path="/recipes" element={<RecipeLibrary />} />
+      <Route path="/recipes/:id" element={<RecipeCard />} />
       <Route path="/pantry" element={<Placeholder title="Pantry" phase={3} />} />
       <Route path="/shop" element={<Placeholder title="Shop" phase={3} />} />
       <Route path="/settings">

@@ -11,7 +11,7 @@ export default function BottomNav() {
   return (
     <nav
       aria-label="Main"
-      className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pt-1.5"
+      className="gutter fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pt-1.5 print:hidden"
       style={{ paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="mx-auto grid max-w-xl grid-cols-4">

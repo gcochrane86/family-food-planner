@@ -1,6 +1,8 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
-import type { Equipment, Household, HouseRule, Member, Settings, Staple, StapleStatus, WeekPattern } from './types';
+import type {
+  Equipment, Household, HouseRule, Member, Recipe, RecipeDetail, RecipeIngredient, RecipeStep, Settings, Staple, StapleStatus, WeekPattern,
+} from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
@@ -10,6 +12,12 @@ function must<T>({ data, error }: Result<T>): T {
 }
 
 const db = () => getSupabase();
+
+const toRecipe = (r: Recipe): Recipe => ({
+  ...r,
+  base_portions: Number(r.base_portions),
+  salt_per_portion_g: r.salt_per_portion_g === null ? null : Number(r.salt_per_portion_g),
+});
 
 export const repo = {
   async getHousehold(householdId: string): Promise<Household> {
@@ -100,6 +108,41 @@ export const repo = {
       await db().from('pantry_items').insert({ household_id: householdId, ingredient_id: ing.id, staple_status: 'have' }).select('id').single(),
     );
     return { id: item.id, ingredient_id: ing.id, name: ing.name, status: 'have' };
+  },
+
+  async listRecipes(householdId: string): Promise<Recipe[]> {
+    const rows = must<Recipe[]>(await db().from('recipes').select('*')
+      .eq('household_id', householdId).neq('status', 'archived').order('title'));
+    return rows.map(toRecipe);
+  },
+
+  /** A recipe with its ingredients and steps, or null when it isn't in the household's library. */
+  async getRecipe(id: string): Promise<RecipeDetail | null> {
+    const recipe = must<Recipe | null>(await db().from('recipes').select('*').eq('id', id).maybeSingle());
+    if (!recipe) return null;
+    const [ingredients, steps] = await Promise.all([
+      db().from('recipe_ingredients').select('id, position, group_name, name, qty, unit, note, qty_approx').eq('recipe_id', id).order('position'),
+      db().from('recipe_steps').select('id, phase, position, at_minute, title, body, machine, settings, timer_minutes, image_path')
+        .eq('recipe_id', id).order('phase').order('position'),
+    ]);
+    return {
+      ...toRecipe(recipe),
+      ingredients: must<RecipeIngredient[]>(ingredients).map((i) => ({ ...i, qty: i.qty === null ? null : Number(i.qty) })),
+      steps: must<RecipeStep[]>(steps),
+    };
+  },
+
+  heroUrl(path: string): string {
+    return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
+  },
+
+  /** Saves a photo for a step (replacing any earlier one) and returns its storage path. */
+  async uploadStepPhoto(householdId: string, stepId: string, photo: Blob): Promise<string> {
+    const path = `${householdId}/steps/${stepId}.jpg`;
+    const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw new Error(error.message);
+    must(await db().from('recipe_steps').update({ image_path: path }).eq('id', stepId));
+    return path;
   },
 };
 export type Repo = typeof repo;
