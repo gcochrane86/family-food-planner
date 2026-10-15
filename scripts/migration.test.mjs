@@ -23,7 +23,17 @@ beforeEach(async () => {
     create function auth.uid() returns uuid language sql stable
       as $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
     grant usage on schema public, auth to anon, authenticated;
-    grant execute on function auth.uid() to anon, authenticated;`);
+    grant execute on function auth.uid() to anon, authenticated;
+    -- Stand-in for Supabase Storage's tables (RLS is on there by default).
+    create schema storage;
+    create table storage.buckets (id text primary key, name text, public boolean default false);
+    create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid);
+    create function storage.foldername(name text) returns text[] language sql immutable
+      as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon, authenticated;
+    grant all on storage.objects, storage.buckets to anon, authenticated;
+    grant execute on function storage.foldername(text) to anon, authenticated;`);
   for (const f of readdirSync('supabase/migrations').sort()) await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
   // Supabase grants table privileges to these roles by default; RLS is what limits rows.
   await db.exec(`grant all on all tables in schema public to anon, authenticated;
@@ -90,4 +100,55 @@ test('portion weights outside 0.1–3 are rejected', async () => {
   const hid = await one(OWNER, `select create_household('Home')`);
   expect(await fails(OWNER, `insert into members (household_id, name, kind, portion_weight) values ('${hid}', 'Big', 'adult', 5)`))
     .toMatch(/check constraint/);
+});
+
+// Phase 2: recipes and images ------------------------------------------------
+
+async function recipeFor(uid, slug = 'honey-chilli') {
+  const hid = await one(uid, `select create_household('Home')`);
+  const rid = await one(uid, `insert into recipes (household_id, slug, title, kind, source, base_portions)
+    values ('${hid}', '${slug}', 'Honey chilli chicken', 'meal', 'own_doc', 6) returning id`);
+  return { hid, rid };
+}
+
+test("a stranger cannot read another household's recipes, ingredients or steps", async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_ingredients (recipe_id, position, name, qty, unit) values ('${rid}', 1, 'chicken', 1200, 'g')`);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body) values ('${rid}', 'finish', 1, 'Rice on', 'Rinse the rice')`);
+  expect(await as(OWNER, 'select * from recipe_steps')).toHaveLength(1);
+  for (const t of ['recipes', 'recipe_ingredients', 'recipe_steps']) expect(await as(STRANGER, `select * from ${t}`)).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into recipe_steps (recipe_id, phase, position, title, body) values ('${rid}', 'finish', 2, 'x', 'x')`))
+    .toMatch(/row-level security/);
+});
+
+test('a slug is unique within a household', async () => {
+  const { hid } = await recipeFor(OWNER);
+  expect(await fails(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions)
+    values ('${hid}', 'honey-chilli', 'Again', 'meal', 'own_doc', 6)`)).toMatch(/duplicate key/);
+});
+
+test('deleting a recipe removes its ingredients and steps', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_ingredients (recipe_id, position, name) values ('${rid}', 1, 'rice')`);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body) values ('${rid}', 'prep_8pm', 1, 't', 'b')`);
+  await as(OWNER, `delete from recipes where id = '${rid}'`);
+  expect(await as(OWNER, 'select * from recipe_ingredients')).toHaveLength(0);
+  expect(await as(OWNER, 'select * from recipe_steps')).toHaveLength(0);
+});
+
+test('a bad step phase or machine is rejected', async () => {
+  const { rid } = await recipeFor(OWNER);
+  expect(await fails(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body) values ('${rid}', 'lunch', 1, 't', 'b')`))
+    .toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, machine) values ('${rid}', 'finish', 1, 't', 'b', 'toaster')`))
+    .toMatch(/check constraint/);
+});
+
+test('images can only be saved into your own household folder', async () => {
+  const { hid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into storage.objects (bucket_id, name) values ('recipe-images', '${hid}/hero/x.jpg')`);
+  expect(await fails(STRANGER, `insert into storage.objects (bucket_id, name) values ('recipe-images', '${hid}/hero/y.jpg')`))
+    .toMatch(/row-level security/);
+  await db.exec('reset role');
+  expect((await db.query(`select public from storage.buckets where id = 'recipe-images'`)).rows[0].public).toBe(true);
 });

@@ -11,7 +11,7 @@ if (!env.VITE_SUPABASE_URL || !env.VITE_SUPABASE_ANON_KEY) {
 const anon = createClient(new URL(env.VITE_SUPABASE_URL.trim()).origin, env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 
 const tables = ['households', 'household_users', 'members', 'member_week_pattern', 'settings',
-  'house_rules', 'equipment', 'ingredients', 'pantry_items', 'join_attempts'];
+  'house_rules', 'equipment', 'ingredients', 'pantry_items', 'join_attempts', 'recipes', 'recipe_ingredients', 'recipe_steps'];
 let failed = false;
 for (const t of tables) {
   const { data, error } = await anon.from(t).select('*').limit(1);
