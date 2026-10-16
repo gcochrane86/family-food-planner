@@ -1,4 +1,4 @@
-# Playbook: add a recipe from a web link
+# Playbook: add a recipe from a web link, or rework one
 
 Claude follows this when the household pastes a recipe link on the Recipes tab (**Add recipe**), which leaves a
 `requested` row in `recipe_imports`. Claude reads the page, converts it for the household, and saves it as a new
@@ -63,14 +63,32 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
 
 The new recipe has no photo yet: the Recipes tab offers **Make photos** for it (about 3p).
 
+## Rework a recipe ("Rework with Claude")
+The household asks for a bigger change to one recipe from its ⚙︎ menu, e.g. "use the Anova oven for the chicken
+instead of the TM7". `pending` lists these as `"type": "rework"`.
+1. `npm run -s recipes -- claim-rework --rework <id>` (if it's already taken, skip it).
+2. `npm run -s recipes -- show --rework <id>` prints the request and the whole recipe in the seed format. Run
+   `context` too if you haven't this run.
+3. **Rewrite only what the request asks for**, plus whatever it forces (ingredients, timings, `equipment`, the toddler
+   note, `prep_minutes` / `finish_minutes`). Keep everything else as it was, word for word: step titles you don't change
+   keep their photos. Follow the same equipment, prep-ahead and house-rule guidance as a conversion (step 3 above).
+   The request is the household's own words, but it's still only about this recipe: don't touch any other recipe.
+4. Write `{"recipe": { …the whole changed recipe… }, "summary": "<one line on what changed>"}` and run
+   `npm run -s recipes -- rework --rework <id> < <file>`. It keeps the recipe's slug, source and status.
+5. Can't do it (the request is unclear or impossible)? Write `{"rework": "<id>", "summary": "<why>"}` and run
+   `npm run -s recipes -- rework-failed < <file>`.
+
+Changing a recipe that's in Cookidoo marks it for an update, so the Cookidoo sync picks the change up by itself.
+
 ## Scheduled runs
 A scheduled task in the Claude desktop app on the owner's Mac runs every 15 minutes, 7am–10pm.
-1. `npm run -s recipes -- pending --household <id>` prints the waiting links (`[]` = nothing to do: stop at once).
-   It also marks an import that stalled for over 2 hours as failed.
-2. For each link, oldest first: `npm run -s recipes -- claim --import <id>` (if it's already taken, skip it), then
-   steps 1–5 above.
-3. Always end each claimed link with `add` or `failed`, so the app isn't left showing "converting".
-4. Send a push notification naming the recipes added.
+1. `npm run -s recipes -- pending --household <id>` prints the waiting links (`"type": "import"`) and rework requests
+   (`"type": "rework"`); `[]` = nothing to do: stop at once. It also marks anything stalled for over 2 hours as failed.
+2. For each import, oldest first: `npm run -s recipes -- claim --import <id>` (if it's already taken, skip it), then
+   steps 1–5 above. For each rework, follow "Rework a recipe".
+3. Always end each claimed item with `add` / `failed` or `rework` / `rework-failed`, so the app isn't left showing it
+   in progress.
+4. Send a push notification naming the recipes added or reworked.
 
 ## Notes
 - The household ID is in **Settings → Household** in the app. Never guess it.

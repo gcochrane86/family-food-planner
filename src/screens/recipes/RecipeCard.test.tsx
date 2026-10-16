@@ -255,3 +255,37 @@ test('the settings menu offers Edit recipe', async () => {
   await userEvent.click(screen.getByRole('menuitem', { name: 'Edit recipe' }));
   expect(await screen.findByText('Editor')).toBeInTheDocument();
 });
+
+describe('Rework with Claude', () => {
+  test('asks for what should change, sends it, then says it is waiting', async () => {
+    open('r-honey');
+    await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Rework with Claude ✨' }));
+    const dialog = screen.getByRole('dialog', { name: 'Rework this recipe' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send to Claude' }));
+    expect(h.repo.requestRework).not.toHaveBeenCalled();
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'What should change?' }), 'Use the Anova for the chicken instead of the TM7');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send to Claude' }));
+    expect(h.repo.requestRework).toHaveBeenCalledWith('h1', 'r-honey', 'Use the Anova for the chicken instead of the TM7');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Rework' })).toHaveTextContent('Waiting for Claude');
+  });
+
+  test('a finished rework shows what changed and can be dismissed; a failed one can be tried again', async () => {
+    const rework = { id: 'w1', household_id: 'h1', recipe_id: 'r-honey', request: 'x', requested_at: '', started_at: null, finished_at: null };
+    h.repo.getRework.mockResolvedValueOnce({ ...rework, status: 'done', summary: 'Chicken now roasts in the Anova at 200°C.' });
+    const first = open('r-honey');
+    const done = await screen.findByRole('status', { name: 'Rework' });
+    expect(done).toHaveTextContent('Chicken now roasts in the Anova');
+    await userEvent.click(within(done).getByRole('button', { name: 'Dismiss' }));
+    expect(h.repo.dismissRework).toHaveBeenCalledWith('w1');
+    expect(screen.queryByRole('status', { name: 'Rework' })).not.toBeInTheDocument();
+    first.unmount();
+    h.repo.getRework.mockResolvedValueOnce({ ...rework, status: 'failed', summary: 'Ran out of time.' });
+    open('r-honey');
+    const failed = await screen.findByRole('status', { name: 'Rework' });
+    await userEvent.click(within(failed).getByRole('button', { name: 'Try again' }));
+    expect(h.repo.retryRework).toHaveBeenCalledWith('w1');
+    expect(failed).toHaveTextContent('Waiting for Claude');
+  });
+});

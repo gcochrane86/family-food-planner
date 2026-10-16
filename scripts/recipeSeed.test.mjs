@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { contentRows, recipeRow, validateRecipeSeed } from './recipeSeed.mjs';
+import { contentRows, recipeRow, seedFromDetail, validateRecipeSeed } from './recipeSeed.mjs';
 
 const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const example = read('seed/recipes.example.json');
@@ -102,4 +102,15 @@ test('recipeRow and contentRows turn a seed recipe into database rows', () => {
   expect(ingredients[0]).toMatchObject({ position: 1, name: r.ingredients[0].name });
   expect(steps).toHaveLength(r.steps.length);
   expect(steps[0].position).toBe(1);
+});
+
+test('seedFromDetail turns a saved recipe back into the seed format, round-tripping through the row helpers', () => {
+  const r = clone().recipes[0];
+  const row = recipeRow('h1', r);
+  const { ingredients, steps } = contentRows(r);
+  const back = seedFromDetail({ ...row, id: 'x', ingredients, steps: steps.map((s) => ({ ...s, image_path: null })) });
+  expect(validateRecipeSeed({ recipes: [back] })).toEqual([]);
+  expect(contentRows(back)).toEqual({ ingredients, steps });
+  expect(back).toMatchObject({ slug: r.slug, title: r.title, base_portions: r.base_portions });
+  expect(back).not.toHaveProperty('household_id');
 });

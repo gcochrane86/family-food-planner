@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
-import { parseImport, parseImportFailed } from './importInput';
+import { parseImport, parseImportFailed, parseRework, parseReworkFailed } from './importInput';
 
 const example = JSON.parse(readFileSync('seed/recipes.example.json', 'utf8')).recipes[0];
 
@@ -27,5 +27,22 @@ describe('parseImportFailed', () => {
   });
   it('needs a reason', () => {
     expect(() => parseImportFailed('{"import":"i1"}')).toThrow('"summary"');
+  });
+});
+
+describe('parseRework', () => {
+  it('reads a reworked recipe and a summary, keeping the recipe source as given', () => {
+    const out = parseRework(JSON.stringify({ recipe: example, summary: 'Chicken now in the Anova.' }));
+    expect(out.recipe.source).toBe(example.source);
+    expect(out.summary).toBe('Chicken now in the Anova.');
+  });
+  it('refuses an invalid recipe', () => {
+    expect(() => parseRework(JSON.stringify({ recipe: { ...example, steps: 'none' }, summary: 's' }))).toThrow(/steps must be a list/);
+  });
+});
+
+describe('parseReworkFailed', () => {
+  it('reads the rework id and why', () => {
+    expect(parseReworkFailed('{"rework":"w1","summary":"The request was unclear."}')).toEqual({ rework: 'w1', summary: 'The request was unclear.' });
   });
 });

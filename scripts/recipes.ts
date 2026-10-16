@@ -1,14 +1,18 @@
 // Helper for adding recipes from a web link (see docs/playbooks/recipe-import.md). Runs on the owner's Mac with
 // the service key from .env. It never reads the web page itself: Claude does that, then pipes the converted recipe in.
-//   npx tsx scripts/recipes.ts pending --household <id>          links waiting to be converted (cheap: no browsing)
+//   npx tsx scripts/recipes.ts pending --household <id>          links and rework requests waiting (cheap: no browsing)
 //   npx tsx scripts/recipes.ts claim --import <id>               marks one 'importing' so no other check takes it
+//   npx tsx scripts/recipes.ts claim-rework --rework <id>        marks a rework request 'working'
+//   npx tsx scripts/recipes.ts show --rework <id>                the recipe to rework, in the seed format
+//   npx tsx scripts/recipes.ts rework --rework <id> < recipe.json {"recipe": {seed format}, "summary": "what changed"}
+//   npx tsx scripts/recipes.ts rework-failed < failed.json       {"rework": "<id>", "summary": "why"}
 //   npx tsx scripts/recipes.ts context --household <id>          members, equipment, house rules and existing recipes
 //   npx tsx scripts/recipes.ts add --import <id> < recipe.json   {"recipe": {seed format}, "summary": "..."}
 //   npx tsx scripts/recipes.ts failed < failed.json              {"import": "<id>", "summary": "why"}
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
-import { parseImport, parseImportFailed } from './importInput';
+import { parseImport, parseImportFailed, parseRework, parseReworkFailed } from './importInput';
 // @ts-expect-error plain JS helper
-import { contentRows, recipeRow } from './recipeSeed.mjs';
+import { contentRows, recipeRow, seedFromDetail } from './recipeSeed.mjs';
 
 const STALE_MS = 2 * 60 * 60 * 1000; // an import that started over 2 hours ago has stopped (Mac asleep)
 
@@ -26,7 +30,19 @@ async function pending() {
       }
       continue;
     }
-    waiting.push({ id: r.id, url: r.url, note: r.note });
+    waiting.push({ type: 'import', id: r.id, url: r.url, note: r.note });
+  }
+  const reworks = must<{ id: string; recipe_id: string; request: string; status: string; started_at: string | null }[]>(
+    await db.from('recipe_reworks').select('id, recipe_id, request, status, started_at').eq('household_id', householdId)
+      .in('status', ['requested', 'working']).order('requested_at'), 'Reading rework requests');
+  for (const r of reworks) {
+    if (r.status === 'working') {
+      if (r.started_at && Date.now() - Date.parse(r.started_at) > STALE_MS) {
+        must(await db.from('recipe_reworks').update({ status: 'failed', summary: 'Stopped part-way (the Mac may have slept).', finished_at: new Date().toISOString() }).eq('id', r.id), 'Closing a stalled rework');
+      }
+      continue;
+    }
+    waiting.push({ type: 'rework', id: r.id, recipeId: r.recipe_id, request: r.request });
   }
   console.log(JSON.stringify(waiting));
 }
@@ -86,5 +102,58 @@ async function failed() {
   console.log(`Import ${f.import} marked failed.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { pending, claim, context, add, failed };
-await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed')))();
+async function claimRework() {
+  const id = arg('rework') ?? fail('--rework is required');
+  const rows = must<{ id: string }[]>(await db.from('recipe_reworks').update({ status: 'working', started_at: new Date().toISOString() })
+    .eq('id', id).eq('status', 'requested').select('id'), 'Claiming the rework');
+  if (!rows.length) fail('That rework is already being done or is finished.');
+  console.log(`Rework ${id} claimed.`);
+}
+
+/** The rework request and its recipe. The recipe must belong to the request's household. */
+async function loadRework(id: string) {
+  const w = must<{ id: string; household_id: string; recipe_id: string; request: string; status: string } | null>(
+    await db.from('recipe_reworks').select('id, household_id, recipe_id, request, status').eq('id', id).maybeSingle(), 'Finding the rework')
+    ?? fail(`No rework with ID ${id}.`);
+  const recipe = must<Record<string, unknown> & { id: string; household_id: string; slug: string; source: string } | null>(
+    await db.from('recipes').select('*').eq('id', w.recipe_id).maybeSingle(), 'Reading the recipe') ?? fail('That recipe no longer exists.');
+  if (recipe.household_id !== w.household_id) fail('That recipe belongs to another household.');
+  return { w, recipe };
+}
+
+async function show() {
+  const { w, recipe } = await loadRework(arg('rework') ?? fail('--rework is required'));
+  const ingredients = must<unknown[]>(await db.from('recipe_ingredients').select('position, group_name, name, qty, unit, note, qty_approx').eq('recipe_id', recipe.id), 'Reading ingredients');
+  const steps = must<unknown[]>(await db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes').eq('recipe_id', recipe.id), 'Reading steps');
+  console.log(JSON.stringify({ request: w.request, recipe: seedFromDetail({ ...recipe, ingredients, steps }) }, null, 2));
+}
+
+/** Replaces a recipe's contents with the reworked version. Its slug, source and status stay as they were; step
+ *  photos stay with steps whose phase and title are unchanged. */
+async function rework() {
+  const id = arg('rework') ?? fail('--rework is required');
+  const { recipe: next, summary } = read(parseRework, await stdin());
+  const { w, recipe } = await loadRework(id);
+  if (w.status !== 'working') fail(`That rework is ${w.status}, not working. Claim it first.`);
+  const { status: _s, slug: _slug, source: _src, household_id: _h, ...fields } = recipeRow(w.household_id, next);
+  must(await db.from('recipes').update(fields).eq('id', recipe.id), 'Updating the recipe');
+  const { ingredients, steps } = contentRows(next);
+  must(await db.rpc('replace_recipe_contents', { p_recipe_id: recipe.id, p_ingredients: ingredients, p_steps: steps }), 'Saving ingredients and steps');
+  const closed = must<{ id: string }[]>(await db.from('recipe_reworks').update({ status: 'done', summary, finished_at: new Date().toISOString() })
+    .eq('id', id).eq('status', 'working').select('id'), 'Closing the rework');
+  if (!closed.length) fail('The recipe was saved, but the rework was no longer marked working.');
+  console.log(`Reworked ${next.title}.`);
+}
+
+async function reworkFailed() {
+  const f = read(parseReworkFailed, await stdin());
+  const closed = must<{ id: string }[]>(await db.from('recipe_reworks').update({ status: 'failed', summary: f.summary, finished_at: new Date().toISOString() })
+    .eq('id', f.rework).eq('status', 'working').select('id'), 'Closing the rework');
+  if (!closed.length) fail('That rework is not being done (finished, or never claimed). Not changing it.');
+  console.log(`Rework ${f.rework} marked failed.`);
+}
+
+const commands: Record<string, () => Promise<void>> = {
+  pending, claim, context, add, failed, 'claim-rework': claimRework, show, rework, 'rework-failed': reworkFailed,
+};
+await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed | claim-rework | show | rework | rework-failed')))();

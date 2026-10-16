@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -12,6 +12,7 @@ import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
+import ReworkRecipe from './ReworkRecipe';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 
 /** The original page's host for a web recipe, or null when there's no usable http(s) link. */
@@ -67,6 +68,8 @@ function Steps({ steps, label, minutes, timeline, markAhead }: {
 
 export default function RecipeCard() {
   const navigate = useNavigate();
+  const [reworking, setReworking] = useState(false);
+  const closeRework = useCallback(() => setReworking(false), []);
   const { id = '' } = useParams();
   const { householdId } = useAuth();
   const { data, setData, error, loading, reload } = useAsync(async () => {
@@ -195,6 +198,7 @@ export default function RecipeCard() {
             ...(recipe.steps.some((s) => s.image_source === 'generated')
               ? [{ label: 'New step photos ✨', onSelect: () => openPanel('redo'), disabled: stepProgress !== null }] : []),
             { label: 'Edit recipe', onSelect: () => navigate(`/recipes/${recipe.id}/edit`) },
+            { label: 'Rework with Claude ✨', onSelect: () => setReworking(true) },
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (
@@ -229,6 +233,7 @@ export default function RecipeCard() {
           </div>
         </section>
       )}
+      <ReworkRecipe recipeId={recipe.id} householdId={householdId!} asking={reworking} onClose={closeRework} />
       <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
