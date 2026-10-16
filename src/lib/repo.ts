@@ -175,10 +175,11 @@ export const repo = {
   async getRuns(weekId: string): Promise<BasketRun[]> {
     return must(await db().from('basket_runs').select('*').eq('plan_week_id', weekId));
   },
-  /** Marks a delivery's list as ready for Claude to fill the Sainsbury's basket (again, if it was done before). */
-  async requestRun(weekId: string, delivery: 'sun' | 'tue'): Promise<BasketRun> {
+  /** Marks a delivery's list as ready for Claude to fill the Sainsbury's basket (again, if it was done before).
+   *  With emptyFirst, Claude empties the trolley before filling it. */
+  async requestRun(weekId: string, delivery: 'sun' | 'tue', emptyFirst = false): Promise<BasketRun> {
     return must(await db().from('basket_runs').upsert(
-      { plan_week_id: weekId, delivery, status: 'requested', requested_at: new Date().toISOString(), finished_at: null, summary: null },
+      { plan_week_id: weekId, delivery, status: 'requested', empty_first: emptyFirst, requested_at: new Date().toISOString(), finished_at: null, summary: null },
       { onConflict: 'plan_week_id,delivery' },
     ).select().single());
   },

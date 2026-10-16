@@ -37,11 +37,11 @@ export default function ShopList() {
   const [runs, setRuns] = useState<Record<string, BasketRun>>({});
   const runFor = (d: Delivery) => runs[d] ?? data?.runs.find((r) => r.delivery === d) ?? null;
 
-  async function ready(d: Delivery) {
+  async function ready(d: Delivery, emptyFirst = false) {
     if (!data?.chosen?.week) return;
     setBanner(null);
     try {
-      const run = await repo.requestRun(data.chosen.week.id, d);
+      const run = emptyFirst ? await repo.requestRun(data.chosen.week.id, d, true) : await repo.requestRun(data.chosen.week.id, d);
       setRuns((r) => ({ ...r, [d]: run }));
     } catch {
       setBanner(SAVE_ERROR);
@@ -92,21 +92,43 @@ export default function ShopList() {
   );
 }
 
-function RunStatus({ run, onReady }: { run: BasketRun | null; onReady: () => void }) {
+function RunStatus({ run, onReady }: { run: BasketRun | null; onReady: (emptyFirst?: boolean) => void }) {
+  const [confirm, setConfirm] = useState(false);
   if (run?.status === 'requested') {
-    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">Waiting for Claude. It starts within 15 minutes while your Mac is on.</p>;
+    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">
+      {run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts within 15 minutes while your Mac is on.
+    </p>;
   }
   if (run?.status === 'filling') {
-    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm font-semibold">Claude is filling your basket now…</p>;
+    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm font-semibold">
+      {run.empty_first ? 'Claude is emptying and refilling your trolley now…' : 'Claude is filling your basket now…'}
+    </p>;
   }
+  const filledBefore = run?.status === 'done' || run?.status === 'failed';
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm">
-      <span>
-        {run?.status === 'done' && <><b className="text-accent">✓ Basket filled.</b> <span>{run.summary}</span></>}
-        {run?.status === 'failed' && <><b className="text-warn">Basket not finished.</b> <span>{run.summary}</span></>}
-        {!run && 'When the list looks right:'}
-      </span>
-      <button type="button" onClick={onReady} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">{run?.status === 'done' || run?.status === 'failed' ? 'Fill again (tops up only)' : "Ready for Sainsbury's"}</button>
+    <div className="grid gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          {run?.status === 'done' && <><b className="text-accent">✓ Basket filled.</b> <span>{run.summary}</span></>}
+          {run?.status === 'failed' && <><b className="text-warn">Basket not finished.</b> <span>{run.summary}</span></>}
+          {!run && 'When the list looks right:'}
+        </span>
+        <span className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onReady()} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">{filledBefore ? 'Fill again (tops up only)' : "Ready for Sainsbury's"}</button>
+          {filledBefore && !confirm && (
+            <button type="button" onClick={() => setConfirm(true)} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Empty and refill</button>
+          )}
+        </span>
+      </div>
+      {confirm && (
+        <div role="group" aria-label="Empty the trolley?" className="grid gap-2 rounded-lg border border-line bg-surface p-3">
+          <p className="m-0">This removes everything in your Sainsbury's trolley, including things you added yourself, then fills it again from this list.</p>
+          <span className="flex gap-2">
+            <button type="button" onClick={() => { setConfirm(false); onReady(true); }} className="rounded-lg bg-warn px-3 py-1.5 font-semibold text-bg">Yes, empty and refill</button>
+            <button type="button" onClick={() => setConfirm(false)} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Cancel</button>
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -114,7 +136,7 @@ function RunStatus({ run, onReady }: { run: BasketRun | null; onReady: () => voi
 /** One delivery's list. A top-level component, so ticking doesn't rebuild the list (and lose keyboard focus). */
 function Section({ d, title, items, isTicked, toggle, run, onReady, products }: {
   d: Delivery; title: string; items: ShopItem[]; isTicked: (d: Delivery, item: ShopItem) => boolean;
-  toggle: (d: Delivery, item: ShopItem) => Promise<void>; run: BasketRun | null; onReady: (d: Delivery) => void;
+  toggle: (d: Delivery, item: ShopItem) => Promise<void>; run: BasketRun | null; onReady: (d: Delivery, emptyFirst?: boolean) => void;
   products: Map<string, Product>;
 }) {
   const left = items.filter((i) => !isTicked(d, i)).length;
@@ -124,7 +146,7 @@ function Section({ d, title, items, isTicked, toggle, run, onReady, products }: 
         <h2 className="text-xl font-bold">{title}</h2>
         <span className="text-sm text-muted">{left} to get</span>
       </div>
-      <RunStatus run={run} onReady={() => onReady(d)} />
+      <RunStatus run={run} onReady={(emptyFirst) => onReady(d, emptyFirst)} />
       {items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
         <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
           {items.map((item) => {

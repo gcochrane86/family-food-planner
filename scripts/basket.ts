@@ -41,8 +41,8 @@ async function list() {
   });
   const chosen = pickShoppingWeek(await loadWeek(nextMonday(date)), await loadWeek(thisMonday));
   const week = chosen?.week ?? fail('No approved menu for this week or next. Approve the week in the app first.');
-  const run = must<{ id: string; status: string } | null>(
-    await db.from('basket_runs').select('id, status').eq('plan_week_id', week.id).eq('delivery', delivery).maybeSingle(), 'Finding the basket request')
+  const run = must<{ id: string; status: string; empty_first: boolean } | null>(
+    await db.from('basket_runs').select('id, status, empty_first').eq('plan_week_id', week.id).eq('delivery', delivery).maybeSingle(), 'Finding the basket request')
     ?? fail(`No "Ready for Sainsbury's" request for the ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} delivery of the week of ${week.week_start}. Tap the button on the Shop tab first.`);
   if (run.status !== 'requested' && run.status !== 'filling') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
 
@@ -79,7 +79,7 @@ async function list() {
     };
   });
   const deliveryDate = addDays(week.week_start, delivery === 'sun' ? -1 : 1);
-  console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery, deliveryDate }, items }, null, 2));
+  console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery, deliveryDate, emptyFirst: run.empty_first }, items }, null, 2));
 }
 
 async function stdin(): Promise<string> {
@@ -120,8 +120,8 @@ async function pending() {
   const weeks = must<{ id: string; week_start: string }[]>(
     await db.from('plan_weeks').select('id, week_start').eq('household_id', householdId), 'Reading weeks');
   const byId = new Map(weeks.map((w) => [w.id, w.week_start]));
-  const runs = must<{ id: string; plan_week_id: string; delivery: 'sun' | 'tue'; status: string; started_at: string | null; requested_at: string }[]>(
-    await db.from('basket_runs').select('id, plan_week_id, delivery, status, started_at, requested_at')
+  const runs = must<{ id: string; plan_week_id: string; delivery: 'sun' | 'tue'; status: string; empty_first: boolean; started_at: string | null; requested_at: string }[]>(
+    await db.from('basket_runs').select('id, plan_week_id, delivery, status, empty_first, started_at, requested_at')
       .in('plan_week_id', weeks.length ? weeks.map((w) => w.id) : ['00000000-0000-0000-0000-000000000000'])
       .in('status', ['requested', 'filling']).order('requested_at'), 'Reading requests');
   const waiting = [];
@@ -133,7 +133,7 @@ async function pending() {
       continue;
     }
     const weekStart = byId.get(r.plan_week_id)!;
-    waiting.push({ id: r.id, delivery: r.delivery, weekStart, deliveryDate: addDays(weekStart, r.delivery === 'sun' ? -1 : 1) });
+    waiting.push({ id: r.id, delivery: r.delivery, weekStart, deliveryDate: addDays(weekStart, r.delivery === 'sun' ? -1 : 1), emptyFirst: r.empty_first });
   }
   console.log(JSON.stringify(waiting));
 }

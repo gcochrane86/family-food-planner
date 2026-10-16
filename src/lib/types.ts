@@ -212,6 +212,8 @@ export interface BasketRun {
   plan_week_id: string;
   delivery: 'sun' | 'tue';
   status: 'requested' | 'filling' | 'done' | 'failed';
+  /** Empty the Sainsbury's trolley before filling (the household changed the menu or ingredients). */
+  empty_first?: boolean;
   requested_at: string;
   started_at?: string | null;
   finished_at: string | null;
