@@ -3,7 +3,7 @@ const PHASES = ['prep_8pm', 'finish', 'reheat'];
 const MACHINES = ['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle'];
 const KINDS = ['meal', 'component'];
 const ROLES = ['sauce', 'protein', 'veg', 'carb', 'bread'];
-const SOURCES = ['hellofresh', 'own_doc', 'claude', 'cookidoo'];
+const SOURCES = ['hellofresh', 'own_doc', 'claude', 'cookidoo', 'web'];
 const PROTEINS = ['chicken', 'fish', 'red_meat', 'veggie', 'egg', 'other'];
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
@@ -49,4 +49,30 @@ export function validateRecipeSeed(file) {
     });
   });
   return problems;
+}
+
+/** A seed recipe's row in `recipes`. */
+export function recipeRow(householdId, r) {
+  return {
+    household_id: householdId, slug: r.slug, title: r.title, subtitle: r.subtitle ?? null, kind: r.kind,
+    component_role: r.component_role ?? null, source: r.source, base_portions: r.base_portions,
+    reheats_well: !!r.reheats_well, freezes_well: !!r.freezes_well, toddler_ok: r.toddler_ok !== false,
+    toddler_note: r.toddler_note ?? null, protein: r.protein ?? null, salt_per_portion_g: r.salt_per_portion_g ?? null,
+    prep_minutes: r.prep_minutes ?? 0, finish_minutes: r.finish_minutes ?? 0, hands_off_minutes: r.hands_off_minutes ?? 0,
+    tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
+  };
+}
+
+/** A seed recipe's ingredients and steps, as replace_recipe_contents takes them. */
+export function contentRows(r) {
+  const position = { prep_8pm: 0, finish: 0, reheat: 0 };
+  const steps = r.steps.map((s) => ({
+    phase: s.phase, position: ++position[s.phase], at_minute: s.at ?? null, title: s.title, body: s.body,
+    machine: s.machine ?? null, settings: s.settings ?? null, timer_minutes: s.timer ?? null,
+  }));
+  const ingredients = r.ingredients.map((g, i) => ({
+    position: i + 1, group_name: g.group ?? null, name: g.name, qty: g.qty ?? null,
+    unit: g.unit ?? '', note: g.note ?? null, qty_approx: !!g.approx,
+  }));
+  return { ingredients, steps };
 }

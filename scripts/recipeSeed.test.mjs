@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { validateRecipeSeed } from './recipeSeed.mjs';
+import { contentRows, recipeRow, validateRecipeSeed } from './recipeSeed.mjs';
 
 const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const example = read('seed/recipes.example.json');
@@ -86,4 +86,20 @@ test('cookidoo is a valid source', () => {
   const s = clone();
   s.recipes[0].source = 'cookidoo';
   expect(validateRecipeSeed(s)).toEqual([]);
+});
+
+test('web is a valid source', () => {
+  const s = clone();
+  s.recipes[0].source = 'web';
+  expect(validateRecipeSeed(s)).toEqual([]);
+});
+
+test('recipeRow and contentRows turn a seed recipe into database rows', () => {
+  const r = clone().recipes[0];
+  const row = recipeRow('h1', r);
+  expect(row).toMatchObject({ household_id: 'h1', slug: r.slug, title: r.title, source: r.source, status: r.status ?? 'active' });
+  const { ingredients, steps } = contentRows(r);
+  expect(ingredients[0]).toMatchObject({ position: 1, name: r.ingredients[0].name });
+  expect(steps).toHaveLength(r.steps.length);
+  expect(steps[0].position).toBe(1);
 });
