@@ -4,6 +4,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { formatQty } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { buildShoppingList, type ShopItem } from '../../lib/shopping';
+import SparList from './SparList';
 import type { RecipeDetail } from '../../lib/types';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
@@ -87,6 +88,7 @@ export default function ShopList() {
   return (
     <section className="grid gap-5 py-4">
       <h1 className="text-3xl font-bold">Shopping</h1>
+      <SparList />
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {banner && <ErrorBanner message={banner} />}
       {loading && !error && <p className="text-muted">Loading…</p>}
