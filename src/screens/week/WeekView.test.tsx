@@ -55,9 +55,9 @@ test('out tonight on the cook-once dinner sends the next lunch back to its routi
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Mon');
   await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
-  expect(within(day(/Monday/)).getByText('Out tonight')).toBeInTheDocument();
+  expect(within(day(/Monday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByText('Chicken sandwich on sourdough')).toBeInTheDocument();
+  expect(within(day(/Tuesday/)).getByText('Chicken sandwich')).toBeInTheDocument();
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'lunch')!.mode).toBe('routine');
 });
@@ -68,13 +68,6 @@ test('guests +2 shows the new portions', async () => {
   await user().click(within(day(/Friday/)).getByRole('button', { name: 'Add a guest' }));
   await user().click(within(day(/Friday/)).getByRole('button', { name: 'Add a guest' }));
   expect(within(day(/Friday/)).getByText(/5.5 portions · 2 guests/)).toBeInTheDocument();
-});
-
-test('the 8pm prep row shows tomorrow’s prep', async () => {
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Fri');
-  const prep = within(day(/Friday/)).getByRole('group', { name: 'Prep tonight' });
-  expect(prep).toHaveTextContent('For Saturday · 15 min');
 });
 
 test('shows a tile per day with breakfast, lunch and dinner', async () => {
@@ -97,7 +90,10 @@ test('tapping a day opens it with its options, and changes show on its tile', as
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Monday');
   const mon = day(/Monday 19 October/);
-  for (const name of ['Swap', 'Out tonight', 'Mark cooked']) expect(within(mon).getByRole('button', { name })).toBeInTheDocument();
+  const more = within(mon).getByRole('region', { name: 'More options' });
+  for (const name of ['Swap', 'Out tonight', 'Add a guest', 'More portions']) expect(within(more).getByRole('button', { name })).toBeInTheDocument();
+  expect(within(mon).queryByRole('button', { name: /Mark cooked|Keep/ })).not.toBeInTheDocument();
+  expect(within(mon).queryByText(/Prep tonight/)).not.toBeInTheDocument();
   await user().click(within(mon).getByRole('button', { name: 'Out tonight' }));
   await user().keyboard('{Escape}');
   expect(within(await tile('Monday 19')).getByText('Out tonight', { selector: 'span.dinner' })).toBeInTheDocument();
@@ -153,15 +149,6 @@ test('breakfast shows the planned choice and records what you had', async () => 
   expect(saved[0]).toMatchObject({ slot: 'breakfast', routine_choice: 'Eggs & porridge' });
 });
 
-test('the night before an overnight-oats morning, the 8pm prep says so', async () => {
-  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
-    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-21' ? { ...s, reason: 'Overnight oats' } : s)) }
-    : { week: null, slots: [] }));
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByRole('group', { name: 'Prep tonight' })).toHaveTextContent('Overnight oats for Wednesday');
-});
-
 test('with no plan yet it says when the first menu arrives and can propose one now', async () => {
   h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
   render(<WeekView />, { wrapper: MemoryRouter });
@@ -176,35 +163,20 @@ test('on Saturday an unapproved week reminds you of the deadline', async () => {
   expect(await screen.findByText(/Approve by 2pm today for Sunday's delivery/)).toBeInTheDocument();
 });
 
-test('marking a dinner cooked asks how the portions were and saves the answer', async () => {
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Tue');
-  const tue = () => day(/Tuesday/);
-  await user().click(within(tue()).getByRole('button', { name: 'Mark cooked' }));
-  let saved = h.repo.saveSlots.mock.calls.at(-1)![0];
-  expect(saved[0]).toMatchObject({ date: '2026-10-20', slot: 'dinner' });
-  expect(saved[0].cooked_at).toBeTruthy();
-  expect(within(tue()).getByText('How were the portions?')).toBeInTheDocument();
-  await user().click(within(tue()).getByRole('button', { name: 'About right' }));
-  saved = h.repo.saveSlots.mock.calls.at(-1)![0];
-  expect(saved[0]).toMatchObject({ slot: 'dinner', portions_verdict: 'right' });
-  expect(within(tue()).getByText('✓ Cooked · portions about right')).toBeInTheDocument();
-});
-
 test('a failed save only undoes its own change, and later changes still save', async () => {
   h.repo.saveSlots
     .mockImplementationOnce(() => new Promise((_resolve, reject) => setTimeout(() => reject(new Error('offline')), 50)))
     .mockImplementation(async () => {});
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Mon');
-  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Keep' }));
+  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Add a guest' }));
   await openDay('Tue');
   await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Out tonight' }));
   await act(async () => { vi.advanceTimersByTime(200); });
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save that change");
-  expect(within(day(/Tuesday/)).getByText('Out tonight')).toBeInTheDocument();
+  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Mon');
-  expect(within(day(/Monday/)).getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  expect(within(day(/Monday/)).getByText(/^6(\.0)? portions/)).toBeInTheDocument();
   const last = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(last.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!.mode).toBe('out');
 });
@@ -218,41 +190,6 @@ test('two very quick taps both count and save in order', async () => {
   await act(async () => { vi.advanceTimersByTime(50); });
   const guestsSaved = h.repo.saveSlots.mock.calls.map((c) => c[0].find((s) => s.slot === 'dinner')!.guests);
   expect(guestsSaved).toEqual([1, 2]);
-});
-
-test('after the portions verdict, asks Have it again and 👍 makes step photos', async () => {
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Mon');
-  const mon = () => day(/Monday/);
-  await user().click(within(mon()).getByRole('button', { name: 'Mark cooked' }));
-  expect(within(mon()).queryByText('Have it again?')).not.toBeInTheDocument();
-  await user().click(within(mon()).getByRole('button', { name: 'About right' }));
-  expect(within(mon()).getByText('Have it again?')).toBeInTheDocument();
-  await user().click(within(mon()).getByRole('button', { name: '👍 Have it again' }));
-  expect(h.repo.rateRecipe).toHaveBeenCalledWith('r-honey', 'up');
-  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(HONEY.steps.length));
-  expect(within(mon()).queryByText('Have it again?')).not.toBeInTheDocument();
-});
-
-test('👎 Not for us makes no photos', async () => {
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Tue');
-  const tue = () => day(/Tuesday/);
-  await user().click(within(tue()).getByRole('button', { name: 'Mark cooked' }));
-  await user().click(within(tue()).getByRole('button', { name: 'About right' }));
-  await user().click(within(tue()).getByRole('button', { name: '👎 Not for us' }));
-  expect(h.repo.rateRecipe).toHaveBeenCalledWith('r-salmon', 'down');
-  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
-  expect(within(tue()).getByText(/won't be suggested again/)).toBeInTheDocument();
-});
-
-test('a recipe that is already rated is not asked about again', async () => {
-  h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...SALMON, rating: 'up' }, PENNE, CHOW, BEEF, COD, CURRY]);
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Tue');
-  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Mark cooked' }));
-  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'About right' }));
-  expect(within(day(/Tuesday/)).queryByText('Have it again?')).not.toBeInTheDocument();
 });
 
 test('the day sheet sits above the bottom nav', async () => {
@@ -296,5 +233,48 @@ describe('Cookidoo on the week tile', () => {
     expect(screen.queryByText(/Cookidoo/)).not.toBeInTheDocument();
     await user().click(screen.getByRole('button', { name: 'Approve week' }));
     expect(await screen.findByText(/Cookidoo: waiting for Claude/)).toBeInTheDocument();
+  });
+});
+
+describe('the day pop-up', () => {
+  test('each meal shows its photo, or a placeholder while there is none', async () => {
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...SALMON, hero_image_path: 'h1/hero/salmon.jpg' }, PENNE, CHOW, BEEF, COD, CURRY,
+      { ...TACOS, id: 'r-bo', slug: 'baked-oats', title: 'Baked Oats', kind: 'component', hero_image_path: 'h1/hero/bo.jpg' }]);
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+      ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-20' ? { ...s, reason: 'Baked oats' } : s)) }
+      : { week: null, slots: [] }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    const tue = day(/Tuesday/);
+    expect(within(tue).getByRole('img', { name: 'Baked oats' })).toHaveAttribute('src', 'https://img.test/h1/hero/bo.jpg');
+    expect(within(tue).getByRole('img', { name: SALMON.title })).toHaveAttribute('src', 'https://img.test/h1/hero/salmon.jpg');
+    expect(within(tue).getByText(/Photo of Leftover Almond-Crusted Honey Chilli Chicken/)).toBeInTheDocument();
+  });
+
+  test('lunch offers leftovers or a sandwich when last night reheats well, and remembers the pick', async () => {
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, { ...BEEF, reheats_well: true }, COD, CURRY]);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    const thu = () => day(/Thursday/);
+    const leftover = within(thu()).getByRole('button', { name: /Leftover Soy & Ginger Beef/ });
+    const sandwich = within(thu()).getByRole('button', { name: /Chicken sandwich/ });
+    expect(leftover).toHaveAttribute('aria-pressed', 'true');
+    await user().click(sandwich);
+    expect(within(thu()).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
+    const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+    expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Chicken sandwich' });
+  });
+
+  test('one lunch card when last night does not reheat well', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    expect(within(day(/Thursday/)).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
+    expect(within(day(/Thursday/)).getByText('Chicken sandwich')).toBeInTheDocument();
+  });
+
+  test('an office day shows the packed lunch', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    expect(within(day(/Monday/)).getByText('Burrito bowl (packed)')).toBeInTheDocument();
   });
 });

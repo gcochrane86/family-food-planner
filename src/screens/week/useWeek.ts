@@ -148,6 +148,8 @@ export function useWeek() {
     keep: (date: string) => update(date, 'dinner', (d) => (d.locked ? null : { ...d, locked: true })),
     cooked: (date: string) => update(date, 'dinner', (d) => ({ ...d, cooked_at: new Date().toISOString() })),
     verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => update(date, 'dinner', (d) => ({ ...d, portions_verdict: v })),
+    /** Records which lunch was picked when there's a choice (Leftovers or Chicken sandwich). */
+    lunch: (date: string, choice: string) => update(date, 'lunch', (l) => (l.routine_choice === choice ? null : { ...l, routine_choice: choice })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
     /** Saves "Have it again?" for a recipe, showing it at once and putting it back if the save fails. */
