@@ -1,4 +1,4 @@
-import { buildShoppingList } from './shopping';
+import { buildShoppingList, pickShoppingWeek, tickKey } from './shopping';
 import type { MealSlot, RecipeDetail, Staple } from './types';
 
 const recipe = (id: string, base: number, ingredients: [string, number | null, string][]): RecipeDetail => ({
@@ -98,5 +98,23 @@ describe('weekly basics', () => {
     expect(eggs).toHaveLength(1);
     expect(eggs[0].qty).toBe(26);
     expect(eggs[0].forMeals).toEqual(['Mon frittata', 'Breakfasts & lunches']);
+  });
+});
+
+describe('ticks and the shopping week', () => {
+  const item = (qty: number | null) => ({ key: 'egg|', name: 'Eggs', qty, unit: '', approx: false, forMeals: [], neededBy: '' });
+  test('a tick is tied to the quantity, so a changed amount needs ticking again', () => {
+    expect(tickKey(item(18))).toBe('egg|@18');
+    expect(tickKey(item(26))).not.toBe(tickKey(item(18)));
+    expect(tickKey(item(null))).toBe('egg|');
+    expect(tickKey(item(1.2345))).toBe('egg|@1.23');
+  });
+
+  const week = (status: 'draft' | 'approved', start: string) => ({ week: { id: start, household_id: 'h1', week_start: start, days: 7 as const, status, proposed_at: '', approved_at: null }, slots: [] });
+  const none = { week: null, slots: [] };
+  test('the list comes from next week if approved, otherwise this week if approved', () => {
+    expect(pickShoppingWeek(week('approved', 'next'), week('approved', 'this'))?.week?.week_start).toBe('next');
+    expect(pickShoppingWeek(week('draft', 'next'), week('approved', 'this'))?.week?.week_start).toBe('this');
+    expect(pickShoppingWeek(none, week('draft', 'this'))).toBeNull();
   });
 });

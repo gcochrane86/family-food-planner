@@ -1,5 +1,5 @@
 import { pantryLabel, words } from './recipes';
-import type { MealSlot, RecipeDetail, Staple, WeeklyBasic } from './types';
+import type { MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
 export interface ShopItem {
   key: string;
@@ -9,6 +9,19 @@ export interface ShopItem {
   approx: boolean;
   forMeals: string[];
   neededBy: string;
+}
+
+/** A tick belongs to an item at a quantity: if the amount changes (guests, swaps), the line needs buying again.
+ *  Used by the Shop tab and the basket tool, so they always agree on what's already bought. */
+export const tickKey = (item: Pick<ShopItem, 'key' | 'qty'>) =>
+  (item.qty === null ? item.key : `${item.key}@${Math.round(item.qty * 100) / 100}`);
+
+type WeekData = { week: PlanWeek | null; slots: MealSlot[] };
+/** Which week the shopping list is for: next week once approved, otherwise this week if approved. */
+export function pickShoppingWeek(next: WeekData, current: WeekData): WeekData | null {
+  if (next.week?.status === 'approved') return next;
+  if (current.week?.status === 'approved') return current;
+  return null;
 }
 
 const SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

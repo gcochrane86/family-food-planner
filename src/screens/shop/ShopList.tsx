@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { formatQty } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
-import { buildShoppingList, type ShopItem } from '../../lib/shopping';
+import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../../lib/shopping';
 import SparList from './SparList';
 import { packsNeeded } from '../../lib/packs';
 import type { BasketRun, Product, RecipeDetail } from '../../lib/types';
@@ -12,8 +12,6 @@ import { weekStarts } from '../week/useWeek';
 
 type Delivery = 'sun' | 'tue';
 
-/** A tick belongs to an item at a quantity: if the amount changes (guests, swaps), the line needs buying again. */
-const tickKey = (item: ShopItem) => (item.qty === null ? item.key : `${item.key}@${Math.round(item.qty * 100) / 100}`);
 
 export default function ShopList() {
   const { householdId } = useAuth();
@@ -24,7 +22,7 @@ export default function ShopList() {
       repo.getWeek(hid, starts.nextWeek), repo.getWeek(hid, starts.thisWeek), repo.listStaples(hid), repo.getSettings(hid), repo.listBasics(hid),
       repo.listProducts(hid),
     ]);
-    const chosen = next.week?.status === 'approved' ? next : current.week?.status === 'approved' ? current : null;
+    const chosen = pickShoppingWeek(next, current);
     const draft = !chosen && (next.week ?? current.week) ? true : false;
     if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>() };
     const ids = [...new Set(chosen.slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];

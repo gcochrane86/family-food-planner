@@ -19,12 +19,14 @@
     "types": [
       "vitest/globals",
       "@testing-library/jest-dom",
-      "vite/client"
+      "vite/client",
+      "node"
     ],
     "allowImportingTsExtensions": true
   },
   "include": [
     "src",
-    "vite.config.ts"
+    "vite.config.ts",
+    "scripts/**/*.ts"
   ]
 }

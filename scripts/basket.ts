@@ -4,15 +4,17 @@
 //   npx tsx scripts/basket.ts record --household <id> --key "<item key>" --name "<product>" --url <url> --size 500 --unit g [--price 1.75] [--pin]
 //   npx tsx scripts/basket.ts finish --run <run id> --status done|failed --summary "<what happened>"
 import { createClient } from '@supabase/supabase-js';
-import { buildShoppingList } from '../src/lib/shopping';
+import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
+import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
-import type { MealSlot, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
+import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const arg = (name: string) => { const i = rest.indexOf(`--${name}`); return i >= 0 ? rest[i + 1] : undefined; };
 const fail = (msg: string): never => { console.error(msg); process.exit(1); };
+const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 
 const env = loadEnv();
 if (!env.VITE_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) fail('Missing VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env');
@@ -25,20 +27,25 @@ function must<T>(r: { data: T | null; error: { message: string } | null }, what:
 async function list() {
   const householdId = arg('household') ?? fail('--household is required');
   const delivery = (arg('delivery') ?? fail('--delivery sun|tue is required')) as 'sun' | 'tue';
-  const weeks = must<{ id: string; week_start: string }[]>(
-    await db.from('plan_weeks').select('id, week_start').eq('household_id', householdId).eq('status', 'approved').order('week_start', { ascending: false }).limit(3),
-    'Finding approved weeks');
-  const runs = must<{ id: string; plan_week_id: string; status: string }[]>(
-    await db.from('basket_runs').select('id, plan_week_id, status').in('plan_week_id', weeks.map((w) => w.id)).eq('delivery', delivery).eq('status', 'requested'),
-    'Finding requested basket runs');
-  const run = runs[0] ?? fail(`No "Ready for Sainsbury's" request for the ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} delivery. Tap the button on the Shop tab first.`);
-  const week = weeks.find((w) => w.id === run.plan_week_id)!;
+  // Same week as the Shop tab: next week once approved, otherwise this week if approved.
+  const { date, weekday } = londonParts(new Date());
+  const thisMonday = addDays(date, 1 - weekday);
+  const loadWeek = async (start: string) => ({
+    week: must<PlanWeek | null>(await db.from('plan_weeks').select('*').eq('household_id', householdId).eq('week_start', start).maybeSingle(), 'Reading weeks'),
+    slots: [] as MealSlot[],
+  });
+  const chosen = pickShoppingWeek(await loadWeek(nextMonday(date)), await loadWeek(thisMonday));
+  const week = chosen?.week ?? fail('No approved menu for this week or next. Approve the week in the app first.');
+  const run = must<{ id: string; status: string } | null>(
+    await db.from('basket_runs').select('id, status').eq('plan_week_id', week.id).eq('delivery', delivery).maybeSingle(), 'Finding the basket request')
+    ?? fail(`No "Ready for Sainsbury's" request for the ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} delivery of the week of ${week.week_start}. Tap the button on the Shop tab first.`);
+  if (run.status !== 'requested') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
 
   const slots = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
   const ids = [...new Set(slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
   const recipes = must<RecipeDetail[]>(await db.from('recipes').select('*').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']), 'Reading recipes');
   const ingredients = must<(RecipeDetail['ingredients'][number] & { recipe_id: string })[]>(
-    await db.from('recipe_ingredients').select('recipe_id, position, group_name, name, qty, unit, note, qty_approx').in('recipe_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']),
+    await db.from('recipe_ingredients').select('recipe_id, position, group_name, name, qty, unit, note, qty_approx').in('recipe_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']).order('position'),
     'Reading ingredients');
   const details = new Map(recipes.map((r) => [r.id, {
     ...r, base_portions: Number(r.base_portions), steps: [],
@@ -53,7 +60,7 @@ async function list() {
     .map((b) => ({ ...b, qty: b.qty === null ? null : Number(b.qty) }));
   const products = new Map(must<Product[]>(await db.from('products').select('*').eq('household_id', householdId), 'Reading saved products').map((p) => [p.item_key, p]));
   const ticks = new Set(must<{ item_key: string }[]>(
-    await db.from('shopping_ticks').select('item_key').eq('plan_week_id', week.id).eq('delivery', delivery).eq('ticked', true), 'Reading ticks').map((t) => t.item_key.split('@')[0]));
+    await db.from('shopping_ticks').select('item_key').eq('plan_week_id', week.id).eq('delivery', delivery).eq('ticked', true), 'Reading ticks').map((t) => t.item_key));
 
   const shops = settings?.data?.shops_per_week === 1 ? 1 : 2;
   const list = buildShoppingList(slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })), details, staples, shops, basics);
@@ -61,12 +68,13 @@ async function list() {
     const p = products.get(item.key);
     return {
       key: item.key, name: item.name, qty: item.qty, unit: item.unit, approx: item.approx, for: item.forMeals,
-      alreadyTicked: ticks.has(item.key),
+      alreadyTicked: ticks.has(tickKey(item)), // same rule as the Shop tab: a changed quantity counts as not bought
       saved: p ? { name: p.product_name, url: p.product_url, size: p.pack_size, unit: p.pack_unit, price: p.price, pinned: p.pinned } : null,
       packs: p && p.pack_size ? packsNeeded(item.qty, item.unit, Number(p.pack_size), p.pack_unit) : null,
     };
   });
-  console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery }, items }, null, 2));
+  const deliveryDate = addDays(week.week_start, delivery === 'sun' ? -1 : 1);
+  console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery, deliveryDate }, items }, null, 2));
 }
 
 async function record() {
