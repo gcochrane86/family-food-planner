@@ -10,8 +10,7 @@
     "test": "vitest run",
     "seed": "node scripts/seed.mjs",
     "check-rls": "node scripts/check-rls.mjs",
-    "seed:recipes": "node scripts/seed-recipes.mjs",
-    "heroes": "node scripts/generate-heroes.mjs"
+    "seed:recipes": "node scripts/seed-recipes.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
