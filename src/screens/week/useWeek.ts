@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import type { MealSlot, PlanWeek, Recipe } from '../../lib/types';
@@ -79,27 +79,46 @@ export function useWeek() {
     });
   }, [setData, shown]);
 
-  /** Saves straight away, and puts things back if the save fails. */
-  const commit = useCallback(async (next: MealSlot[], changed: MealSlot[]) => {
-    if (!current) return;
-    const before = current.slots;
+  // The latest slots, updated as soon as a change is made, so two quick taps build on each other
+  // instead of both starting from what was on screen at the last render.
+  const latest = useRef<MealSlot[]>([]);
+  const latestFor = useRef<string | null>(null);
+  if (latestFor.current !== `${shown}:${current?.week?.id ?? ''}` || !latest.current.length) {
+    latest.current = current?.slots ?? [];
+    latestFor.current = `${shown}:${current?.week?.id ?? ''}`;
+  }
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const sameSlot = (a: MealSlot, b: MealSlot) => a.date === b.date && a.slot === b.slot;
+
+  /** Shows the change at once and saves it after any earlier saves, so they reach the database in order.
+   *  If a save fails, only the slots it changed go back. */
+  const commit = useCallback((next: MealSlot[], changed: MealSlot[], before: MealSlot[]) => {
+    if (!changed.length) return;
+    latest.current = next;
     setCurrent(next);
-    setSaveError(null);
-    try {
-      await repo.saveSlots(changed);
-    } catch {
-      setCurrent(before);
+    // An earlier failure message stays up (it says a change was undone) until the screen is reloaded.
+    queue.current = queue.current.then(() => repo.saveSlots(changed)).catch(() => {
+      const restored = latest.current.map((s) => (changed.some((c) => sameSlot(c, s)) ? before.find((b) => sameSlot(b, s)) ?? s : s));
+      latest.current = restored;
+      setCurrent(restored);
       setSaveError("Couldn't save that change. Check your connection and try again.");
-    }
-  }, [current, setCurrent]);
+    });
+  }, [setCurrent]);
 
   const change = useCallback((fn: (plan: ProposedSlot[]) => ProposedSlot[]) => {
-    if (!current) return;
-    const { next, changed } = merge(current.slots, fn(current.slots.map(toProposed)));
-    void commit(next, changed);
-  }, [current, commit]);
+    const base = latest.current;
+    const { next, changed } = merge(base, fn(base.map(toProposed)));
+    commit(next, changed, base);
+  }, [commit]);
 
-  const dinner = (date: string) => current?.slots.find((s) => s.date === date && s.slot === 'dinner');
+  /** Updates one slot by date and kind. */
+  const update = useCallback((date: string, kind: MealSlot['slot'], edit: (s: MealSlot) => MealSlot | null) => {
+    const base = latest.current;
+    const target = base.find((s) => s.date === date && s.slot === kind);
+    const updated = target ? edit(target) : null;
+    if (!target || !updated) return;
+    commit(base.map((s) => (s === target ? updated : s)), [updated], base);
+  }, [commit]);
 
   return {
     loading, error, reload, saveError, starts, shown, setWhich, weekStart, recipes, input,
@@ -110,35 +129,23 @@ export function useWeek() {
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     out: (date: string) => change((p) => applyOut(p, date)),
     leftovers: (date: string) => change((p) => applyLeftovers(p, date)),
-    guests: (date: string, n: number) => input && change((p) => applyGuests(p, date, Math.max(0, n), input)),
-    keep: (date: string) => {
-      const d = dinner(date);
-      if (d && !d.locked) void commit(current!.slots.map((s) => (s === d ? { ...s, locked: true } : s)), [{ ...d, locked: true }]);
+    /** Adds (+1) or removes (−1) a guest, counting from the latest state so quick taps all count. */
+    guests: (date: string, delta: number) => {
+      if (!input) return;
+      const d = latest.current.find((s) => s.date === date && s.slot === 'dinner');
+      if (d) change((p) => applyGuests(p, date, Math.max(0, d.guests + delta), input));
     },
-    cooked: (date: string) => {
-      const d = dinner(date);
-      if (!d) return;
-      const updated = { ...d, cooked_at: new Date().toISOString() };
-      void commit(current!.slots.map((s) => (s === d ? updated : s)), [updated]);
-    },
-    verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => {
-      const d = dinner(date);
-      if (!d) return;
-      const updated = { ...d, portions_verdict: v };
-      void commit(current!.slots.map((s) => (s === d ? updated : s)), [updated]);
-    },
-    breakfast: (date: string, choice: string) => {
-      const b = current?.slots.find((s) => s.date === date && s.slot === 'breakfast');
-      if (!b) return;
-      const updated = { ...b, routine_choice: b.routine_choice === choice ? null : choice };
-      void commit(current!.slots.map((s) => (s === b ? updated : s)), [updated]);
-    },
+    keep: (date: string) => update(date, 'dinner', (d) => (d.locked ? null : { ...d, locked: true })),
+    cooked: (date: string) => update(date, 'dinner', (d) => ({ ...d, cooked_at: new Date().toISOString() })),
+    verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => update(date, 'dinner', (d) => ({ ...d, portions_verdict: v })),
+    breakfast: (date: string, choice: string) =>
+      update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
     async approve() {
       if (!current?.week) return;
       setSaveError(null);
       try {
         await repo.approveWeek(current.week.id);
-        setCurrent(current.slots, { ...current.week, status: 'approved', approved_at: current.week.approved_at ?? new Date().toISOString() });
+        setCurrent(latest.current, { ...current.week, status: 'approved', approved_at: current.week.approved_at ?? new Date().toISOString() });
       } catch {
         setSaveError("Couldn't approve the week. Check your connection and try again.");
       }

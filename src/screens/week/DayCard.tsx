@@ -89,9 +89,9 @@ export default function DayCard({ date, w }: { date: string; w: WeekState }) {
             {dinner.mode === 'cook' && <button type="button" className={btn} onClick={() => w.leftovers(date)}>Leftovers</button>}
             {dinner.mode === 'cook' && (
               <span className="flex items-center gap-1">
-                <button type="button" className={btn} aria-label="Remove a guest" disabled={!dinner.guests} onClick={() => w.guests(date, dinner.guests - 1)}>−</button>
+                <button type="button" className={btn} aria-label="Remove a guest" disabled={!dinner.guests} onClick={() => w.guests(date, -1)}>−</button>
                 <span className="text-[13px] text-muted">Guests</span>
-                <button type="button" className={btn} aria-label="Add a guest" onClick={() => w.guests(date, dinner.guests + 1)}>+</button>
+                <button type="button" className={btn} aria-label="Add a guest" onClick={() => w.guests(date, 1)}>+</button>
               </span>
             )}
           </div>

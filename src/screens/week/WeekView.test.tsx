@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, PARTNER, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
@@ -120,4 +120,33 @@ test('marking a dinner cooked asks how the portions were and saves the answer', 
   saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved[0]).toMatchObject({ slot: 'dinner', portions_verdict: 'right' });
   expect(within(tue()).getByText('✓ Cooked · portions about right')).toBeInTheDocument();
+});
+
+test('a failed save only undoes its own change, and later changes still save', async () => {
+  h.repo.saveSlots
+    .mockImplementationOnce(() => new Promise((_resolve, reject) => setTimeout(() => reject(new Error('offline')), 50)))
+    .mockImplementation(async () => {});
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Mon');
+  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Keep' }));
+  await openDay('Tue');
+  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Out tonight' }));
+  await act(async () => { vi.advanceTimersByTime(200); });
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save that change");
+  expect(within(day(/Tuesday/)).getByText('Out tonight')).toBeInTheDocument();
+  await openDay('Mon');
+  expect(within(day(/Monday/)).getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  const last = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(last.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!.mode).toBe('out');
+});
+
+test('two very quick taps both count and save in order', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Fri');
+  const add = within(day(/Friday/)).getByRole('button', { name: 'Add a guest' });
+  act(() => { fireEvent.click(add); fireEvent.click(add); });
+  expect(within(day(/Friday/)).getByText(/2 guests/)).toBeInTheDocument();
+  await act(async () => { vi.advanceTimersByTime(50); });
+  const guestsSaved = h.repo.saveSlots.mock.calls.map((c) => c[0].find((s) => s.slot === 'dinner')!.guests);
+  expect(guestsSaved).toEqual([1, 2]);
 });
