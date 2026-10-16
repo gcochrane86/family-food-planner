@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, PARTNER, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
-import { BEEF, CHOW, COD, CURRY, DONER, HONEY, PENNE, SALMON, TACOS } from '../../test/fixtures';
+import { BEEF, CHOW, COD, CURRY, DONER, HONEY, NEXT_WEEK, PENNE, SALMON, TACOS } from '../../test/fixtures';
 import WeekView from './WeekView';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -20,10 +20,13 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-const day = (label: RegExp) => screen.getByRole('region', { name: label });
+const day = (label: RegExp) => screen.getByRole('dialog', { name: label });
+const tile = async (name: string) => screen.findByRole('button', { name: new RegExp(`^${name}`) });
 
+/** Opens a day's sheet from its tile, closing any day that's already open. */
 async function openDay(name: string) {
-  await user().click(await screen.findByRole('tab', { name: new RegExp(name) }));
+  if (screen.queryByRole('dialog')) await user().keyboard('{Escape}');
+  await user().click(await tile(name));
 }
 
 test('a draft week shows the review banner and can be approved', async () => {
@@ -74,12 +77,64 @@ test('the 8pm prep row shows tomorrow’s prep', async () => {
   expect(prep).toHaveTextContent('For Saturday · 15 min');
 });
 
-test('the day strip switches days on the phone', async () => {
+test('shows a tile per day with breakfast, lunch and dinner', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
-  expect(await screen.findByRole('region', { name: /Monday/ })).toBeInTheDocument();
-  await openDay('Wed');
-  expect(screen.getByRole('region', { name: /Wednesday/ })).toBeInTheDocument();
-  expect(screen.queryByRole('region', { name: /Monday/ })).not.toBeInTheDocument();
+  const names = ['Monday 19', 'Tuesday 20', 'Wednesday 21', 'Thursday 22', 'Friday 23', 'Saturday 24', 'Sunday 25'];
+  for (const n of names) expect(await tile(n)).toBeInTheDocument();
+  const mon = await tile('Monday 19');
+  expect(within(mon).getByText(HONEY.title)).toBeInTheDocument();
+  expect(within(mon).getByText('Packed lunch')).toBeInTheDocument();
+  expect(within(mon).getByText('Office')).toBeInTheDocument();
+});
+
+test('the week tile shows the balance', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  expect(await screen.findByText('2 chicken')).toBeInTheDocument();
+  expect(screen.getByText('1 fish')).toBeInTheDocument();
+});
+
+test('tapping a day opens it with its options, and changes show on its tile', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Monday');
+  const mon = day(/Monday 19 October/);
+  for (const name of ['Swap', 'Out tonight', 'Mark cooked']) expect(within(mon).getByRole('button', { name })).toBeInTheDocument();
+  await user().click(within(mon).getByRole('button', { name: 'Out tonight' }));
+  await user().keyboard('{Escape}');
+  expect(within(await tile('Monday 19')).getByText('Out tonight', { selector: 'span.dinner' })).toBeInTheDocument();
+});
+
+test('portions can be changed in the day', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'More portions' }));
+  let saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved[0]).toMatchObject({ date: '2026-10-20', slot: 'dinner', portions: 3.5 });
+  for (let i = 0; i < 8; i++) await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Fewer portions' }));
+  saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved[0].portions).toBe(0.5);
+  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Fewer portions' })).toBeDisabled();
+});
+
+test('Escape closes the day and returns focus to its tile', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Wednesday');
+  expect(day(/Wednesday/)).toBeInTheDocument();
+  await user().keyboard('{Escape}');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(await tile('Wednesday 21')).toHaveFocus();
+  await openDay('Wednesday');
+  await user().click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('a 5-day plan shows 5 day tiles and the week tile', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { week: { ...NEXT_WEEK.week, days: 5 }, slots: NEXT_WEEK.slots.filter((s) => s.date <= '2026-10-23') }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  expect(await tile('Friday 23')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Saturday/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Approve week' })).toBeInTheDocument();
 });
 
 test('Monday breakfast is fixed; other days record what you had', async () => {

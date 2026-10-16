@@ -24,7 +24,7 @@ function Label({ children, tone }: { children: string; tone: string }) {
   return <span className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.06em] ${tone}`}><i className="h-2 w-2 rounded-[3px] bg-current" />{children}</span>;
 }
 
-export default function DayCard({ date, w }: { date: string; w: WeekState }) {
+export default function DayCard({ date, w, hideTitle = false }: { date: string; w: WeekState; hideTitle?: boolean }) {
   const [swapping, setSwapping] = useState(false);
   const slot = (kind: MealSlot['slot'], d = date) => w.slots.find((s) => s.date === d && s.slot === kind);
   const breakfast = slot('breakfast');
@@ -38,7 +38,7 @@ export default function DayCard({ date, w }: { date: string; w: WeekState }) {
 
   return (
     <section aria-label={dayLabel(date)} className="grid gap-2.5">
-      <h2 className="text-xl font-bold">{dayLabel(date)}{w.officeDays.includes((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) && <span className="ml-2 rounded-full bg-yolk-soft px-2 py-0.5 align-middle text-xs font-semibold text-yolk">Office day</span>}</h2>
+      <h2 className={hideTitle ? 'sr-only' : 'text-xl font-bold'}>{dayLabel(date)}{w.officeDays.includes((new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7) && <span className="ml-2 rounded-full bg-yolk-soft px-2 py-0.5 align-middle text-xs font-semibold text-yolk">Office day</span>}</h2>
 
       {breakfast && (
         <div className="grid gap-2 rounded-2xl border border-line bg-surface p-3.5">
@@ -87,6 +87,13 @@ export default function DayCard({ date, w }: { date: string; w: WeekState }) {
             <button type="button" className={btn} onClick={() => setSwapping((s) => !s)}>{dinner.mode === 'cook' ? 'Swap' : 'Plan a dinner'}</button>
             {dinner.mode === 'cook' && <button type="button" className={btn} onClick={() => w.out(date)}>Out tonight</button>}
             {dinner.mode === 'cook' && <button type="button" className={btn} onClick={() => w.leftovers(date)}>Leftovers</button>}
+            {dinner.mode === 'cook' && (
+              <span className="flex items-center gap-1">
+                <button type="button" className={btn} aria-label="Fewer portions" disabled={(dinner.portions ?? 0) <= 0.5} onClick={() => w.portions(date, -0.5)}>−</button>
+                <span className="text-[13px] text-muted">Portions</span>
+                <button type="button" className={btn} aria-label="More portions" onClick={() => w.portions(date, 0.5)}>+</button>
+              </span>
+            )}
             {dinner.mode === 'cook' && (
               <span className="flex items-center gap-1">
                 <button type="button" className={btn} aria-label="Remove a guest" disabled={!dinner.guests} onClick={() => w.guests(date, -1)}>−</button>

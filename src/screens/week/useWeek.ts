@@ -135,6 +135,12 @@ export function useWeek() {
       const d = latest.current.find((s) => s.date === date && s.slot === 'dinner');
       if (d) change((p) => applyGuests(p, date, Math.max(0, d.guests + delta), input));
     },
+    /** Changes dinner portions by ±0.5, never below 0.5, counting from the latest state. */
+    portions: (date: string, delta: number) =>
+      update(date, 'dinner', (d) => {
+        const next = Math.max(0.5, (d.portions ?? 0) + delta);
+        return next === d.portions ? null : { ...d, portions: next };
+      }),
     keep: (date: string) => update(date, 'dinner', (d) => (d.locked ? null : { ...d, locked: true })),
     cooked: (date: string) => update(date, 'dinner', (d) => ({ ...d, cooked_at: new Date().toISOString() })),
     verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => update(date, 'dinner', (d) => ({ ...d, portions_verdict: v })),

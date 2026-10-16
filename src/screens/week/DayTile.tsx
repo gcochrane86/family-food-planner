@@ -1,0 +1,40 @@
+import { forwardRef } from 'react';
+import type { DayChip, DaySummary } from '../../lib/weekSummary';
+import { dayLabel } from './DayCard';
+
+const CHIP: Record<DayChip, string> = {
+  office: 'bg-evening-soft text-evening', prep: 'bg-evening-soft text-evening', twice: 'bg-accent-soft text-accent',
+  guests: 'bg-yolk-soft text-yolk', out: 'bg-warn-soft text-warn', cooked: 'bg-accent-soft text-accent',
+};
+const row = 'grid grid-cols-[10px_minmax(0,1fr)] items-center gap-2 text-[13.5px] leading-tight';
+
+/** One day on the week grid: breakfast, lunch and dinner at a glance. Tap to open the day. */
+const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummary; today: boolean; onOpen: () => void }>(
+  ({ date, summary, today, onOpen }, ref) => {
+    const [weekday, dateNum] = dayLabel(date).split(' ');
+    return (
+      <button ref={ref} type="button" onClick={onOpen} aria-label={dayLabel(date)}
+        className={`grid min-w-0 content-start gap-2 rounded-[22px] bg-surface p-3.5 text-left shadow-sm active:scale-[.98] motion-reduce:active:scale-100 ${today ? 'outline outline-2 outline-accent' : ''}`}>
+        <span className="flex items-baseline justify-between">
+          <span className="font-bold text-accent">{weekday}</span>
+          <span className="font-display text-2xl font-extrabold leading-none">{dateNum}</span>
+        </span>
+        <span className={row}><i className="h-2.5 w-2.5 rounded-full bg-yolk" /><span className="truncate text-muted">{summary.breakfast}</span></span>
+        <span className={row}><i className="h-2.5 w-2.5 rounded-full bg-teal" /><span className="truncate text-muted">{summary.lunch}</span></span>
+        <span className={row}>
+          <i className={`h-2.5 w-2.5 rounded-full ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
+          <span className="dinner line-clamp-2 break-words font-bold">{summary.dinner}</span>
+        </span>
+        {summary.chips.length > 0 && (
+          <span className="flex flex-wrap gap-1">
+            {summary.chips.map((c) => (
+              <span key={c.kind} className={`rounded-full px-2 py-0.5 text-[11px] font-bold tracking-[0.02em] ${CHIP[c.kind]}`}>{c.label}</span>
+            ))}
+          </span>
+        )}
+      </button>
+    );
+  },
+);
+DayTile.displayName = 'DayTile';
+export default DayTile;
