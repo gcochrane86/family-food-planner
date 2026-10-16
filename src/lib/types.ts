@@ -97,6 +97,8 @@ export interface RecipeStep {
   timer_minutes: number | null;
   image_path: string | null;
   image_source: 'own' | 'generated' | null;
+  /** Your own one-sentence description of what this step's AI photo should show. */
+  photo_hint?: string | null;
 }
 
 export interface Recipe {

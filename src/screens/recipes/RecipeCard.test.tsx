@@ -125,6 +125,8 @@ test('new step photos come from the settings menu and leave your own photos alon
   await screen.findByRole('heading', { name: HONEY.title });
   expect(screen.queryByRole('button', { name: /Redo photo/ })).not.toBeInTheDocument();
   await fromSettings('New step photos ✨');
+  expect(screen.getByText('Remake 1 step photo? About 3p.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
   await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(1));
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true, true);
 });
@@ -138,6 +140,25 @@ test('add step photos asks first with a rough cost, then makes them without need
   await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
   for (const st of HONEY.steps) expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, st.id, false, true);
   expect(h.repo.rateRecipe).not.toHaveBeenCalled();
+});
+
+test('each step can have your own one-sentence description for its photo', async () => {
+  open('r-honey');
+  await fromSettings('Add step photos ✨');
+  const box = screen.getByRole('textbox', { name: 'Step 2: Rice on' });
+  await userEvent.type(box, 'Rice steaming in the basket');
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, 's-rice', false, true, { hint: 'Rice steaming in the basket' });
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, 's-sauce', false, true);
+});
+
+test('a saved description is filled in when remaking photos', async () => {
+  const steps = HONEY.steps.map((s, i) => ({ ...s, image_path: `p${i}.jpg`, image_source: 'generated' as const, photo_hint: i === 0 ? 'Sauce in a jar' : null }));
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, steps });
+  open('r-honey');
+  await fromSettings('New step photos ✨');
+  expect(screen.getByRole('textbox', { name: 'Step 1: The bulk sauce' })).toHaveValue('Sauce in a jar');
 });
 
 test('cancelling add step photos makes nothing', async () => {

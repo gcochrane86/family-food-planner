@@ -32,7 +32,9 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { recipeId, stepId, replace, asked } = await req.json().catch(() => ({}));
+  const { recipeId, stepId, replace, asked, replaceOwn, hint } = await req.json().catch(() => ({}));
+  // Your own description of the photo (one sentence); saved with the step so a remake uses it again.
+  const ownHint = typeof hint === 'string' && hint.trim() ? hint.trim().slice(0, 200) : null;
   if (typeof recipeId !== 'string' || typeof stepId !== 'string') return reply(400, { error: 'recipeId and stepId are required' });
 
   const { data: recipe, error: recipeError } = await db.from('recipes')
@@ -41,13 +43,13 @@ Deno.serve(async (req) => {
   if (!recipe) return reply(404, { error: 'That recipe is not in your library.' });
 
   const { data: rows, error: stepsError } = await db.from('recipe_steps')
-    .select('id, phase, position, title, body, machine, image_path, image_source').eq('recipe_id', recipeId);
+    .select('id, phase, position, title, body, machine, image_path, image_source, photo_hint').eq('recipe_id', recipeId);
   if (stepsError) return reply(500, { error: stepsError.message });
   const steps = (rows ?? []).sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position);
   const index = steps.findIndex((s) => s.id === stepId);
   if (index < 0) return reply(404, { error: 'That step is not in this recipe.' });
 
-  const refusal = stepPhotoRefusal(recipe, steps[index], replace === true, asked === true);
+  const refusal = stepPhotoRefusal(recipe, steps[index], replace === true, asked === true, replaceOwn === true);
   if (refusal) return reply(409, { error: refusal });
 
   const { data: hero, error: heroError } = await db.storage.from('recipe-images').download(recipe.hero_image_path!);
@@ -59,7 +61,7 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       model: GEMINI_MODEL,
       input: [
-        { type: 'text', text: stepPhotoPrompt(recipe.title, steps, index) },
+        { type: 'text', text: stepPhotoPrompt(recipe.title, steps, index, ownHint ?? steps[index].photo_hint) },
         { type: 'image', data: encodeBase64(new Uint8Array(await hero.arrayBuffer())), mime_type: hero.type || 'image/jpeg' },
       ],
       response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '4:3', image_size: '1K' },
@@ -80,8 +82,8 @@ Deno.serve(async (req) => {
   if (uploadError) return reply(500, { error: `Couldn't save the image: ${uploadError.message}` });
 
   // Only if the step is still free (or still generated, for a redo): a photo you added meanwhile wins.
-  const guard = stepPhotoWriteGuard(replace === true);
-  const update = db.from('recipe_steps').update({ image_path: path, image_source: 'generated' }).eq('id', stepId);
+  const guard = stepPhotoWriteGuard(replace === true, replaceOwn === true && steps[index].image_source === 'own');
+  const update = db.from('recipe_steps').update({ image_path: path, image_source: 'generated', ...(ownHint ? { photo_hint: ownHint } : {}) }).eq('id', stepId);
   const { data: saved, error: updateError } = await (guard.equals === null ? update.is(guard.column, null) : update.eq(guard.column, guard.equals)).select('id');
   if (updateError) return reply(500, { error: updateError.message });
   if (!saved?.length) {

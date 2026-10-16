@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -126,5 +126,55 @@ test('adding a step photo lives in the cook mode settings menu', async () => {
   await screen.findByRole('heading', { name: 'Rice on' });
   expect(screen.queryByText(/^(Add|Replace) photo$/)).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Cook mode settings' }));
-  expect(screen.getByRole('menuitem', { name: 'Add a photo of this step' })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: 'Use your own photo' })).toBeInTheDocument();
+  expect(screen.getByRole('menuitem', { name: 'Make a new photo ✨' })).toBeInTheDocument();
+});
+
+
+test('make a new photo from cook mode: your description, the cost, then progress and the new photo', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg' });
+  let release = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  h.repo.generateStepPhoto.mockImplementationOnce(async () => { await held; return 'h1/steps/new.jpg'; });
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'Cook mode settings' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Make a new photo ✨' }));
+  const dialog = screen.getByRole('dialog', { name: 'New photo for this step' });
+  expect(dialog).toHaveTextContent('About 3p');
+  await userEvent.type(within(dialog).getByRole('textbox'), 'Rice steaming in the basket');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Make photo' }));
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true, { hint: 'Rice steaming in the basket' });
+  expect(within(dialog).getByRole('status')).toHaveTextContent('Making your photo');
+  release();
+  expect(await screen.findByRole('img', { name: 'Photo of this step' })).toHaveAttribute('src', expect.stringContaining('h1/steps/new.jpg'));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+test('a new photo over your own photo warns first and replaces it', async () => {
+  const steps = HONEY.steps.map((s) => (s.id === 's-rice' ? { ...s, image_path: 'h1/steps/mine.jpg', image_source: 'own' as const } : s));
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', steps });
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'Cook mode settings' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Make a new photo ✨' }));
+  const dialog = screen.getByRole('dialog', { name: 'New photo for this step' });
+  expect(dialog).toHaveTextContent('This replaces your own photo.');
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Make photo' }));
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', true, true, { replaceOwn: true });
+});
+
+test('swiping moves between steps', async () => {
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  const area = screen.getByRole('region', { name: 'Step' });
+  fireEvent.touchStart(area, { touches: [{ clientX: 300, clientY: 200 }] });
+  fireEvent.touchEnd(area, { changedTouches: [{ clientX: 120, clientY: 210 }] });
+  expect(screen.getByRole('heading', { name: 'Final toss' })).toBeInTheDocument();
+  fireEvent.touchStart(area, { touches: [{ clientX: 100, clientY: 200 }] });
+  fireEvent.touchEnd(area, { changedTouches: [{ clientX: 300, clientY: 205 }] });
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  fireEvent.touchStart(area, { touches: [{ clientX: 300, clientY: 100 }] });
+  fireEvent.touchEnd(area, { changedTouches: [{ clientX: 280, clientY: 400 }] });
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
 });

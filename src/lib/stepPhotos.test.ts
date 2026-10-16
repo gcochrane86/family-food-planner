@@ -47,3 +47,9 @@ test('photos asked for from the menu are sent as asked', async () => {
   await makeStepPhotos('r9', steps(null), () => {}, { asked: true });
   expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's1', false, true);
 });
+
+test('your own description for a step is sent with it', async () => {
+  await makeStepPhotos('r9', steps(null, null), () => {}, { asked: true, hints: { s2: 'Rice steaming in the basket' } });
+  expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's1', false, true);
+  expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's2', false, true, { hint: 'Rice steaming in the basket' });
+});

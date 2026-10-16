@@ -57,7 +57,7 @@ export function fakeRepo() {
     requestCookidooSync: vi.fn(async (_weekId: string) => {}),
     getCookidooRun: vi.fn(async (_weekId: string): Promise<CookidooRun | null> => null),
     rateRecipe: vi.fn(async (_recipeId: string, _rating: 'up' | 'down' | null) => {}),
-    generateStepPhoto: vi.fn(async (recipeId: string, stepId: string, _replace?: boolean, _asked?: boolean) => `h1/steps/${recipeId}-${stepId}-gen.jpg`),
+    generateStepPhoto: vi.fn(async (recipeId: string, stepId: string, _replace?: boolean, _asked?: boolean, _opts?: { hint?: string; replaceOwn?: boolean }) => `h1/steps/${recipeId}-${stepId}-gen.jpg`),
     uploadStepPhoto: vi.fn(async (_hid: string, stepId: string) => `h1/steps/${stepId}.jpg`),
   };
 }

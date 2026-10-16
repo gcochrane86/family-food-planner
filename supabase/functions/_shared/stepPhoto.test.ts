@@ -61,3 +61,19 @@ test('a photo you ask for from the menu does not need a 👍, but your own photo
   expect(stepPhotoRefusal({ ...unrated, hero_image_path: null }, empty, false, true)).toBe('Make the main photo first.');
   expect(stepPhotoRefusal(unrated, { image_path: 'a.jpg', image_source: 'own' }, true, true)).toBe('This step has your own photo.');
 });
+
+test('your own one-sentence description replaces the automatic one, keeping the house style', () => {
+  const p = stepPhotoPrompt('Chickpea Curry', curry, 1, 'Chickpeas bubbling in a creamy tomato sauce');
+  expect(p).toContain('Show this: Chickpeas bubbling in a creamy tomato sauce.');
+  expect(p).not.toContain('Only these ingredients are in it so far');
+  expect(p).toContain('same table, light and colours as the reference photo');
+  expect(p).toContain('No text');
+});
+
+test('a new photo you ask for in cook mode can replace your own photo, and only then', () => {
+  const liked = { rating: 'up', hero_image_path: 'h.jpg' };
+  const own = { image_path: 'a.jpg', image_source: 'own' };
+  expect(stepPhotoRefusal(liked, own, true, true)).toBe('This step has your own photo.');
+  expect(stepPhotoRefusal(liked, own, true, true, true)).toBeNull();
+  expect(stepPhotoWriteGuard(true, true)).toEqual({ column: 'image_source', equals: 'own' });
+});

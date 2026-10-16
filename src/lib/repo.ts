@@ -122,7 +122,7 @@ export const repo = {
     if (!recipe) return null;
     const [ingredients, steps] = await Promise.all([
       db().from('recipe_ingredients').select('id, position, group_name, name, qty, unit, note, qty_approx').eq('recipe_id', id).order('position'),
-      db().from('recipe_steps').select('id, phase, position, at_minute, title, body, machine, settings, timer_minutes, image_path, image_source')
+      db().from('recipe_steps').select('id, phase, position, at_minute, title, body, machine, settings, timer_minutes, image_path, image_source, photo_hint')
         .eq('recipe_id', id).order('phase').order('position'),
     ]);
     return {
@@ -240,8 +240,9 @@ export const repo = {
   },
 
   /** Asks the generate-step-photo Edge Function for one step's photo. Returns the new image path. */
-  async generateStepPhoto(recipeId: string, stepId: string, replace = false, asked = false): Promise<string> {
-    const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace, asked } });
+  async generateStepPhoto(recipeId: string, stepId: string, replace = false, asked = false,
+    opts: { hint?: string; replaceOwn?: boolean } = {}): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace, asked, ...opts } });
     if (error) {
       const context = (error as { context?: Response }).context;
       const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;

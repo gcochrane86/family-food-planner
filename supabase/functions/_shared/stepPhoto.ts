@@ -24,12 +24,17 @@ function ingredientsSoFar(steps: PromptStep[], index: number): string[] {
   return seen;
 }
 
-export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index: number): string {
+/** `hint`: the household's own one-sentence description of what the photo should show; it replaces the automatic one. */
+export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index: number, hint?: string | null): string {
   const step = steps[index];
   const ingredients = ingredientsSoFar(steps, index);
   const prep = step.phase === 'prep_8pm';
+  const intro = `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`;
+  const rules = 'Close up from directly above. No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
+  const own = hint?.trim().replace(/[.\s]+$/, '');
+  if (own) return [intro, `The step: ${step.title}.`, `Show this: ${own}.`, rules].join(' ');
   return [
-    `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`,
+    intro,
     `The step: ${step.title}. ${step.body.replace(/\*\*/g, '')}`,
     ingredients.length ? `Only these ingredients are in it so far: ${ingredients.join(', ')}.` : '',
     prep
@@ -48,10 +53,11 @@ export function stepPhotoRefusal(
   step: { image_path: string | null; image_source: string | null },
   replace: boolean,
   asked = false,
+  replaceOwn = false, // cook mode's "Make a new photo", after warning that it replaces your photo
 ): string | null {
   if (recipe.rating !== 'up' && !asked) return 'Only liked recipes get step photos.';
   if (!recipe.hero_image_path) return 'Make the main photo first.';
-  if (step.image_path && step.image_source !== 'generated') return 'This step has your own photo.';
+  if (step.image_path && step.image_source !== 'generated' && !(replaceOwn && asked)) return 'This step has your own photo.';
   if (step.image_path && !replace) return 'This step already has a photo.';
   return null;
 }
@@ -61,6 +67,7 @@ export function stepPhotoRefusal(
  * a new photo only fills an empty step, and a redo only replaces a generated one. So a photo you add
  * while one is being made always wins.
  */
-export function stepPhotoWriteGuard(replace: boolean): { column: 'image_path' | 'image_source'; equals: null | 'generated' } {
+export function stepPhotoWriteGuard(replace: boolean, replaceOwn = false): { column: 'image_path' | 'image_source'; equals: null | 'generated' | 'own' } {
+  if (replace && replaceOwn) return { column: 'image_source', equals: 'own' };
   return replace ? { column: 'image_source', equals: 'generated' } : { column: 'image_path', equals: null };
 }

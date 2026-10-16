@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { resizeImage } from '../../lib/image';
 import { machineLabel } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
+import { photoCost } from './RecipeCard';
 import { remaining } from '../../lib/timer';
 import type { Phase, RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
@@ -94,6 +95,8 @@ export default function CookMode() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [newPhoto, setNewPhoto] = useState<{ hint: string; busy: boolean; error: string | null } | null>(null);
+  const touch = useRef<{ x: number; y: number } | null>(null);
   useWakeLock();
   const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
@@ -114,6 +117,39 @@ export default function CookMode() {
   const steps = recipe.steps.filter((s) => s.phase === phase);
   const step: RecipeStep | undefined = steps[Math.min(index, steps.length - 1)];
   const last = index >= steps.length - 1;
+
+  const goBack = () => { if (index > 0) { setIndex((i) => i - 1); setPhotoError(null); } };
+  const goNext = () => { if (!last) { setIndex((i) => i + 1); setPhotoError(null); } };
+
+  /** Swipe left for the next step, right to go back. Mostly-vertical drags scroll instead. */
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touch.current;
+    touch.current = null;
+    const t = e.changedTouches[0];
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) goNext(); else goBack();
+  }
+
+  /** "Make a new photo ✨": an AI photo of this step from your own one-sentence description (or the recipe's). */
+  async function makeNewPhoto() {
+    if (!newPhoto || !step?.id || !recipe) return;
+    const hint = newPhoto.hint.trim();
+    const own = !!step.image_path && step.image_source !== 'generated';
+    const opts = { ...(hint ? { hint } : {}), ...(own ? { replaceOwn: true } : {}) };
+    setNewPhoto({ ...newPhoto, busy: true, error: null });
+    try {
+      const path = Object.keys(opts).length
+        ? await repo.generateStepPhoto(recipe.id, step.id, !!step.image_path, true, opts)
+        : await repo.generateStepPhoto(recipe.id, step.id, !!step.image_path, true);
+      setData({ ...recipe, steps: recipe.steps.map((s) => (s.id === step.id ? { ...s, image_path: path, image_source: 'generated' as const, photo_hint: hint || s.photo_hint } : s)) });
+      setNewPhoto(null);
+    } catch (e) {
+      setNewPhoto({ hint: newPhoto.hint, busy: false, error: `Couldn't make the photo: ${e instanceof Error ? e.message : String(e)}` });
+    }
+  }
 
   async function addPhoto(file: File | undefined) {
     if (!file || !step?.id || !recipe) return;
@@ -148,9 +184,11 @@ export default function CookMode() {
           {menuOpen && step && (
             <div role="menu" className="absolute right-12 top-11 z-10 grid min-w-56 rounded-xl bg-[#1F2822] p-1 shadow-lg"
               onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
+              <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setNewPhoto({ hint: step.photo_hint ?? '', busy: false, error: null }); }}
+                className="rounded-lg px-3 py-2 text-left text-sm font-semibold text-white hover:bg-white/10">Make a new photo ✨</button>
               <label htmlFor="step-photo-input" role="menuitem" tabIndex={0} onClick={() => setMenuOpen(false)}
                 className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">
-                {step.image_path ? "Replace this step's photo" : 'Add a photo of this step'}
+                Use your own photo
               </label>
             </div>
           )}
@@ -171,7 +209,8 @@ export default function CookMode() {
       )}
       <div role="status" className="sr-only">{timers.filter((t) => t.done).map((t) => `${t.label}: done`).join('. ')}</div>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
+      <section aria-label="Step" onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
         {!step ? (
           <p className="text-xl">No {phase === 'prep_8pm' ? '8pm prep' : 'dinner'} steps for this recipe.</p>
         ) : (
@@ -215,12 +254,36 @@ export default function CookMode() {
             </div>
           </>
         )}
-      </div>
+      </section>
+
+      {newPhoto && step && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-5" onClick={(e) => { if (e.target === e.currentTarget && !newPhoto.busy) setNewPhoto(null); }}>
+          <div role="dialog" aria-modal="true" aria-label="New photo for this step" className="grid w-full max-w-md gap-3 rounded-2xl bg-[#1F2822] p-5 text-white">
+            <h2 className="text-xl font-bold">New photo: {step.title}</h2>
+            <label className="grid gap-1.5 text-sm font-semibold">
+              In one sentence, what should the photo show? (optional)
+              <input type="text" maxLength={200} autoFocus disabled={newPhoto.busy} value={newPhoto.hint}
+                onChange={(e) => setNewPhoto({ ...newPhoto, hint: e.target.value })}
+                placeholder="e.g. Chickpeas bubbling in a creamy tomato sauce"
+                className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-base font-normal text-white placeholder:text-[#9AA89F]" />
+            </label>
+            <p className="m-0 text-sm text-[#9AA89F]">
+              About {photoCost(1)}.{step.image_path && step.image_source !== 'generated' ? ' This replaces your own photo.' : ''}
+            </p>
+            {newPhoto.busy && <p role="status" className="m-0 font-semibold text-lcd-ink">Making your photo… this takes about 10–20 seconds.</p>}
+            {newPhoto.error && <p role="alert" className="m-0 rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{newPhoto.error}</p>}
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={newPhoto.busy} onClick={() => setNewPhoto(null)} className="rounded-xl bg-white/10 px-4 py-2.5 font-semibold disabled:opacity-40">Cancel</button>
+              <button type="button" disabled={newPhoto.busy} onClick={() => void makeNewPhoto()} className="rounded-xl bg-lcd-ink px-4 py-2.5 font-semibold text-[#0A0E0B] disabled:opacity-60">Make photo</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mx-auto flex w-full max-w-3xl justify-between gap-3 md:max-w-6xl">
-        <button type="button" disabled={index === 0} onClick={() => { setIndex((i) => i - 1); setPhotoError(null); }}
+        <button type="button" disabled={index === 0} onClick={goBack}
           className="rounded-xl bg-white/10 px-6 py-3.5 text-base font-semibold text-white disabled:opacity-35">Back</button>
-        <button type="button" onClick={() => { if (last) close(); else { setIndex((i) => i + 1); setPhotoError(null); } }}
+        <button type="button" onClick={() => { if (last) close(); else goNext(); }}
           className="rounded-xl bg-lcd-ink px-6 py-3.5 text-base font-semibold text-[#0A0E0B]">
           {last ? 'Done' : 'Next step'}
         </button>

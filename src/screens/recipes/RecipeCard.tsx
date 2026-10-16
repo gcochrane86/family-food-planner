@@ -73,13 +73,14 @@ export default function RecipeCard() {
   } : d);
 
   // A liked recipe gets a photo for every step: start, join or carry on that run whenever the recipe is open.
-  const [confirmAdd, setConfirmAdd] = useState(false);
+  const [photoPanel, setPhotoPanel] = useState<'add' | 'redo' | null>(null);
+  const [hints, setHints] = useState<Record<string, string>>({});
 
-  function runStepPhotos(r: { id: string; steps: RecipeStep[] }, asked: boolean) {
+  function runStepPhotos(r: { id: string; steps: RecipeStep[] }, asked: boolean, stepHints: Record<string, string> = {}) {
     void makeStepPhotos(r.id, r.steps, (done, total, stepId, path) => {
       setStepProgress({ done, total });
       if (stepId && path) setStepPhoto(stepId, path);
-    }, { asked }).then((result) => {
+    }, { asked, hints: stepHints }).then((result) => {
       setStepProgress(null);
       if (result.error) setPhotoError(`Couldn't make step photos: ${result.error}`);
     });
@@ -93,14 +94,16 @@ export default function RecipeCard() {
   }, [liked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Remakes every AI step photo, one at a time; photos you took yourself are left alone. Stops at the first failure. */
-  async function newStepPhotos() {
+  async function newStepPhotos(stepHints: Record<string, string> = {}) {
     if (!data?.recipe) return;
     const generated = data.recipe.steps.filter((s) => s.id && s.image_source === 'generated');
     setPhotoError(null);
     setStepProgress({ done: 0, total: generated.length });
     for (const [n, step] of generated.entries()) {
       try {
-        setStepPhoto(step.id!, await repo.generateStepPhoto(data.recipe.id, step.id!, true, true));
+        const hint = stepHints[step.id!]?.trim();
+        setStepPhoto(step.id!, hint ? await repo.generateStepPhoto(data.recipe.id, step.id!, true, true, { hint })
+          : await repo.generateStepPhoto(data.recipe.id, step.id!, true, true));
         setStepProgress({ done: n + 1, total: generated.length });
       } catch (e) {
         setPhotoError(`Couldn't make step photos: ${e instanceof Error ? e.message : String(e)}`);
@@ -156,6 +159,13 @@ export default function RecipeCard() {
   const finish = recipe.steps.filter((s) => s.phase === 'finish');
   const settings = recipe.steps.filter((s) => s.machine && s.settings);
   const missingPhotos = recipe.steps.filter((s) => s.id && !s.image_path).length;
+  const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
+  const ordered = [...recipe.steps].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position);
+  const panelSteps = ordered.filter((st) => st.id && (photoPanel === 'add' ? !st.image_path : st.image_source === 'generated'));
+  function openPanel(mode: 'add' | 'redo') {
+    setHints(Object.fromEntries(recipe!.steps.filter((st) => st.id && st.photo_hint).map((st) => [st.id!, st.photo_hint!])));
+    setPhotoPanel(mode);
+  }
   const tabLabel = (n: number) => (n === household ? `Household · ${formatPortions(n)}` : n === 9 ? '9 · big batch' : `${n} portions`);
 
   return (
@@ -167,9 +177,9 @@ export default function RecipeCard() {
           <RecipeMenu items={[
             { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
             ...(missingPhotos > 0
-              ? [{ label: 'Add step photos ✨', onSelect: () => setConfirmAdd(true), disabled: stepProgress !== null }] : []),
+              ? [{ label: 'Add step photos ✨', onSelect: () => openPanel('add'), disabled: stepProgress !== null }] : []),
             ...(recipe.steps.some((s) => s.image_source === 'generated')
-              ? [{ label: 'New step photos ✨', onSelect: () => void newStepPhotos(), disabled: stepProgress !== null }] : []),
+              ? [{ label: 'New step photos ✨', onSelect: () => openPanel('redo'), disabled: stepProgress !== null }] : []),
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (
@@ -179,15 +189,30 @@ export default function RecipeCard() {
       </div>
 
       {photoError && <ErrorBanner message={photoError} />}
-      {confirmAdd && (
-        <div role="group" aria-label="Add step photos" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
-          <p className="m-0 font-semibold">Make {missingPhotos} step photo{missingPhotos === 1 ? '' : 's'}? About {photoCost(missingPhotos)}.</p>
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setConfirmAdd(false)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Cancel</button>
-            <button type="button" onClick={() => { setConfirmAdd(false); setPhotoError(null); started.current = recipe.id; runStepPhotos(recipe, true); }}
-              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Make photos</button>
+      {photoPanel && (
+        <section aria-label={photoPanel === 'add' ? 'Add step photos' : 'New step photos'} className="grid gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
+          <p className="m-0 font-semibold">
+            {photoPanel === 'add' ? 'Make' : 'Remake'} {panelSteps.length} step photo{panelSteps.length === 1 ? '' : 's'}? About {photoCost(panelSteps.length)}.
+          </p>
+          <p className="m-0 text-sm text-muted">Optional: say in one sentence what each photo should show. Leave it blank to let the recipe decide.</p>
+          <div className="grid gap-2">
+            {panelSteps.map((st) => (
+              <label key={st.id} className="grid gap-1 text-sm font-semibold">
+                Step {ordered.indexOf(st) + 1}: {st.title}
+                <input type="text" maxLength={200} placeholder="e.g. Chickpeas bubbling in a creamy tomato sauce"
+                  value={hints[st.id!] ?? ''} onChange={(e) => setHints((h) => ({ ...h, [st.id!]: e.target.value }))}
+                  className="rounded-lg border border-line bg-surface px-3 py-2 font-normal" />
+              </label>
+            ))}
           </div>
-        </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setPhotoPanel(null)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Cancel</button>
+            <button type="button" onClick={() => {
+              const mode = photoPanel; setPhotoPanel(null); setPhotoError(null);
+              if (mode === 'add') { started.current = recipe.id; runStepPhotos(recipe, true, hints); } else void newStepPhotos(hints);
+            }} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Make photos</button>
+          </div>
+        </section>
       )}
       <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
