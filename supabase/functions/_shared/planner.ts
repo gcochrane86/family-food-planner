@@ -81,13 +81,24 @@ function timeLimit(input: PlannerInput, i: number): number {
 const isBig = (r: PlannerRecipe) => r.reheatsWell && r.basePortions >= 6;
 
 /** Order of proteins across the dinner nights: meets the targets, avoids two in a row, and has a recipe for each. */
-function proteinSequence(input: PlannerInput, nights: number[], rnd: () => number): (Protein | null)[] {
+function proteinSequence(input: PlannerInput, nights: number[], rnd: () => number, fixed: Map<number, Protein | null>): (Protein | null)[] {
   const b = input.balance;
   const wanted: (Protein | null)[] = [
     ...Array(b.chicken).fill('chicken'), ...Array(b.fish).fill('fish'),
     ...Array(b.red_meat).fill('red_meat'), ...Array(b.veggie).fill('veggie'),
   ].slice(0, nights.length);
   while (wanted.length < nights.length) wanted.push(null);
+  // Nights already decided (the cook-once dinner) use up one of their protein's places.
+  for (const p of fixed.values()) {
+    const at = wanted.indexOf(p);
+    wanted.splice(at >= 0 ? at : Math.max(0, wanted.lastIndexOf(null)), 1);
+  }
+  const place = (rest: (Protein | null)[]) => {
+    const out: (Protein | null)[] = [];
+    let j = 0;
+    for (let k = 0; k < nights.length; k++) out.push(fixed.has(k) ? fixed.get(k)! : rest[j++] ?? null);
+    return out;
+  };
   const fresh = input.recipes.filter((r) => !input.recentRecipeIds.includes(r.id));
   const score = (seq: (Protein | null)[]) => seq.reduce((s, p, k) => {
     let v = s;
@@ -95,10 +106,10 @@ function proteinSequence(input: PlannerInput, nights: number[], rnd: () => numbe
     if (p && !fresh.some((r) => r.protein === p && r.finishMinutes <= timeLimit(input, nights[k]))) v -= 1;
     return v;
   }, 0);
-  let best = wanted;
+  let best = place(wanted);
   let bestScore = -Infinity;
   for (let attempt = 0; attempt < 300 && bestScore < 0; attempt++) {
-    const seq = shuffle(wanted, rnd);
+    const seq = place(shuffle(wanted, rnd));
     const s = score(seq);
     if (s > bestScore) { best = seq; bestScore = s; }
   }
@@ -110,17 +121,16 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const dates = Array.from({ length: input.days }, (_, i) => addDays(input.weekStart, i));
   const sundayIdx = input.days === 7 ? 6 : -1;
   const nights = dates.map((_, i) => i).filter((i) => i !== sundayIdx);
-  const plannedProtein = proteinSequence(input, nights, rnd);
   const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[]; big: boolean }>();
   const used = new Set<string>();
   const recent = new Set(input.recentRecipeIds);
 
-  // One "cook once, eat twice" dinner, Monday to Thursday, if a recipe allows it.
-  for (const k of shuffle(nights.map((_, k) => k).filter((k) => nights[k] <= 3), rnd)) {
-    const i = nights[k];
-    const p = plannedProtein[k];
-    const options = input.recipes.filter((r) => isBig(r) && !recent.has(r.id) && r.finishMinutes <= timeLimit(input, i)
-      && (p ? r.protein === p : r.protein !== plannedProtein[k - 1] && r.protein !== plannedProtein[k + 1]));
+  // One "cook once, eat twice" dinner, Monday to Thursday. The night before an office day comes first,
+  // so the leftovers become that day's packed lunch (spec §3, §7).
+  const beforeOffice = nights.filter((i) => i <= 3 && input.officeDays.includes(i + 1));
+  const others = shuffle(nights.filter((i) => i <= 3 && !input.officeDays.includes(i + 1)), rnd);
+  for (const i of [...beforeOffice, ...others]) {
+    const options = input.recipes.filter((r) => isBig(r) && !recent.has(r.id) && r.finishMinutes <= timeLimit(input, i));
     if (options.length) {
       const pick = options[Math.floor(rnd() * options.length)];
       chosen.set(i, { recipe: pick, notes: [], big: true });
@@ -128,6 +138,8 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
       break;
     }
   }
+  const fixed = new Map([...chosen.entries()].map(([i, c]) => [nights.indexOf(i), c.recipe!.protein]));
+  const plannedProtein = proteinSequence(input, nights, rnd, fixed);
 
   function chosenProtein(k: number): Protein | null {
     if (k < 0 || k >= nights.length) return null;

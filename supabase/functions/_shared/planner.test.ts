@@ -189,3 +189,11 @@ test('the rules hold across 200 different weeks', () => {
     expect(cooked.filter((s) => (s.portions ?? 0) >= 6).length).toBeLessThanOrEqual(1);
   }
 });
+
+test('the cook-once dinner goes the night before an office day, so it becomes the packed lunch', () => {
+  for (let seed = 1; seed <= 200; seed++) {
+    const p = proposeWeek(input({ seed, officeDays: [0, 2] }));
+    const wedLunch = p.find((s) => s.slot === 'lunch' && s.date === '2026-10-21')!;
+    expect({ seed, mode: wedLunch.mode, from: wedLunch.sourceDate }).toEqual({ seed, mode: 'packed', from: '2026-10-20' });
+  }
+});
