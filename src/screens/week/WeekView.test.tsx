@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, PARTNER, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
 import { BEEF, CHOW, COD, CURRY, DONER, HONEY, NEXT_WEEK, PENNE, SALMON, TACOS } from '../../test/fixtures';
+import type { MealSlot } from '../../lib/types';
 import WeekView from './WeekView';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -321,5 +322,66 @@ describe('the day pop-up', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
     expect(within(day(/Monday/)).getByText('Burrito bowl (packed)')).toBeInTheDocument();
+  });
+});
+
+describe("How was last night's dinner?", () => {
+  // Friday 16 Oct, 10am: last night is Thursday 15th, in "this week", while the screen shows next week.
+  const THIS_WEEK = {
+    week: { ...NEXT_WEEK.week, id: 'w-this', week_start: '2026-10-12', status: 'approved' as const },
+    slots: [{ ...NEXT_WEEK.slots.find((s) => s.slot === 'dinner' && s.date === '2026-10-19')!, id: 'thu-dinner', plan_week_id: 'w-this', date: '2026-10-15', portions: 3 }],
+  };
+  function weeks(thu: Partial<MealSlot> = {}) {
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-12'
+      ? { ...THIS_WEEK, slots: THIS_WEEK.slots.map((s) => ({ ...s, ...thu })) }
+      : start === '2026-10-19' ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }));
+  }
+  beforeEach(() => { vi.setSystemTime(new Date('2026-10-16T09:00:00Z')); localStorage.clear(); });
+
+  test("asks about last night's dinner even while next week is showing", async () => {
+    weeks();
+    render(<WeekView />, { wrapper: MemoryRouter });
+    expect(await screen.findByText("How was last night's Almond-Crusted Honey Chilli Chicken?")).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Next week' })).toBeInTheDocument();
+  });
+
+  test('the answers save to that dinner, and 👍 makes step photos', async () => {
+    weeks();
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night/ });
+    await user().click(within(card).getByRole('button', { name: 'About right' }));
+    await vi.waitFor(() => expect(h.repo.saveSlots).toHaveBeenCalled());
+    const saved = h.repo.saveSlots.mock.calls.at(-1)![0][0];
+    expect(saved).toMatchObject({ date: '2026-10-15', slot: 'dinner', plan_week_id: 'w-this', portions_verdict: 'right' });
+    expect(saved.cooked_at).toBeTruthy();
+    await user().click(within(card).getByRole('button', { name: '👍 Have it again' }));
+    expect(h.repo.rateRecipe).toHaveBeenCalledWith('r-honey', 'up');
+    await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalled());
+    expect(await screen.findByText(/Thanks/)).toBeInTheDocument();
+  });
+
+  test('× hides it, and it stays hidden next time', async () => {
+    weeks();
+    const { unmount } = render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night/ });
+    await user().click(within(card).getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByRole('region', { name: /How was last night/ })).not.toBeInTheDocument();
+    unmount();
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByRole('heading', { name: 'Next week' });
+    expect(screen.queryByRole('region', { name: /How was last night/ })).not.toBeInTheDocument();
+  });
+
+  test('not asked when already answered, or when you were out', async () => {
+    h.repo.listRecipes.mockResolvedValue([{ ...HONEY, rating: 'up' }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
+    weeks({ portions_verdict: 'right' });
+    const { unmount } = render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByRole('heading', { name: 'Next week' });
+    expect(screen.queryByRole('region', { name: /How was last night/ })).not.toBeInTheDocument();
+    unmount();
+    weeks({ mode: 'out' });
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByRole('heading', { name: 'Next week' });
+    expect(screen.queryByRole('region', { name: /How was last night/ })).not.toBeInTheDocument();
   });
 });

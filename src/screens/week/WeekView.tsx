@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import ErrorBanner from '../../components/ErrorBanner';
 import { daySummary } from '../../lib/weekSummary';
 import DaySheet from './DaySheet';
+import FeedbackCard from './FeedbackCard';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
 import { addDays, useWeek } from './useWeek';
@@ -34,6 +35,7 @@ export default function WeekView() {
         </div>
       </div>
 
+      {!w.loading && !w.error && <FeedbackCard w={w} />}
       {w.error && <ErrorBanner message={w.error} onRetry={w.reload} />}
       {w.saveError && <ErrorBanner message={w.saveError} />}
       {w.loading && !w.error && <p className="text-muted">Loading…</p>}

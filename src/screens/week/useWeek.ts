@@ -64,6 +64,23 @@ export function useWeek() {
   const current = data ? (shown === 'next' ? data.nextWeek : data.thisWeek) : null;
   const weekStart = shown === 'next' ? starts.nextWeek : starts.thisWeek;
   const recipes = useMemo(() => new Map((data?.recipes ?? []).map((r) => [r.id, r])), [data]);
+  const [dismissedTick, setDismissedTick] = useState(0);
+
+  /** Last night's dinner (tonight's after 8pm), from this week or next, if it still needs "How was it?". */
+  const lastNight = useMemo(() => {
+    if (!data) return null;
+    const { date, hour } = starts.london;
+    const target = hour >= 20 ? date : addDays(date, -1);
+    for (const key of ['thisWeek', 'nextWeek'] as const) {
+      const slot = data[key].slots.find((s) => s.date === target && s.slot === 'dinner');
+      if (!slot) continue;
+      const recipe = slot.recipe_id ? recipes.get(slot.recipe_id) : undefined;
+      if (slot.mode !== 'cook' || !recipe || (slot.portions_verdict && recipe.rating)) return null;
+      try { if (localStorage.getItem(`ffp.fb.${slot.id ?? target}`)) return null; } catch { /* no storage: just ask */ }
+      return { key, slot, recipe };
+    }
+    return null;
+  }, [data, starts, recipes, dismissedTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const input: PlannerInput | null = useMemo(() => {
     if (!data) return null;
@@ -152,6 +169,23 @@ export function useWeek() {
     lunch: (date: string, choice: string) => update(date, 'lunch', (l) => (l.routine_choice === choice ? null : { ...l, routine_choice: choice })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
+    lastNight,
+    /** Saves the portions answer for last night's dinner, in whichever week it's in, and marks it cooked. */
+    lastNightVerdict(v: NonNullable<MealSlot['portions_verdict']>) {
+      if (!lastNight) return;
+      const { key, slot } = lastNight;
+      const updated = { ...slot, portions_verdict: v, cooked_at: slot.cooked_at ?? new Date().toISOString() };
+      const same = (s: MealSlot) => s.date === slot.date && s.slot === 'dinner';
+      setData((d) => d && { ...d, [key]: { ...d[key], slots: d[key].slots.map((s: MealSlot) => (same(s) ? updated : s)) } });
+      if ((key === 'nextWeek') === (shown === 'next')) latest.current = latest.current.map((s) => (same(s) ? updated : s));
+      repo.saveSlots([updated]).catch(() => setSaveError("Couldn't save that. Check your connection and try again."));
+    },
+    /** Hides the "How was it?" card for that dinner on this device. */
+    dismissLastNight() {
+      if (!lastNight) return;
+      try { localStorage.setItem(`ffp.fb.${lastNight.slot.id ?? lastNight.slot.date}`, '1'); } catch { /* fine */ }
+      setDismissedTick((n) => n + 1);
+    },
     /** Saves "Have it again?" for a recipe, showing it at once and putting it back if the save fails. */
     async rate(recipeId: string, rating: 'up' | 'down') {
       const set = (value: Recipe['rating']) =>

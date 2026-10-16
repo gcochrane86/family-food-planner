@@ -269,7 +269,7 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 
 | Screen | Phone | iPad |
 |---|---|---|
-| **Home: week grid** | A grid of day tiles, 2 across: each shows breakfast, lunch and dinner, with chips for office day, 8pm prep, cook once, guests, out and cooked. An eighth tile holds the week's status, protein balance and **Approve week**. Tap a day for a sheet with all its options (breakfast choice, swap, out tonight, leftovers, portions ±, guests ±, mark cooked, Have it again?, 8pm prep) | Same grid, 4 across; the day opens as a centred card |
+| **Home: week grid** | A grid of day tiles, 2 across, each with breakfast, lunch and dinner and no tags. An eighth tile shows the week's status (Approve / ✓ Approved, and Cookidoo). Tap a day for a photo-led sheet: breakfast photo with the three options as pills; lunch as one photo, or two to pick from (last night's leftovers or a chicken sandwich) when last night reheats well; the dinner photo (tap for the recipe); and **More options**: Out tonight, Friends over ±, Portions ±, **Swap** (a full-screen stack of the best-fitting ideas: swipe right to choose, left to skip, ✓/✕ buttons, then Browse all recipes). There's no Mark cooked: a **"How was last night's …?"** card at the top asks for portions and 👍/👎 the next time you open the app (× dismisses it) | Same, 4 across in landscape; the day opens as a centred card |
 | **This week (planning wizard)** | Step by step | Same |
 | **Plan review** | List of suggested meals, each with its reason | Calendar with suggestions highlighted |
 | **Recipe library** | Search and filters (TM7, ≤30 min, make-ahead, toddler OK, uses X) | Grid |
