@@ -118,3 +118,29 @@ describe('ticks and the shopping week', () => {
     expect(pickShoppingWeek(none, week('draft', 'this'))).toBeNull();
   });
 });
+
+describe('a staple that is also a weekly basic (eggs)', () => {
+  const eggy = recipe('frittata', 4, [['eggs', 8, ''], ['egg yolks', 2, '']]);
+  const recipesWithEggs = new Map([['frittata', eggy]]);
+  const basics = [{ household_id: 'h1', position: 1, name: 'Eggs', qty: 18, unit: '', approx: false, delivery: 'sun' as const }];
+  const eggStaple = (status: Staple['status']): Staple[] => [{ id: 'st-eggs', ingredient_id: 'i', name: 'Eggs', status }];
+  const plan = [dinner('2026-10-19', 'frittata', 4)];
+
+  test.each(['have', 'low', 'out'] as const)('eggs staple "%s": dinner eggs are added to the breakfast eggs in one line', (status) => {
+    const list = buildShoppingList(plan, recipesWithEggs, eggStaple(status), 2, basics);
+    const eggLines = list.sun.filter((i) => /egg/i.test(i.name));
+    expect(eggLines.map((i) => i.name)).toEqual(['eggs', 'egg yolks']);
+    expect(eggLines[0].qty).toBe(26);
+    expect(list.sun.some((i) => i.key === 'staple|st-eggs')).toBe(false);
+  });
+
+  test('a low staple that nothing else covers still gets its own line', () => {
+    const list = buildShoppingList([], recipes, [{ id: 'st-pap', ingredient_id: 'i', name: 'Paprika', status: 'low' }], 2, basics);
+    expect(list.sun.find((i) => i.key === 'staple|st-pap')).toBeTruthy();
+  });
+
+  test('a low staple that a line already covers adds a note to that line instead', () => {
+    const list = buildShoppingList(plan, recipesWithEggs, eggStaple('low'), 2, basics);
+    expect(list.sun.find((i) => i.name === 'eggs')!.forMeals).toContain('Cupboard: running low');
+  });
+});

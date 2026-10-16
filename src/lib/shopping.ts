@@ -35,7 +35,9 @@ const weekdayIndex = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay(
 export function buildShoppingList(
   slots: MealSlot[], recipes: Map<string, RecipeDetail>, staples: Staple[], shopsPerWeek: 1 | 2, basics: WeeklyBasic[] = [],
 ): { sun: ShopItem[]; tue: ShopItem[] } {
-  const have = staples.filter((s) => s.status === 'have');
+  // A staple that's also a weekly basic (e.g. eggs) is bought every week anyway, so recipes still add theirs.
+  const basicNames = new Set(basics.map((b) => words(b.name).join(' ')));
+  const have = staples.filter((s) => s.status === 'have' && !basicNames.has(words(s.name).join(' ')));
   const items = new Map<string, ShopItem>();
 
   for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
@@ -89,9 +91,16 @@ export function buildShoppingList(
   }
 
   for (const s of staples.filter((x) => x.status !== 'have')) {
+    const note = s.status === 'low' ? 'Cupboard: running low' : 'Cupboard: run out';
+    // Already on the list (from a recipe or a basic)? Note it there rather than adding a second line.
+    const covered = [...sun, ...tue].find((i) => pantryLabel(i.name, [{ ...s, status: 'have' }]) === 'In pantry');
+    if (covered) {
+      covered.forMeals.push(note);
+      continue;
+    }
     sun.push({
       key: `staple|${s.id}`, name: s.name, qty: null, unit: '', approx: false,
-      forMeals: [s.status === 'low' ? 'Cupboard: running low' : 'Cupboard: run out'], neededBy: '',
+      forMeals: [note], neededBy: '',
     });
   }
   return { sun, tue };
