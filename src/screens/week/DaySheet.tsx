@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import DayCard, { dayLabel } from './DayCard';
 import type { WeekState } from './useWeek';
 
@@ -12,8 +13,9 @@ export default function DaySheet({ date, w, onClose }: { date: string; w: WeekSt
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
-    <div className="fixed inset-0 z-20 grid items-end justify-items-center bg-black/45 md:items-center"
+  // In a portal above the bottom nav (z-20), so the nav never covers the end of the sheet.
+  return createPortal(
+    <div className="fixed inset-0 z-30 grid items-end justify-items-center bg-black/45 md:items-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" aria-label={dayLabel(date)}
         className="grid max-h-[88%] w-full max-w-[640px] gap-3 overflow-auto rounded-t-3xl bg-bg pt-2.5 gutter pb-[calc(20px+env(safe-area-inset-bottom,0px))] md:rounded-3xl">
@@ -24,6 +26,7 @@ export default function DaySheet({ date, w, onClose }: { date: string; w: WeekSt
         </div>
         <DayCard date={date} w={w} hideTitle />
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

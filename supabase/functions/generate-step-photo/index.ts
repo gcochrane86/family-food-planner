@@ -5,7 +5,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { decodeBase64, encodeBase64 } from 'jsr:@std/encoding@1.0.5/base64';
 import { findImageData, GEMINI_MODEL, GEMINI_URL } from '../_shared/hero.ts';
-import { stepPhotoPrompt, stepPhotoRefusal } from '../_shared/stepPhoto.ts';
+import { stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from '../_shared/stepPhoto.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -79,9 +79,15 @@ Deno.serve(async (req) => {
     .upload(path, decodeBase64(image.data), { contentType: image.mimeType });
   if (uploadError) return reply(500, { error: `Couldn't save the image: ${uploadError.message}` });
 
-  const { error: updateError } = await db.from('recipe_steps')
-    .update({ image_path: path, image_source: 'generated' }).eq('id', stepId);
+  // Only if the step is still free (or still generated, for a redo): a photo you added meanwhile wins.
+  const guard = stepPhotoWriteGuard(replace === true);
+  const update = db.from('recipe_steps').update({ image_path: path, image_source: 'generated' }).eq('id', stepId);
+  const { data: saved, error: updateError } = await (guard.equals === null ? update.is(guard.column, null) : update.eq(guard.column, guard.equals)).select('id');
   if (updateError) return reply(500, { error: updateError.message });
+  if (!saved?.length) {
+    await db.storage.from('recipe-images').remove([path]);
+    return reply(409, { error: 'This step already has a photo.' });
+  }
 
   return reply(200, { path });
 });

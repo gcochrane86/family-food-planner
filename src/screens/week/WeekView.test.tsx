@@ -240,3 +240,11 @@ test('a recipe that is already rated is not asked about again', async () => {
   await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'About right' }));
   expect(within(day(/Tuesday/)).queryByText('Have it again?')).not.toBeInTheDocument();
 });
+
+test('the day sheet sits above the bottom nav', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Mon');
+  const overlay = day(/Monday/).parentElement!;
+  expect(overlay.parentElement).toBe(document.body);
+  expect(overlay.className).toContain('z-30');
+});

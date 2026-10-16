@@ -51,3 +51,12 @@ export function stepPhotoRefusal(
   if (step.image_path && !replace) return 'This step already has a photo.';
   return null;
 }
+
+/**
+ * The condition the saved photo must still meet when it's written, 10–20 seconds after the refusal check:
+ * a new photo only fills an empty step, and a redo only replaces a generated one. So a photo you add
+ * while one is being made always wins.
+ */
+export function stepPhotoWriteGuard(replace: boolean): { column: 'image_path' | 'image_source'; equals: null | 'generated' } {
+  return replace ? { column: 'image_source', equals: 'generated' } : { column: 'image_path', equals: null };
+}

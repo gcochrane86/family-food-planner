@@ -1,4 +1,4 @@
-import { stepPhotoPrompt, stepPhotoRefusal } from './stepPhoto';
+import { stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from './stepPhoto';
 
 const step = (body: string, machine: string | null = 'tm7', phase = 'finish', title = 'Step') => ({ title, body, machine, phase });
 const curry = [
@@ -46,4 +46,9 @@ test('stepPhotoRefusal says why a photo cannot be made', () => {
   expect(stepPhotoRefusal(liked, { image_path: 'a.jpg', image_source: 'generated' }, false)).toBe('This step already has a photo.');
   expect(stepPhotoRefusal(liked, { image_path: 'a.jpg', image_source: 'generated' }, true)).toBeNull();
   expect(stepPhotoRefusal(liked, empty, false)).toBeNull();
+});
+
+test('the photo is only saved if the step is still free (or still generated, for a redo)', () => {
+  expect(stepPhotoWriteGuard(false)).toEqual({ column: 'image_path', equals: null });
+  expect(stepPhotoWriteGuard(true)).toEqual({ column: 'image_source', equals: 'generated' });
 });
