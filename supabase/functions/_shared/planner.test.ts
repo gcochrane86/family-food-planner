@@ -90,6 +90,15 @@ describe('proposeWeek', () => {
     expect(b(proposeWeek(input({ officeDays: [0, 2] })))).toEqual(['Overnight oats', 'Baked oats', 'Overnight oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge', 'Baked oats']);
   });
 
+  test('breakfast follows your own list: home days take turns through it, and without overnight oats office days do too', () => {
+    const b = (p: ProposedSlot[]) => p.filter((s) => s.slot === 'breakfast').map((s) => s.reason);
+    expect(b(proposeWeek(input({ breakfasts: ['Overnight oats', 'Banana pancakes', 'Eggs & porridge'] }))))
+      .toEqual(['Overnight oats', 'Banana pancakes', 'Eggs & porridge', 'Banana pancakes', 'Eggs & porridge', 'Banana pancakes', 'Eggs & porridge']);
+    expect(b(proposeWeek(input({ breakfasts: ['Baked oats', 'Eggs & porridge'] }))))
+      .toEqual(['Baked oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge', 'Baked oats']);
+    expect(b(proposeWeek(input({ breakfasts: ['Overnight oats'] })))).toEqual(Array(7).fill('Overnight oats'));
+  });
+
   test('a home lunch suggests last night\'s leftovers when they reheat well, otherwise a chicken sandwich', () => {
     const lunches = plan.filter((s) => s.slot === 'lunch' && s.mode === 'routine');
     expect(lunches.length).toBeGreaterThan(0);

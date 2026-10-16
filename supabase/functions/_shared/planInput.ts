@@ -7,7 +7,7 @@ export const DEFAULT_BALANCE: Balance = { chicken: 2, fish: 1, red_meat: 1, vegg
 interface Rows {
   weekStart: string;
   householdId: string;
-  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance> } | null;
+  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance>; breakfasts?: unknown[] } | null;
   members: { id: string; kind: string; portion_weight: number | string }[];
   pattern: { member_id: string; weekday: number; office: boolean }[];
   recipes: {
@@ -45,6 +45,7 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
     weekdayMaxMin: s.weekday_dinner_max_min ?? 30,
     householdPortions: Math.round(portions * 100) / 100 || 3,
     seed: weekSeed(rows.householdId, rows.weekStart),
+    ...(Array.isArray(s.breakfasts) && s.breakfasts.length ? { breakfasts: s.breakfasts.filter((b: unknown): b is string => typeof b === 'string') } : {}),
   };
 }
 

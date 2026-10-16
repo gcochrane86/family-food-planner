@@ -1,3 +1,4 @@
+import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
 import type { DeliverySlot, Member, Settings, StapleStatus } from './types';
 
 const WEIGHT_ERROR = 'Enter a number between 0.1 and 3';
@@ -33,6 +34,8 @@ export const DEFAULT_SETTINGS: Settings = {
   delivery_pass: false,
   use_nectar: false,
   adventure: 1,
+  breakfasts: DEFAULT_BREAKFASTS,
+  lunches: HOME_LUNCHES,
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -43,6 +46,20 @@ const isSlot = (x: unknown): x is DeliverySlot => {
 };
 
 /** Reads stored settings JSON, keeping valid values and filling the rest from the defaults. */
+/** A breakfast or lunch list: trimmed names of 1–60 characters, no repeats (ignoring case), at most 20. */
+function mealList(v: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(v)) return fallback;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of v) {
+    const name = typeof x === 'string' ? x.trim() : '';
+    if (!name || name.length > 60 || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    out.push(name);
+  }
+  return out.length ? out.slice(0, 20) : fallback;
+}
+
 export function validateSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
@@ -57,5 +74,7 @@ export function validateSettings(raw: unknown): Settings {
     delivery_pass: bool(r.delivery_pass, d.delivery_pass),
     use_nectar: bool(r.use_nectar, d.use_nectar),
     adventure: num(r.adventure) !== undefined ? Math.min(7, Math.max(0, Math.round(r.adventure as number))) : d.adventure,
+    breakfasts: mealList(r.breakfasts, d.breakfasts),
+    lunches: mealList(r.lunches, d.lunches),
   };
 }

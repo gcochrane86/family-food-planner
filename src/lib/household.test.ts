@@ -46,9 +46,19 @@ describe('validateSettings', () => {
       delivery_pass: false,
       use_nectar: false,
       adventure: 1,
+      breakfasts: ['Overnight oats', 'Baked oats', 'Eggs & porridge'],
+      lunches: ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl'],
     });
   });
   test('ignores values of the wrong type', () => {
     expect(validateSettings({ default_plan_days: 6, shops_per_week: '2', delivery_pass: 'yes' })).toEqual(DEFAULT_SETTINGS);
   });
+});
+
+test('breakfast and lunch lists: kept tidy, with the defaults when missing or empty', () => {
+  const s = validateSettings({ breakfasts: [' Banana pancakes ', 'Baked oats', 'baked oats', '', 7, 'x'.repeat(61)], lunches: [] });
+  expect(s.breakfasts).toEqual(['Banana pancakes', 'Baked oats']);
+  expect(s.lunches).toEqual(['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl']);
+  expect(validateSettings({}).breakfasts).toEqual(['Overnight oats', 'Baked oats', 'Eggs & porridge']);
+  expect(validateSettings({ lunches: Array.from({ length: 30 }, (_, i) => `L${i}`) }).lunches).toHaveLength(20);
 });

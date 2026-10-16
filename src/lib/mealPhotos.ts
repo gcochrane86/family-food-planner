@@ -1,6 +1,9 @@
 // Breakfasts and lunches are small recipes in the library, so they get photos the same way dinners do.
 import type { Recipe } from './types';
 
+/** The breakfasts you start with (Settings keeps your own list). */
+export const DEFAULT_BREAKFASTS = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
+
 /** What a home lunch can be (besides last night's leftovers), in the order the day sheet offers them. */
 export const HOME_LUNCHES = ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl'];
 
@@ -18,8 +21,14 @@ export const ROUTINE_SLUGS: Record<string, string> = {
 
 /** The recipe behind a breakfast or lunch name (e.g. "Baked oats"), if it's in the library. */
 export function routineRecipe(name: string, recipes: Map<string, Recipe>): Recipe | undefined {
-  const slug = ROUTINE_SLUGS[name];
+  // The built-in meals have fixed slugs; ones you added are found by their name's slug.
+  const slug = ROUTINE_SLUGS[name] ?? slugify(name);
   if (!slug) return undefined;
   for (const r of recipes.values()) if (r.slug === slug) return r;
   return undefined;
+}
+
+/** "Banana & Blueberry Pancakes!" → "banana-blueberry-pancakes". */
+export function slugify(name: string): string {
+  return name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }

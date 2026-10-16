@@ -70,3 +70,8 @@ test('a recipe rated down is left out', () => {
   });
   expect(input.recipes.map((r) => r.id)).toEqual(['e']);
 });
+
+test('your breakfast list reaches the planner', () => {
+  expect(buildPlannerInput({ ...rows, settings: { breakfasts: ['Overnight oats', 'Banana pancakes'] } }).breakfasts).toEqual(['Overnight oats', 'Banana pancakes']);
+  expect(buildPlannerInput({ ...rows, settings: null }).breakfasts).toBeUndefined();
+});

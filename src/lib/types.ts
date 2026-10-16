@@ -32,6 +32,9 @@ export interface Settings {
   delivery_pass: boolean;
   use_nectar: boolean;
   adventure: number; // new recipes per week
+  /** Your breakfast and home-lunch options, in the order the day sheet shows them. */
+  breakfasts: string[];
+  lunches: string[];
 }
 
 export type RuleKind = 'substitute' | 'prefer' | 'avoid';

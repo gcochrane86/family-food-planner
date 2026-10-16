@@ -26,6 +26,7 @@ export interface PlannerInput {
   weekdayMaxMin: number;
   householdPortions: number;
   seed: number;
+  breakfasts?: string[];      // your breakfast options; the built-in rotation when missing
 }
 
 export interface ProposedSlot {
@@ -178,10 +179,15 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const bigDay = [...chosen.entries()].find(([, c]) => c.big)?.[0];
   const slots: ProposedSlot[] = [];
   let homeBreakfasts = 0;
+  const list: string[] = input.breakfasts ?? ['Overnight oats', ...BREAKFAST_TURNS];
+  const hasOvernight = list.includes('Overnight oats');
+  const homeTurns = list.filter((b) => b !== 'Overnight oats');
+  const turns: string[] = homeTurns.length ? homeTurns : list;
   dates.forEach((date, i) => {
     const office = input.officeDays.includes(i);
-    // Overnight oats on office days (made at 8pm the night before); other days take turns.
-    const breakfast = office ? 'Overnight oats' : BREAKFAST_TURNS[homeBreakfasts++ % BREAKFAST_TURNS.length];
+    // Overnight oats on office days (made at 8pm the night before) when it's one of your breakfasts; other days
+    // take turns through the rest of your list.
+    const breakfast = office && hasOvernight ? 'Overnight oats' : turns[homeBreakfasts++ % turns.length];
     slots.push({
       date, slot: 'breakfast', recipeId: null, mode: 'routine', portions: null, guests: 0, locked: false, sourceDate: null,
       reason: breakfast,
