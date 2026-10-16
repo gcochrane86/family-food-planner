@@ -18,9 +18,6 @@ export default function HeroImage({ recipe, className = '' }: { recipe: Pick<Rec
       ) : (
         <span aria-hidden="true" className="font-display text-4xl font-bold text-ink/40">{initials(recipe.title)}</span>
       )}
-      {showPhoto && recipe.hero_image_source === 'generated' && (
-        <span className="absolute bottom-2 right-2 rounded-full bg-surface px-2 py-0.5 text-[11px] font-bold text-muted">✨ AI photo</span>
-      )}
     </div>
   );
 }

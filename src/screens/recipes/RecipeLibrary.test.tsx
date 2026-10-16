@@ -62,3 +62,9 @@ test('an empty library says so', async () => {
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
   expect(await screen.findByText('No recipes yet')).toBeInTheDocument();
 });
+
+test('photos carry no "AI photo" label', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
+  expect(screen.queryByText(/AI photo/)).not.toBeInTheDocument();
+});
