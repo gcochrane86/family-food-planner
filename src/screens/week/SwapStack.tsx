@@ -49,7 +49,12 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
           <h2 className="text-[22px] font-bold">Swap {dayName}'s dinner</h2>
           <p className="m-0 text-[13.5px] text-muted">{card && !browse ? `${at + 1} of ${cards.length} · swipe right to choose, left to skip` : 'Pick any recipe'}</p>
         </div>
-        <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg">×</button>
+        <span className="flex items-center gap-2">
+          {browse
+            ? card && <button type="button" onClick={() => setBrowse(false)} className="rounded-full bg-surface-2 px-3 py-1.5 text-sm font-semibold">Suggestions</button>
+            : <button type="button" onClick={() => setBrowse(true)} className="rounded-full bg-surface-2 px-3 py-1.5 text-sm font-semibold">Search recipes</button>}
+          <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg">×</button>
+        </span>
       </div>
 
       <div className="relative mx-auto w-full max-w-[520px] min-h-0">
@@ -83,7 +88,7 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
           })
         ) : browse ? (
           <div className="grid h-full grid-rows-[auto_minmax(0,1fr)] gap-3">
-            <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
+            <input type="search" autoFocus aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
               className="rounded-xl border border-line bg-surface px-3 py-2.5" />
             <ul className="m-0 grid list-none content-start gap-1.5 overflow-auto p-0">
               {meals.map((r) => (

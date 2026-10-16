@@ -90,6 +90,19 @@ describe('swipe to swap', () => {
     expect(dinner.recipe_id).toBe('r-tacos');
   });
 
+  test('search is there from the start: pick exactly the recipe you want, or go back to the suggestions', async () => {
+    const stack = await openSwap();
+    await user().click(within(stack).getByRole('button', { name: 'Search recipes' }));
+    expect(within(stack).getByRole('searchbox', { name: 'Search recipes' })).toHaveFocus();
+    await user().click(within(stack).getByRole('button', { name: 'Suggestions' }));
+    expect(within(stack).getByRole('button', { name: 'Skip' })).toBeInTheDocument();
+    await user().click(within(stack).getByRole('button', { name: 'Search recipes' }));
+    await user().type(within(stack).getByRole('searchbox', { name: 'Search recipes' }), 'tacos');
+    await user().click(within(stack).getByRole('button', { name: TACOS.title }));
+    const dinner = h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!;
+    expect(dinner.recipe_id).toBe('r-tacos');
+  });
+
   test('Escape closes the stack', async () => {
     await openSwap();
     await user().keyboard('{Escape}');
