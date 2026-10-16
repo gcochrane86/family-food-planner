@@ -1,3 +1,4 @@
+import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -57,7 +58,7 @@ function Steps({ steps, label, minutes, timeline, markAhead }: {
               <p className="m-0 text-[15.5px] leading-relaxed md:text-[17px]"><StepText text={s.body} /></p>
             </div>
             {s.image_path && (
-              <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
+              <img src={repo.heroUrl(s.image_path, PHOTO_LARGE)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
             )}
           </li>
         ))}
@@ -234,7 +235,7 @@ export default function RecipeCard() {
         </section>
       )}
       <ReworkRecipe recipeId={recipe.id} householdId={householdId!} asking={reworking} onClose={closeRework} />
-      <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
+      <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} width={PHOTO_LARGE} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>

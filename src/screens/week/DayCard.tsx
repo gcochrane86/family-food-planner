@@ -1,3 +1,4 @@
+import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
 import { homeLunchChoice, lunchLeftover } from '../../lib/weekSummary';
@@ -91,7 +92,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
           <Label tone="text-accent">Dinner</Label>
           {dinner.mode === 'cook' && dinnerRecipe ? (
             <Link to={`/recipes/${dinnerRecipe.id}`} className={`${card} block text-ink no-underline`}>
-              <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} className="aspect-[16/9]" />
+              <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
               <span className="grid gap-0.5 px-4 py-2.5">
                 <b className="font-display text-lg leading-tight">{dinnerRecipe.title}</b>
                 <span className="text-sm text-muted">

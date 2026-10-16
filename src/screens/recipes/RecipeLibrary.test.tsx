@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 
-beforeEach(() => { h.repo = fakeRepo(); });
+beforeEach(() => { h.repo = fakeRepo(); localStorage.clear(); });
 
 test('lists every recipe as a link to its card', async () => {
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
@@ -82,4 +82,20 @@ test('search narrows the list by title, ignoring case, and works with the filter
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'TACOS');
   expect(screen.getByRole('link', { name: /Tacos/ })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Lamb Doner/ })).not.toBeInTheDocument();
+});
+
+test('library cards ask for small photos', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
+  expect(h.repo.heroUrl).toHaveBeenCalledWith('h1/hero/r-tacos.jpg', 600);
+});
+
+test('coming back to Recipes shows the list at once while it refreshes', async () => {
+  const first = render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
+  first.unmount();
+  h.repo.listRecipes.mockReturnValue(new Promise(() => {}));
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  expect(screen.getByRole('link', { name: /Miso Glazed Aubergine Tacos/ })).toBeInTheDocument();
+  expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
 });

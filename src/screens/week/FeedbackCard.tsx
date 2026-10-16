@@ -38,7 +38,7 @@ export default function FeedbackCard({ w }: { w: WeekState }) {
   return (
     <section aria-label={title} className="relative grid grid-cols-[88px_minmax(0,1fr)] items-center gap-3.5 rounded-[20px] bg-surface p-3 shadow-sm md:grid-cols-[110px_minmax(0,1fr)]">
       {target.recipe.hero_image_path
-        ? <img src={repo.heroUrl(target.recipe.hero_image_path)} alt="" className="aspect-square w-full rounded-[14px] object-cover" />
+        ? <img src={repo.heroUrl(target.recipe.hero_image_path, 300)} alt="" className="aspect-square w-full rounded-[14px] object-cover" />
         : <div className="aspect-square w-full rounded-[14px] bg-gradient-to-br from-yolk-soft to-surface-2" />}
       {finished ? (
         <p className="m-0 font-semibold text-accent">Thanks!{answeredRating === 'up' ? ' Step photos are on their way.' : answeredRating === 'down' ? " It won't be suggested again." : ''}</p>

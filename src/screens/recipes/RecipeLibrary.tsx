@@ -22,7 +22,7 @@ const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hello
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
-  const { data, setData, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId]);
+  const { data, setData, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId], { keep: `ffp.recipes.${householdId}` });
   const [photos, setPhotos] = useState<'idle' | 'confirm' | 'running' | 'done'>('idle');
   const [progress, setProgress] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);

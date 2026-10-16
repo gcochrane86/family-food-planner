@@ -1,3 +1,4 @@
+import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -264,7 +265,7 @@ export default function CookMode() {
                 const path = step.image_path ?? recipe.hero_image_path;
                 if (!path) return null;
                 const alt = !step.image_path ? recipe.title : step.image_source === 'generated' ? 'Photo of this step' : 'Your photo of this step';
-                return <img src={repo.heroUrl(path)} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
+                return <img src={repo.heroUrl(path, PHOTO_LARGE)} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
               })()}
             {photoError && <ErrorBanner message={photoError} />}
             {saving && <p className="m-0 text-sm font-semibold text-lcd-ink">Saving photo…</p>}

@@ -310,8 +310,10 @@ export const repo = {
     must(await db().from('recipe_imports').delete().eq('id', id));
   },
 
-  heroUrl(path: string): string {
-    return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
+  /** A photo's address. With a width, a smaller copy (about a tenth of the size), resized by Supabase. */
+  heroUrl(path: string, width?: number): string {
+    const transform = width ? { transform: { width, resize: 'contain' as const, quality: 70 } } : undefined;
+    return getSupabase().storage.from('recipe-images').getPublicUrl(path, transform).data.publicUrl;
   },
 
   /** Saves a photo for a step (replacing any earlier one on the card) and returns its storage path. */

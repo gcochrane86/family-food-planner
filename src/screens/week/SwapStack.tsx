@@ -1,3 +1,4 @@
+import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { repo } from '../../lib/repo';
@@ -77,7 +78,7 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
                 style={isTop ? { transform: `translateX(${drag}px) rotate(${drag / 18}deg)` } : undefined}
                 className={`absolute inset-0 grid grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[26px] bg-surface shadow-lg [touch-action:pan-y] ${isTop ? (drag ? '' : 'transition-transform') : 'translate-y-2.5 scale-95'}`}>
                 {r?.hero_image_path
-                  ? <img src={repo.heroUrl(r.hero_image_path)} alt="" className="h-full w-full object-cover" />
+                  ? <img src={repo.heroUrl(r.hero_image_path, PHOTO_LARGE)} alt="" className="h-full w-full object-cover" />
                   : <div className="grid h-full place-items-center bg-gradient-to-br from-yolk-soft to-surface-2 p-4 text-center font-semibold text-muted">Photo of {r?.title}</div>}
                 <div className="grid gap-1 px-[18px] pb-5 pt-4">
                   <h3 className="font-display text-[22px] font-bold leading-tight">{r?.title}</h3>

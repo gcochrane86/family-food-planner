@@ -306,6 +306,7 @@ describe('the day pop-up', () => {
     await openDay('Tue');
     const tue = day(/Tuesday/);
     expect(within(tue).getByRole('img', { name: 'Baked oats' })).toHaveAttribute('src', 'https://img.test/h1/hero/bo.jpg');
+    expect(h.repo.heroUrl).toHaveBeenCalledWith('h1/hero/bo.jpg', 600);
     expect(within(tue).getByRole('img', { name: SALMON.title })).toHaveAttribute('src', 'https://img.test/h1/hero/salmon.jpg');
     expect(within(tue).getByText(/Photo of Leftover Almond-Crusted Honey Chilli Chicken/)).toBeInTheDocument();
   });

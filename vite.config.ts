@@ -15,7 +15,8 @@ export default defineConfig({
         // Photos get a new file name whenever they change, so a kept copy is never out of date.
         runtimeCaching: [
           {
-            urlPattern: /\/storage\/v1\/object\/public\/recipe-images\//,
+            // Full photos and the smaller copies Supabase makes of them.
+            urlPattern: /\/storage\/v1\/(object|render\/image)\/public\/recipe-images\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'recipe-images',
