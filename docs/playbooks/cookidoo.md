@@ -101,5 +101,5 @@ Household id: in **Settings → Household** in the app. Never guess it.
   The My Week page shows 5 days at a time, so check later days with `?date=`.
 - Removing an entry from My Week: use the ⋮ on that entry's card in My Week for that day, and only remove the entry
   whose title matches the one to remove. (Not needed yet as of the first sync.)
-- **TM7 guided cooking:** a created recipe's steps are plain text. Cookidoo didn't turn "13 min/100°C/speed 3"
-  into guided settings, so the TM7 shows the text and you set the machine by hand.
+- **TM7 guided cooking:** on the website, a created recipe's steps are stored as plain text ("13 min/100°C/speed 3"
+  wasn't turned into a settings chip). Not yet checked on the TM7 itself whether it offers guided settings for them.
