@@ -23,7 +23,7 @@ const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummar
         <span className={row}><i className="h-2.5 w-2.5 rounded-full bg-teal" /><span className="truncate text-muted">{summary.lunch}</span></span>
         <span className={row}>
           <i className={`h-2.5 w-2.5 rounded-full ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
-          <span className="dinner line-clamp-2 break-words font-bold">{summary.dinner}</span>
+          <span className="dinner line-clamp-2 break-words">{summary.dinner}</span>
         </span>
         {summary.chips.length > 0 && (
           <span className="flex flex-wrap gap-1">
