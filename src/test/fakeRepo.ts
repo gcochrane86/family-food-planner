@@ -1,5 +1,5 @@
-import type { Member, Recipe, RecipeDetail, Staple } from '../lib/types';
-import { DONER, HONEY, TACOS } from './fixtures';
+import type { MealSlot, Member, PlanWeek, Recipe, RecipeDetail, Staple } from '../lib/types';
+import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
 export const PARTNER: Member = { id: 'm-partner', household_id: 'h1', name: 'Partner', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -32,6 +32,12 @@ export function fakeRepo() {
     listRecipes: vi.fn(async (): Promise<Recipe[]> => [HONEY, DONER, TACOS]),
     getRecipe: vi.fn(async (id: string): Promise<RecipeDetail | null> => ({ 'r-honey': HONEY, 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null),
     heroUrl: vi.fn((path: string) => `https://img.test/${path}`),
+    getWeek: vi.fn(async (_hid: string, weekStart: string) =>
+      (weekStart === NEXT_WEEK.week.week_start ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] }),
+    saveSlots: vi.fn(async (_slots: MealSlot[]) => {}),
+    approveWeek: vi.fn(async () => {}),
+    proposeNow: vi.fn(async () => 'created'),
+    recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
     uploadStepPhoto: vi.fn(async (_hid: string, stepId: string) => `h1/steps/${stepId}.jpg`),
   };

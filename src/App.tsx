@@ -4,6 +4,7 @@ import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
 import Placeholder from './screens/Placeholder';
 import CookMode from './screens/recipes/CookMode';
+import WeekView from './screens/week/WeekView';
 import RecipeCard from './screens/recipes/RecipeCard';
 import RecipeLibrary from './screens/recipes/RecipeLibrary';
 import Household from './screens/settings/Household';
@@ -36,7 +37,7 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/week" replace />} />
-      <Route path="/week" element={<Placeholder title="Week" phase={3} />} />
+      <Route path="/week" element={<WeekView />} />
       <Route path="/recipes" element={<RecipeLibrary />} />
       <Route path="/recipes/:id" element={<RecipeCard />} />
       <Route path="/recipes/:id/cook" element={<CookMode />} />

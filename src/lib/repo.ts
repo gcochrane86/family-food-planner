@@ -1,7 +1,8 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import type {
-  Equipment, Household, HouseRule, Member, Recipe, RecipeDetail, RecipeIngredient, RecipeStep, Settings, Staple, StapleStatus, WeekPattern,
+  Equipment, Household, HouseRule, MealSlot, Member, PlanWeek, Recipe, RecipeDetail, RecipeIngredient, RecipeStep, Settings, Staple, StapleStatus,
+  WeekPattern,
 } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
@@ -130,6 +131,47 @@ export const repo = {
       ingredients: must<RecipeIngredient[]>(ingredients).map((i) => ({ ...i, qty: i.qty === null ? null : Number(i.qty) })),
       steps: must<RecipeStep[]>(steps),
     };
+  },
+
+  async getWeek(householdId: string, weekStart: string): Promise<{ week: PlanWeek | null; slots: MealSlot[] }> {
+    const week = must<PlanWeek | null>(await db().from('plan_weeks').select('*').eq('household_id', householdId).eq('week_start', weekStart).maybeSingle());
+    if (!week) return { week: null, slots: [] };
+    const slots = must<MealSlot[]>(await db().from('meal_slots').select('*').eq('plan_week_id', week.id).order('date'));
+    return { week, slots: slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })) };
+  },
+
+  /** Saves changed slots (matched on week, date and slot). */
+  async saveSlots(slots: MealSlot[]): Promise<void> {
+    if (!slots.length) return;
+    const rows = slots.map(({ id: _id, ...s }) => s);
+    must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
+  },
+
+  async approveWeek(weekId: string): Promise<void> {
+    must(await db().rpc('approve_week', { p_week: weekId }));
+  },
+
+  /** Asks the propose-week function for a menu now, instead of waiting for Friday 7pm. */
+  async proposeNow(weekStart: string): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('propose-week', { body: { weekStart } });
+    if (error) {
+      const context = (error as { context?: Response }).context;
+      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
+      throw new Error(detail ?? error.message);
+    }
+    return (data as { result: string }).result;
+  },
+
+  /** Recipes cooked for dinner in the 14 days before a week, so the planner can avoid repeats. */
+  async recentDinnerIds(householdId: string, weekStart: string): Promise<string[]> {
+    const from = new Date(`${weekStart}T00:00:00Z`);
+    from.setUTCDate(from.getUTCDate() - 14);
+    const weeks = must<{ id: string }[]>(await db().from('plan_weeks').select('id').eq('household_id', householdId)
+      .gte('week_start', from.toISOString().slice(0, 10)).lt('week_start', weekStart));
+    if (!weeks.length) return [];
+    const rows = must<{ recipe_id: string | null }[]>(await db().from('meal_slots').select('recipe_id')
+      .in('plan_week_id', weeks.map((w) => w.id)).eq('slot', 'dinner').eq('mode', 'cook'));
+    return rows.map((r) => r.recipe_id).filter((x): x is string => !!x);
   },
 
   /** Asks the generate-hero Edge Function for a new photo (about $0.034 each). Returns the new image path. */
