@@ -66,3 +66,37 @@ test('ingredients with no quantity still appear once', () => {
   const list = buildShoppingList([dinner('2026-10-20', 'stew', 4)], recipes, [], 2);
   expect(list.sun.find((i) => i.name === 'sea salt')).toMatchObject({ qty: null });
 });
+
+describe('weekly basics', () => {
+  const basic = (name: string, qty: number | null, unit: string, delivery: 'sun' | 'tue' | 'split') =>
+    ({ household_id: 'h1', position: 0, name, qty, unit, approx: false, delivery });
+
+  test('a split basic is shared between the deliveries, counts rounding up on Sunday', () => {
+    const list = buildShoppingList([], recipes, [], 2, [basic('Bananas', 7, '', 'split'), basic('Whole milk', 3000, 'ml', 'split')]);
+    expect(list.sun.find((i) => i.name === 'Bananas')!.qty).toBe(4);
+    expect(list.tue.find((i) => i.name === 'Bananas')!.qty).toBe(3);
+    expect(list.sun.find((i) => i.name === 'Whole milk')!.qty).toBe(1500);
+    expect(list.tue.find((i) => i.name === 'Whole milk')!.qty).toBe(1500);
+    expect(list.sun.find((i) => i.name === 'Bananas')!.forMeals).toEqual(['Breakfasts & lunches']);
+  });
+
+  test('a Tuesday basic comes on Tuesday', () => {
+    const list = buildShoppingList([], recipes, [], 2, [basic('Cucumber', 1, '', 'tue')]);
+    expect(list.tue.map((i) => i.name)).toEqual(['Cucumber']);
+  });
+
+  test('with one shop a week, basics all come on Sunday', () => {
+    const list = buildShoppingList([], recipes, [], 1, [basic('Bananas', 7, '', 'split'), basic('Cucumber', 1, '', 'tue')]);
+    expect(list.tue).toEqual([]);
+    expect(list.sun.find((i) => i.name === 'Bananas')!.qty).toBe(7);
+  });
+
+  test('a basic and a recipe ingredient with the same name become one line', () => {
+    const eggy = recipe('frittata', 4, [['eggs', 8, '']]);
+    const list = buildShoppingList([dinner('2026-10-19', 'frittata', 4)], new Map([['frittata', eggy]]), [], 2, [basic('Eggs', 18, '', 'sun')]);
+    const eggs = list.sun.filter((i) => i.key === 'egg|');
+    expect(eggs).toHaveLength(1);
+    expect(eggs[0].qty).toBe(26);
+    expect(eggs[0].forMeals).toEqual(['Mon frittata', 'Breakfasts & lunches']);
+  });
+});

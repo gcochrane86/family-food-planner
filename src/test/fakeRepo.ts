@@ -1,4 +1,4 @@
-import type { MealSlot, Member, PlanWeek, Recipe, RecipeDetail, Staple } from '../lib/types';
+import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -34,6 +34,19 @@ export function fakeRepo() {
     heroUrl: vi.fn((path: string) => `https://img.test/${path}`),
     getWeek: vi.fn(async (_hid: string, weekStart: string) =>
       (weekStart === NEXT_WEEK.week.week_start ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] }),
+    listBasics: vi.fn(async (): Promise<WeeklyBasic[]> => [
+      { id: 'b-eggs', household_id: 'h1', position: 1, name: 'Eggs', qty: 18, unit: '', approx: false, delivery: 'sun' },
+      { id: 'b-milk', household_id: 'h1', position: 2, name: 'Whole milk', qty: 3000, unit: 'ml', approx: false, delivery: 'split' },
+    ]),
+    saveBasic: vi.fn(async (b: WeeklyBasic) => ({ id: b.id ?? 'b-new', ...b })),
+    deleteBasic: vi.fn(async () => {}),
+    listQuick: vi.fn(async (): Promise<QuickItem[]> => []),
+    addQuick: vi.fn(async (_hid: string, name: string): Promise<QuickItem> => ({ id: `q-${name}`, household_id: 'h1', name, note: null, done: false, created_at: '2026-10-16T08:00:00Z' })),
+    setQuickDone: vi.fn(async () => {}),
+    clearQuickDone: vi.fn(async () => {}),
+    getRuns: vi.fn(async (): Promise<BasketRun[]> => []),
+    requestRun: vi.fn(async (weekId: string, delivery: 'sun' | 'tue'): Promise<BasketRun> => ({ id: `run-${delivery}`, plan_week_id: weekId, delivery, status: 'requested', requested_at: '2026-10-16T08:00:00Z', finished_at: null, summary: null })),
+    listProducts: vi.fn(async (): Promise<Product[]> => []),
     getTicks: vi.fn(async (): Promise<{ delivery: 'sun' | 'tue'; item_key: string; ticked: boolean }[]> => []),
     setTick: vi.fn(async () => {}),
     saveSlots: vi.fn(async (_slots: MealSlot[]) => {}),

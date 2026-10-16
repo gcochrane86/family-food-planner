@@ -18,15 +18,15 @@ export default function ShopList() {
   const hid = householdId!;
   const { data, error, loading, reload } = useAsync(async () => {
     const starts = weekStarts();
-    const [next, current, staples, settings] = await Promise.all([
-      repo.getWeek(hid, starts.nextWeek), repo.getWeek(hid, starts.thisWeek), repo.listStaples(hid), repo.getSettings(hid),
+    const [next, current, staples, settings, basics] = await Promise.all([
+      repo.getWeek(hid, starts.nextWeek), repo.getWeek(hid, starts.thisWeek), repo.listStaples(hid), repo.getSettings(hid), repo.listBasics(hid),
     ]);
     const chosen = next.week?.status === 'approved' ? next : current.week?.status === 'approved' ? current : null;
     const draft = !chosen && (next.week ?? current.week) ? true : false;
     if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>() };
     const ids = [...new Set(chosen.slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
     const details = (await Promise.all(ids.map((id) => repo.getRecipe(id)))).filter((r): r is RecipeDetail => !!r);
-    const list = buildShoppingList(chosen.slots, new Map(details.map((r) => [r.id, r])), staples, settings.shops_per_week);
+    const list = buildShoppingList(chosen.slots, new Map(details.map((r) => [r.id, r])), staples, settings.shops_per_week, basics);
     const ticks = new Map((await repo.getTicks(chosen.week!.id)).map((t) => [`${t.delivery}:${t.item_key}`, t.ticked]));
     return { chosen, draft, list, ticks, shops: settings.shops_per_week };
   }, [hid]);
@@ -103,7 +103,7 @@ export default function ShopList() {
       ) : (
         <Section d="sun" title="Your shop" items={[...data.list.sun, ...data.list.tue]} />
       ))}
-      {data?.list && <p className="text-sm text-muted">Made from the dinners in the approved menu. Breakfast and lunch basics come in a later update.</p>}
+      {data?.list && <p className="text-sm text-muted">Made from the approved menu's dinners plus your weekly basics (Settings → Weekly basics).</p>}
     </section>
   );
 }

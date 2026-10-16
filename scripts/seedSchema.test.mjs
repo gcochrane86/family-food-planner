@@ -40,3 +40,9 @@ test('a bad rule kind and a bad weekday are reported', () => {
 test('anything that is not an object is rejected', () => {
   expect(validateSeed(null)).toEqual(['seed must be a JSON object']);
 });
+
+test('a basic with a bad delivery or unit is reported', () => {
+  const s = clone();
+  s.basics = [{ name: 'Eggs', qty: 18, unit: 'dozen', delivery: 'monday' }];
+  expect(validateSeed(s)).toEqual(expect.arrayContaining(['basics[0].unit must be "", "g" or "ml"', 'basics[0].delivery must be sun, tue or split']));
+});

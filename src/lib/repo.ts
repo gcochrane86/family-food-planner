@@ -1,8 +1,8 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import type {
-  Equipment, Household, HouseRule, MealSlot, Member, PlanWeek, Recipe, RecipeDetail, RecipeIngredient, RecipeStep, Settings, Staple, StapleStatus,
-  WeekPattern,
+  BasketRun, Equipment, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic,
 } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
@@ -145,6 +145,45 @@ export const repo = {
     if (!slots.length) return;
     const rows = slots.map(({ id: _id, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
+  },
+
+  async listBasics(householdId: string): Promise<WeeklyBasic[]> {
+    const rows = must<WeeklyBasic[]>(await db().from('weekly_basics').select('*').eq('household_id', householdId).order('position'));
+    return rows.map((b) => ({ ...b, qty: b.qty === null ? null : Number(b.qty) }));
+  },
+  async saveBasic(b: WeeklyBasic): Promise<WeeklyBasic> {
+    const saved = must<WeeklyBasic>(await db().from('weekly_basics').upsert(b).select().single());
+    return { ...saved, qty: saved.qty === null ? null : Number(saved.qty) };
+  },
+  async deleteBasic(id: string): Promise<void> {
+    must(await db().from('weekly_basics').delete().eq('id', id));
+  },
+
+  async listQuick(householdId: string): Promise<QuickItem[]> {
+    return must(await db().from('quick_shop_items').select('*').eq('household_id', householdId).order('created_at'));
+  },
+  async addQuick(householdId: string, name: string, note: string | null = null): Promise<QuickItem> {
+    return must(await db().from('quick_shop_items').insert({ household_id: householdId, name, note }).select().single());
+  },
+  async setQuickDone(id: string, done: boolean): Promise<void> {
+    must(await db().from('quick_shop_items').update({ done }).eq('id', id));
+  },
+  async clearQuickDone(householdId: string): Promise<void> {
+    must(await db().from('quick_shop_items').delete().eq('household_id', householdId).eq('done', true));
+  },
+
+  async getRuns(weekId: string): Promise<BasketRun[]> {
+    return must(await db().from('basket_runs').select('*').eq('plan_week_id', weekId));
+  },
+  /** Marks a delivery's list as ready for Claude to fill the Sainsbury's basket (again, if it was done before). */
+  async requestRun(weekId: string, delivery: 'sun' | 'tue'): Promise<BasketRun> {
+    return must(await db().from('basket_runs').upsert(
+      { plan_week_id: weekId, delivery, status: 'requested', requested_at: new Date().toISOString(), finished_at: null, summary: null },
+      { onConflict: 'plan_week_id,delivery' },
+    ).select().single());
+  },
+  async listProducts(householdId: string): Promise<Product[]> {
+    return must(await db().from('products').select('*').eq('household_id', householdId));
   },
 
   async getTicks(weekId: string): Promise<{ delivery: 'sun' | 'tue'; item_key: string; ticked: boolean }[]> {

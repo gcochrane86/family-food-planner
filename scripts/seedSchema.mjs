@@ -41,6 +41,12 @@ export function validateSeed(seed) {
     if (!RULE_KINDS.includes(r?.kind)) problems.push(`house_rules[${i}].kind must be substitute, prefer or avoid`);
     if (!isText(r?.match)) problems.push(`house_rules[${i}].match missing`);
   });
+  (Array.isArray(seed.basics) ? seed.basics : []).forEach((b, i) => {
+    if (!isText(b?.name)) problems.push(`basics[${i}].name missing`);
+    if (b?.qty != null && (typeof b.qty !== 'number' || b.qty < 0)) problems.push(`basics[${i}].qty must be a number of 0 or more`);
+    if (!['', 'g', 'ml'].includes(b?.unit ?? '')) problems.push(`basics[${i}].unit must be "", "g" or "ml"`);
+    if (!['sun', 'tue', 'split'].includes(b?.delivery)) problems.push(`basics[${i}].delivery must be sun, tue or split`);
+  });
   (Array.isArray(seed.staples) ? seed.staples : []).forEach((s, i) => {
     if (!isText(s)) problems.push(`staples[${i}] must be a name`);
   });

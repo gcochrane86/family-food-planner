@@ -9,6 +9,7 @@ const SECTIONS = [
   { to: 'rules', title: 'House rules', text: 'Swaps, preferences, things to avoid' },
   { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots, dinner time limit' },
   { to: 'staples', title: 'Cupboard staples', text: 'Have / low / out' },
+  { to: 'basics', title: 'Weekly basics', text: 'Breakfast and lunch things bought every week' },
 ];
 
 export default function SettingsHome() {

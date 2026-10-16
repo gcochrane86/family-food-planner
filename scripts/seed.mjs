@@ -66,6 +66,12 @@ if (seed.house_rules?.length) {
       { onConflict: 'household_id,kind,match' }), 'Saving house rules');
 }
 
+if (seed.basics?.length) {
+  must(await db.from('weekly_basics').upsert(seed.basics.map((b, i) => ({
+    household_id: hid, position: i + 1, name: b.name, qty: b.qty ?? null, unit: b.unit ?? '', approx: !!b.approx, delivery: b.delivery,
+  })), { onConflict: 'household_id,name,unit' }), 'Saving weekly basics');
+}
+
 let newStaples = 0;
 if (seed.staples?.length) {
   const ingredients = must(
@@ -87,5 +93,5 @@ if (seed.staples?.length) {
 }
 
 console.log(`Seeded "${household.name}": ${members.length} people, ${seed.office_days?.length ?? 0} office days, `
-  + `${seed.equipment?.length ?? 0} equipment, ${seed.house_rules?.length ?? 0} house rules, `
+  + `${seed.equipment?.length ?? 0} equipment, ${seed.house_rules?.length ?? 0} house rules, ${seed.basics?.length ?? 0} basics, `
   + `${seed.staples?.length ?? 0} staples (${newStaples} new).`);
