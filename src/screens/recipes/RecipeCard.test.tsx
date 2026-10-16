@@ -118,14 +118,21 @@ test('a recipe that is not rated makes no step photos', async () => {
   expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
 });
 
-test('a generated photo can be redone, your own photos cannot', async () => {
+test('new step photos come from the settings menu and leave your own photos alone', async () => {
   const steps = HONEY.steps.map((s, i) => ({ ...s, image_path: `p${i}.jpg`, image_source: i === 0 ? 'generated' as const : 'own' as const }));
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, rating: 'up', steps });
   open('r-honey');
-  const redo = await screen.findAllByRole('button', { name: 'Redo photo' });
-  expect(redo).toHaveLength(1);
-  await userEvent.click(redo[0]);
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(screen.queryByRole('button', { name: /Redo photo/ })).not.toBeInTheDocument();
+  await fromSettings('New step photos ✨');
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(1));
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true);
+});
+
+test('no step photo option when a recipe has no AI step photos', async () => {
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
+  expect(screen.queryByRole('menuitem', { name: 'New step photos ✨' })).not.toBeInTheDocument();
 });
 
 test('a down-rated recipe shows Not for us with Undo', async () => {

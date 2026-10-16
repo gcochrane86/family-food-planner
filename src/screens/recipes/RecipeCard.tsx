@@ -16,9 +16,7 @@ import RecipeMenu from './RecipeMenu';
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
-function Steps({ steps, label, pill, timeline, redo, redoing }: {
-  steps: RecipeStep[]; label: string; pill: string; timeline?: boolean; redo: (s: RecipeStep) => void; redoing: string | null;
-}) {
+function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: string; pill: string; timeline?: boolean }) {
   if (!steps.length) return null;
   const id = label.replace(/\W+/g, '-').toLowerCase();
   return (
@@ -42,15 +40,7 @@ function Steps({ steps, label, pill, timeline, redo, redoing }: {
               <p className="m-0 text-[15.5px] leading-relaxed md:text-[17px]"><StepText text={s.body} /></p>
             </div>
             {s.image_path && (
-              <div className="grid content-start gap-1.5">
-                <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
-                {s.image_source === 'generated' && (
-                  <button type="button" onClick={() => redo(s)} disabled={redoing !== null}
-                    className="justify-self-start text-[13px] font-semibold text-muted underline disabled:opacity-60 print:hidden">
-                    {redoing === s.id ? 'Making photo…' : 'Redo photo'}
-                  </button>
-                )}
-              </div>
+              <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
             )}
           </li>
         ))}
@@ -70,7 +60,6 @@ export default function RecipeCard() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
-  const [redoing, setRedoing] = useState<string | null>(null);
   const started = useRef<string | null>(null);
 
   const setStepPhoto = (stepId: string, path: string) => setData((d) => d && d.recipe ? {
@@ -91,17 +80,22 @@ export default function RecipeCard() {
     });
   }, [liked]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function redo(step: RecipeStep) {
-    if (!data?.recipe || !step.id) return;
-    setRedoing(step.id);
+  /** Remakes every AI step photo, one at a time; photos you took yourself are left alone. Stops at the first failure. */
+  async function newStepPhotos() {
+    if (!data?.recipe) return;
+    const generated = data.recipe.steps.filter((s) => s.id && s.image_source === 'generated');
     setPhotoError(null);
-    try {
-      setStepPhoto(step.id, await repo.generateStepPhoto(data.recipe.id, step.id, true));
-    } catch (e) {
-      setPhotoError(`Couldn't make a photo: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setRedoing(null);
+    setStepProgress({ done: 0, total: generated.length });
+    for (const [n, step] of generated.entries()) {
+      try {
+        setStepPhoto(step.id!, await repo.generateStepPhoto(data.recipe.id, step.id!, true));
+        setStepProgress({ done: n + 1, total: generated.length });
+      } catch (e) {
+        setPhotoError(`Couldn't make step photos: ${e instanceof Error ? e.message : String(e)}`);
+        break;
+      }
     }
+    setStepProgress(null);
   }
 
   async function undoNotForUs() {
@@ -159,6 +153,8 @@ export default function RecipeCard() {
           {photoBusy && <span className="text-sm font-semibold text-muted">Making photo…</span>}
           <RecipeMenu items={[
             { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
+            ...(recipe.steps.some((s) => s.image_source === 'generated')
+              ? [{ label: 'New step photos ✨', onSelect: () => void newStepPhotos(), disabled: stepProgress !== null }] : []),
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (
@@ -239,8 +235,8 @@ export default function RecipeCard() {
         </div>
 
         <div>
-          <Steps steps={prep} label="8pm prep, the night before" pill="bg-evening-soft text-evening" redo={(s) => void redo(s)} redoing={redoing} />
-          <Steps steps={finish} label="Dinner-time finish" pill="bg-accent-soft text-accent" timeline redo={(s) => void redo(s)} redoing={redoing} />
+          <Steps steps={prep} label="8pm prep, the night before" pill="bg-evening-soft text-evening" />
+          <Steps steps={finish} label="Dinner-time finish" pill="bg-accent-soft text-accent" timeline />
           {settings.length > 0 && (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-4">
               <h2 className="mb-2 text-base font-bold">Machine settings</h2>
