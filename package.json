@@ -11,7 +11,8 @@
     "seed": "node scripts/seed.mjs",
     "check-rls": "node scripts/check-rls.mjs",
     "seed:recipes": "node scripts/seed-recipes.mjs",
-    "basket": "tsx scripts/basket.ts"
+    "basket": "tsx scripts/basket.ts",
+    "cookidoo": "tsx scripts/cookidoo.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

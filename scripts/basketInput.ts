@@ -4,13 +4,13 @@
 export interface ProductInput { key: string; name: string; url: string | null; size: number | null; unit: string; price: number | null; pin: boolean }
 export interface FinishInput { run: string; status: 'done' | 'failed'; summary: string | null }
 
-function parse(text: string): Record<string, unknown> {
+export function parse(text: string): Record<string, unknown> {
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new Error('Input must be a JSON object on stdin'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Input must be a JSON object on stdin');
   return value as Record<string, unknown>;
 }
-const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+export const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null);
 
 export function parseProduct(input: string): ProductInput {
