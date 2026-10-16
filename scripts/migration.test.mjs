@@ -382,3 +382,28 @@ test('a step keeps its photo description when the recipe is re-seeded', async ()
   await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${JSON.stringify([{ phase: 'finish', position: 1, title: 'Simmer', body: 'new' }])}')`);
   expect(await as(OWNER, 'select photo_hint from recipe_steps')).toEqual([{ photo_hint: 'Chickpeas bubbling in sauce' }]);
 });
+
+test('0009: a basket run can ask for the trolley to be emptied first', async () => {
+  const { wid } = await weekFor(OWNER);
+  const rid = await one(OWNER, `insert into basket_runs (plan_week_id, delivery, empty_first) values ('${wid}', 'sun', true) returning id`);
+  expect(await one(OWNER, `select empty_first from basket_runs where id = '${rid}'`)).toBe(true);
+  const plain = await one(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'tue') returning id`);
+  expect(await one(OWNER, `select empty_first from basket_runs where id = '${plain}'`)).toBe(false);
+});
+
+test('0009: a recipe link import belongs to its household, needs an http link, and has known statuses', async () => {
+  const { hid } = await recipeFor(OWNER);
+  const iid = await one(OWNER, `insert into recipe_imports (household_id, url) values ('${hid}', 'https://www.bbcgoodfood.com/recipes/x') returning id`);
+  expect(await one(OWNER, `select status from recipe_imports where id = '${iid}'`)).toBe('requested');
+  expect(await as(STRANGER, 'select * from recipe_imports')).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into recipe_imports (household_id, url) values ('${hid}', 'https://a.b/c')`)).toMatch(/row-level security/);
+  expect(await fails(OWNER, `insert into recipe_imports (household_id, url) values ('${hid}', 'javascript:alert(1)')`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into recipe_imports (household_id, url, note) values ('${hid}', 'https://a.b/c', '${'x'.repeat(301)}')`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `update recipe_imports set status = 'busy' where id = '${iid}'`)).toMatch(/check constraint/);
+});
+
+test("0009: recipes can come from the web", async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `update recipes set source = 'web', source_url = 'https://example.com/r' where id = '${rid}'`);
+  expect(await one(OWNER, `select source from recipes where id = '${rid}'`)).toBe('web');
+});

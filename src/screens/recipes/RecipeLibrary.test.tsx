@@ -68,3 +68,18 @@ test('photos carry no "AI photo" label', async () => {
   await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
   expect(screen.queryByText(/AI photo/)).not.toBeInTheDocument();
 });
+
+test('search narrows the list by title, ignoring case, and works with the filters', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Honey Chilli/ });
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'lamb');
+  expect(screen.getByRole('link', { name: /Lamb Doner/ })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Honey Chilli/ })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: '≤30 min' }));
+  expect(screen.getByText('No recipes match.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'All' }));
+  await userEvent.clear(screen.getByRole('searchbox', { name: 'Search recipes' }));
+  await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'TACOS');
+  expect(screen.getByRole('link', { name: /Tacos/ })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Lamb Doner/ })).not.toBeInTheDocument();
+});

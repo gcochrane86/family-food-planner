@@ -48,14 +48,21 @@ export default function RecipeLibrary() {
     setPhotos('done');
   }
   const [filters, setFilters] = useState<string[]>([]);
+  const [query, setQuery] = useState('');
 
   const toggle = (label: string) =>
     setFilters((f) => (label === 'All' ? [] : f.includes(label) ? f.filter((x) => x !== label) : [...f, label]));
-  const shown = (data ?? []).filter((r) => filters.every((f) => FILTERS.find((x) => x.label === f)!.test(r)));
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (data ?? []).filter((r) => {
+    const text = [r.title, r.subtitle ?? '', ...r.tags].join(' ').toLowerCase();
+    return words.every((w) => text.includes(w)) && filters.every((f) => FILTERS.find((x) => x.label === f)!.test(r));
+  });
 
   return (
     <section className="grid gap-4 py-4">
       <h1 className="text-3xl font-bold">Recipes</h1>
+      <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
+        className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
         {FILTERS.map((f) => {
           const on = f.label === 'All' ? filters.length === 0 : filters.includes(f.label);
@@ -97,7 +104,7 @@ export default function RecipeLibrary() {
           <p className="mt-1 text-sm text-muted">Your recipes appear here once they've been imported.</p>
         </div>
       )}
-      {!loading && data && data.length > 0 && shown.length === 0 && <p className="text-muted">No recipes match those filters.</p>}
+      {!loading && data && data.length > 0 && shown.length === 0 && <p className="text-muted">No recipes match.</p>}
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
         {shown.map((r) => (
           <li key={r.id}>
