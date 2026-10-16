@@ -311,11 +311,20 @@ describe('the day pop-up', () => {
     expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Chicken sandwich' });
   });
 
-  test('one lunch card when last night does not reheat well', async () => {
+  test('a home lunch offers every lunch option, chicken sandwich first, and saves the pick', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
-    expect(within(day(/Thursday/)).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
-    expect(within(day(/Thursday/)).getByText('Chicken sandwich')).toBeInTheDocument();
+    const thu = () => day(/Thursday/);
+    expect(within(thu()).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
+    for (const name of ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl']) {
+      expect(within(thu()).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
+    }
+    expect(within(thu()).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(thu()).getByRole('button', { name: /Mexican beef poke bowl/ }));
+    expect(within(thu()).getByRole('button', { name: /Mexican beef poke bowl/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Mexican beef poke bowl' });
+    await user().keyboard('{Escape}');
+    expect(within(await tile('Thursday 22')).getByText('Mexican beef poke bowl')).toBeInTheDocument();
   });
 
   test('an office day shows the packed lunch', async () => {

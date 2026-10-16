@@ -26,6 +26,9 @@ test('a home lunch is leftovers when last night reheats well, otherwise a chicke
   expect(lunch(reheats, null)).toBe('Leftovers');
   expect(lunch(reheats, 'Chicken sandwich')).toBe('Chicken sandwich');
   expect(lunch(reheats, 'Leftovers')).toBe('Leftovers');
+  expect(lunch(recipes, 'Egg sandwich')).toBe('Egg sandwich');
+  expect(lunch(reheats, 'Mexican beef poke bowl')).toBe('Mexican beef poke bowl');
+  expect(lunch(recipes, 'Leftovers')).toBe('Chicken sandwich');
 });
 
 test('dinner shows the recipe, out tonight or leftovers night', () => {

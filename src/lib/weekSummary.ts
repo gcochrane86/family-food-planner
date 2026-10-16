@@ -1,3 +1,4 @@
+import { HOME_LUNCHES } from './mealPhotos';
 // What each day tile on the week grid shows (spec §6: Home is a grid of day tiles).
 import type { MealSlot, Recipe } from './types';
 
@@ -30,6 +31,12 @@ export function lunchLeftover(date: string, slots: MealSlot[], recipes: Map<stri
   return r?.reheats_well ? r : undefined;
 }
 
+/** A home lunch: whatever was picked, else last night's leftovers when there are some, else a chicken sandwich. */
+export function homeLunchChoice(choice: string | null, leftovers: boolean): string {
+  if (choice && HOME_LUNCHES.includes(choice)) return choice;
+  return leftovers ? 'Leftovers' : HOME_LUNCHES[0];
+}
+
 export function daySummary(date: string, slots: MealSlot[], recipes: Map<string, Recipe>, officeDays: number[]): DaySummary {
   const find = (kind: MealSlot['slot'], d = date) => slots.find((s) => s.date === d && s.slot === kind);
   const title = (id: string | null | undefined) => (id ? recipes.get(id)?.title : undefined);
@@ -39,10 +46,9 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const tomorrow = find('dinner', nextDay(date));
 
   // Tiles are small: the day sheet keeps the full suggestion.
-  // A home lunch is last night's leftovers or a chicken sandwich (whichever was picked; leftovers by default).
   const leftover = lunchLeftover(date, slots, recipes);
   const lunch = l?.mode === 'routine'
-    ? (leftover && l.routine_choice !== 'Chicken sandwich' ? 'Leftovers' : 'Chicken sandwich')
+    ? homeLunchChoice(l.routine_choice, !!leftover)
     : l?.reason ?? (l?.mode === 'packed' ? 'Packed lunch' : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}` : 'Home lunch');
   const dinner = d?.mode === 'out' ? 'Out tonight'
     : d?.mode === 'cook' && title(d.recipe_id) ? title(d.recipe_id)!
