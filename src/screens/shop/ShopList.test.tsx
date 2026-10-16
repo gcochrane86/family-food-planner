@@ -59,3 +59,33 @@ test('a ticked item un-ticks itself when its quantity changes, so nothing is und
   expect(await screen.findByRole('checkbox', { name: /chicken breast or thigh/ })).not.toBeChecked();
   expect(screen.getByRole('checkbox', { name: /lamb mince/ })).toBeChecked();
 });
+
+describe("Ready for Sainsbury's", () => {
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+  });
+
+  test('each delivery can be marked ready, and then says it is waiting for Claude', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    await user().click(within(sunday).getByRole('button', { name: "Ready for Sainsbury's" }));
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun');
+    expect(await within(sunday).findByText(/Waiting for Claude to fill the basket/)).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).getByRole('button', { name: "Ready for Sainsbury's" })).toBeInTheDocument();
+  });
+
+  test('a finished run shows its summary', async () => {
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'done', requested_at: '2026-10-17T09:00:00Z', finished_at: '2026-10-17T09:20:00Z', summary: '24 items added; swaps: none' }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(within(sunday).getByText(/Basket filled/)).toBeInTheDocument();
+    expect(within(sunday).getByText('24 items added; swaps: none')).toBeInTheDocument();
+  });
+
+  test('an item with a saved Sainsbury’s product shows it', async () => {
+    h.repo.listProducts.mockResolvedValue([{ household_id: 'h1', item_key: 'chicken breast or thigh|g', product_name: "Sainsbury's British Chicken Breast Fillets 640g", product_url: null, pack_size: 640, pack_unit: 'g', price: 5.5, pinned: false }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const chicken = (await screen.findByText(/1.2kg chicken breast or thigh/)).closest('label')!;
+    expect(chicken).toHaveTextContent("Sainsbury's British Chicken Breast Fillets 640g × 2");
+  });
+});
