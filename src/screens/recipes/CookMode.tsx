@@ -25,33 +25,63 @@ function useWakeLock() {
   }, []);
 }
 
-function Timer({ minutes, label }: { minutes: number; label: string }) {
-  const [endAt, setEndAt] = useState<number | null>(null);
+interface RunningTimer { key: string; label: string; endAt: number; done: boolean }
+
+/** A short beep and a buzz, where the device allows them. */
+function alarm() {
+  try { navigator.vibrate?.([300, 150, 300]); } catch { /* not supported */ }
+  try {
+    const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    osc.frequency.value = 880;
+    osc.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch { /* sound not available */ }
+}
+
+/**
+ * Timers for one recipe that keep running while you move between steps or leave cook mode.
+ * Each is a fixed end time, so the countdown is right after the iPad has been locked.
+ */
+function useTimers(recipeId: string) {
+  const storageKey = `cook-timers:${recipeId}`;
+  const [timers, setTimers] = useState<RunningTimer[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem(storageKey) ?? '[]') as RunningTimer[]; } catch { return []; }
+  });
   const [now, setNow] = useState(Date.now());
+
   useEffect(() => {
-    if (endAt === null) return;
+    try { sessionStorage.setItem(storageKey, JSON.stringify(timers)); } catch { /* private mode */ }
+  }, [storageKey, timers]);
+
+  const anyRunning = timers.some((t) => !t.done);
+  useEffect(() => {
+    if (!anyRunning) return;
     const tick = () => setNow(Date.now());
     const id = setInterval(tick, 1000);
     document.addEventListener('visibilitychange', tick);
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick); };
-  }, [endAt]);
-  const start = remaining(Date.now() + minutes * 60_000, Date.now());
-  if (endAt === null) {
-    return (
-      <button type="button" onClick={() => { setNow(Date.now()); setEndAt(Date.now() + minutes * 60_000); }}
-        className="rounded-xl bg-white/10 px-5 py-3 text-base font-semibold text-white">
-        Start {start} timer
-      </button>
-    );
-  }
-  const left = remaining(endAt, now);
-  return (
-    <div className="flex flex-wrap items-center gap-4">
-      <span role="timer" aria-label={`${label} timer`} className="font-mono text-5xl text-white tabular-nums">{left}</span>
-      {left === '00:00' && <span className="font-semibold text-lcd-ink">Done</span>}
-      <button type="button" onClick={() => setEndAt(null)} className="rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">Reset</button>
-    </div>
-  );
+  }, [anyRunning]);
+
+  useEffect(() => {
+    if (!timers.some((t) => !t.done && t.endAt <= now)) return;
+    alarm();
+    setTimers((list) => list.map((t) => (!t.done && t.endAt <= now ? { ...t, done: true } : t)));
+  }, [now, timers]);
+
+  return {
+    timers,
+    now,
+    start(key: string, label: string, minutes: number) {
+      const at = Date.now();
+      setNow(at);
+      setTimers((list) => [...list.filter((t) => t.key !== key), { key, label, endAt: at + minutes * 60_000, done: false }]);
+    },
+    dismiss(key: string) { setTimers((list) => list.filter((t) => t.key !== key)); },
+  };
 }
 
 export default function CookMode() {
@@ -64,6 +94,7 @@ export default function CookMode() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useWakeLock();
+  const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
   const close = () => navigate(`/recipes/${id}`);
   const shell = 'fixed inset-0 z-50 flex flex-col bg-lcd text-[#EEF3EF]';
@@ -112,6 +143,19 @@ export default function CookMode() {
         <button type="button" onClick={close} aria-label="Exit cook mode" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl">×</button>
       </div>
 
+      {timers.length > 0 && (
+        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap gap-2">
+          {timers.map((t) => (
+            <span key={t.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm ${t.done ? 'bg-lcd-ink text-[#0A0E0B]' : 'bg-white/10 text-white'}`}>
+              <span className="font-semibold">{t.label}</span>
+              <span role="timer" aria-label={`${t.label} timer`} className="font-mono tabular-nums">{t.done ? 'done' : remaining(t.endAt, now)}</span>
+              <button type="button" onClick={() => dismiss(t.key)} aria-label={`Clear ${t.label} timer`} className="opacity-70">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div role="status" className="sr-only">{timers.filter((t) => t.done).map((t) => `${t.label}: done`).join('. ')}</div>
+
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4">
         {!step ? (
           <p className="text-xl">No {phase === 'prep_8pm' ? '8pm prep' : 'dinner'} steps for this recipe.</p>
@@ -128,7 +172,18 @@ export default function CookMode() {
               </div>
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
-            {step.timer_minutes ? <Timer key={`${phase}-${index}`} minutes={step.timer_minutes} label={step.title} /> : null}
+            {step.timer_minutes ? (() => {
+              const key = `${phase}-${step.id ?? index}`;
+              const running = timers.find((t) => t.key === key);
+              return running ? (
+                <span aria-hidden="true" className="font-mono text-5xl text-white tabular-nums">{running.done ? 'Done' : remaining(running.endAt, now)}</span>
+              ) : (
+                <button type="button" onClick={() => startTimer(key, step.title, step.timer_minutes!)}
+                  className="self-start rounded-xl bg-white/10 px-5 py-3 text-base font-semibold text-white">
+                  Start {remaining(step.timer_minutes * 60_000, 0)} timer
+                </button>
+              );
+            })() : null}
             {step.image_path && <img src={repo.heroUrl(step.image_path)} alt="Your photo of this step" className="max-h-64 self-start rounded-2xl object-cover" />}
             {photoError && <ErrorBanner message={photoError} />}
             <label className="self-start cursor-pointer rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">

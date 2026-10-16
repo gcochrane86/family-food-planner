@@ -9,7 +9,7 @@ vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../../lib/image')>()), resizeImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })) }));
 
-beforeEach(() => { h.repo = fakeRepo(); });
+beforeEach(() => { h.repo = fakeRepo(); sessionStorage.clear(); });
 afterEach(() => { vi.useRealTimers(); });
 
 function open() {
@@ -45,9 +45,45 @@ test('the timer counts down from the step time', async () => {
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
   await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
-  expect(screen.getByRole('timer')).toHaveTextContent('20:00');
+  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('20:00');
   await act(async () => { vi.advanceTimersByTime(5_000); });
-  expect(screen.getByRole('timer')).toHaveTextContent('19:55');
+  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('19:55');
+});
+
+test('a running timer stays visible after moving to the next step', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.getByRole('heading', { name: 'Final toss' })).toBeInTheDocument();
+  await act(async () => { vi.advanceTimersByTime(5_000); });
+  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('19:5');
+});
+
+test('a timer that finishes beeps, vibrates and says so', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const vibrate = vi.fn();
+  Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true });
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
+  await act(async () => { vi.advanceTimersByTime(20 * 60_000 + 1_000); });
+  expect(screen.getByRole('status')).toHaveTextContent('Rice on: done');
+  expect(vibrate).toHaveBeenCalledTimes(1);
+  await act(async () => { vi.advanceTimersByTime(5_000); });
+  expect(vibrate).toHaveBeenCalledTimes(1);
+});
+
+test('timers survive leaving and reopening cook mode', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const first = open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
+  first.unmount();
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toBeInTheDocument();
 });
 
 test('Done on the last step goes back to the recipe', async () => {
