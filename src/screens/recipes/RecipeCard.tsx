@@ -194,6 +194,11 @@ export default function RecipeCard() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
+        {recipe.cookidoo_url && recipe.cookidoo_status !== 'none' && (
+          <a href={recipe.cookidoo_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm font-semibold text-accent">
+            {recipe.cookidoo_status === 'outdated' ? 'In Cookidoo (update pending)' : 'In Cookidoo'}
+          </a>
+        )}
         {recipe.rating === 'down' && (
           <p className="mt-1 text-sm font-semibold text-warn">
             <span>Not for us</span> · <button type="button" onClick={() => void undoNotForUs()} className="font-semibold underline">Undo</button>

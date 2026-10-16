@@ -1,10 +1,15 @@
+import type { CookidooRun } from '../../lib/types';
 import type { Balance } from '../../lib/weekSummary';
 
 const LABEL: [keyof Balance, string][] = [['chicken', 'chicken'], ['fish', 'fish'], ['red_meat', 'red meat'], ['veggie', 'veggie']];
 
 /** The eighth tile on the week grid: where the week stands, its balance, and Approve. */
-export default function WeekTile({ approved, saturdayMorning, balance, onApprove }:
-  { approved: boolean; saturdayMorning: boolean; balance: Balance; onApprove: () => void }) {
+const COOKIDOO: Record<CookidooRun['status'], string> = {
+  requested: 'Cookidoo: waiting for Claude', filling: 'Cookidoo: sending…', done: '✓ In Cookidoo', failed: "Cookidoo didn't sync",
+};
+
+export default function WeekTile({ approved, saturdayMorning, balance, onApprove, cookidoo = null }:
+  { approved: boolean; saturdayMorning: boolean; balance: Balance; onApprove: () => void; cookidoo?: CookidooRun | null }) {
   return (
     <div className={`grid content-between gap-2 rounded-[22px] p-3.5 md:min-h-[230px] md:gap-3 md:rounded-[26px] md:p-5 ${approved ? 'bg-accent-soft' : 'bg-accent text-accent-ink'}`}>
       <div className="grid gap-1">
@@ -12,6 +17,11 @@ export default function WeekTile({ approved, saturdayMorning, balance, onApprove
           {approved ? '✓ Approved' : saturdayMorning ? "Approve by 2pm today for Sunday's delivery" : "Next week's menu is ready"}
         </h2>
         {!approved && !saturdayMorning && <p className="m-0 text-[13px] opacity-90 md:text-base">Approve by Saturday 2pm for the Sunday delivery.</p>}
+        {approved && cookidoo && (
+          <p className={`m-0 text-[13px] md:text-base ${cookidoo.status === 'failed' ? 'text-warn' : 'text-muted'}`}>
+            {COOKIDOO[cookidoo.status]}{cookidoo.status === 'failed' && cookidoo.summary ? `: ${cookidoo.summary}` : ''}
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap gap-1">
         {LABEL.filter(([k]) => balance[k] > 0).map(([k, label]) => (

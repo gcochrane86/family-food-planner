@@ -55,7 +55,9 @@ export function useWeek() {
       repo.getWeek(hid, starts.thisWeek), repo.getWeek(hid, starts.nextWeek), repo.listRecipes(hid), repo.listMembers(hid),
       repo.getWeekPattern(), repo.getSettings(hid), repo.recentDinnerIds(hid, starts.nextWeek),
     ]);
-    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent };
+    const run = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getCookidooRun(w.week.id).catch(() => null) : Promise.resolve(null));
+    const [thisCookidoo, nextCookidoo] = await Promise.all([run(thisWeek), run(nextWeek)]);
+    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo };
   }, [hid, starts]);
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
@@ -123,6 +125,8 @@ export function useWeek() {
   return {
     loading, error, reload, saveError, starts, shown, setWhich, weekStart, recipes, input,
     week: current?.week ?? null,
+    /** This week's Cookidoo sync (spec §10), or null before approval. */
+    cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     slots: current?.slots ?? [],
     officeDays: input?.officeDays ?? [],
     alternatives: (date: string) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input) : []),
@@ -167,6 +171,8 @@ export function useWeek() {
       try {
         await repo.approveWeek(current.week.id);
         setCurrent(latest.current, { ...current.week, status: 'approved', approved_at: current.week.approved_at ?? new Date().toISOString() });
+        const key = shown === 'next' ? 'nextCookidoo' : 'thisCookidoo';
+        setData((d) => d && { ...d, [key]: { id: '', plan_week_id: current.week!.id, status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null } });
       } catch {
         setSaveError("Couldn't approve the week. Check your connection and try again.");
       }

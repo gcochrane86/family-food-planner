@@ -170,3 +170,19 @@ test('a down-rated recipe shows Not for us with Undo', async () => {
   expect(h.repo.rateRecipe).toHaveBeenCalledWith(HONEY.id, null);
   expect(screen.queryByText('Not for us')).not.toBeInTheDocument();
 });
+
+test('a recipe in Cookidoo links to it, and says when an update is pending', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, cookidoo_status: 'sent', cookidoo_url: 'https://cookidoo.co.uk/created-recipes/en-GB/01X' });
+  const { unmount } = open('r-honey');
+  expect(await screen.findByRole('link', { name: 'In Cookidoo' })).toHaveAttribute('href', 'https://cookidoo.co.uk/created-recipes/en-GB/01X');
+  unmount();
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, cookidoo_status: 'outdated', cookidoo_url: 'https://cookidoo.co.uk/created-recipes/en-GB/01X' });
+  open('r-honey');
+  expect(await screen.findByRole('link', { name: 'In Cookidoo (update pending)' })).toBeInTheDocument();
+});
+
+test('a recipe from Cookidoo is labelled From your Cookidoo', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'cookidoo' });
+  open('r-honey');
+  expect(await screen.findByText(/From your Cookidoo/)).toBeInTheDocument();
+});

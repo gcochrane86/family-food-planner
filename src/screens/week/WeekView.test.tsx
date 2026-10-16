@@ -263,3 +263,30 @@ test('the day sheet sits above the bottom nav', async () => {
   expect(overlay.parentElement).toBe(document.body);
   expect(overlay.className).toContain('z-30');
 });
+
+describe('Cookidoo on the week tile', () => {
+  const approved = { ...NEXT_WEEK, week: { ...NEXT_WEEK.week, status: 'approved' as const, approved_at: '2026-10-16T19:00:00Z' } };
+  const run = (status: 'requested' | 'filling' | 'done' | 'failed', summary: string | null = null) =>
+    ({ id: 'c1', plan_week_id: 'w-next', status, requested_at: '2026-10-16T19:00:00Z', started_at: null, finished_at: null, summary });
+  const cases: [Parameters<typeof run>, RegExp][] = [
+    [['requested'], /Cookidoo: waiting for Claude/],
+    [['filling'], /Cookidoo: sending…/],
+    [['done'], /✓ In Cookidoo/],
+    [['failed', 'Cookidoo was signed out'], /Cookidoo didn't sync: Cookidoo was signed out/],
+  ];
+  for (const [args, text] of cases) {
+    test(`shows ${args[0]}`, async () => {
+      h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19' ? approved : { week: null, slots: [] }));
+      h.repo.getCookidooRun.mockResolvedValue(run(...args));
+      render(<WeekView />, { wrapper: MemoryRouter });
+      expect(await screen.findByText(text)).toBeInTheDocument();
+    });
+  }
+  test('a draft week shows nothing about Cookidoo, and approving says it is waiting', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByRole('button', { name: 'Approve week' });
+    expect(screen.queryByText(/Cookidoo/)).not.toBeInTheDocument();
+    await user().click(screen.getByRole('button', { name: 'Approve week' }));
+    expect(await screen.findByText(/Cookidoo: waiting for Claude/)).toBeInTheDocument();
+  });
+});
