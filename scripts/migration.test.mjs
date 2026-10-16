@@ -34,7 +34,10 @@ beforeEach(async () => {
     grant usage on schema storage to anon, authenticated;
     grant all on storage.objects, storage.buckets to anon, authenticated;
     grant execute on function storage.foldername(text) to anon, authenticated;`);
-  for (const f of readdirSync('supabase/migrations').sort()) await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
+  // 0004_schedule needs Supabase's pg_cron/pg_net/Vault, which the in-memory Postgres doesn't have; it holds no tables or rules.
+  for (const f of readdirSync('supabase/migrations').sort().filter((f) => !f.includes('_schedule'))) {
+    await db.exec(readFileSync(`supabase/migrations/${f}`, 'utf8'));
+  }
   // Supabase grants table privileges to these roles by default; RLS is what limits rows.
   await db.exec(`grant all on all tables in schema public to anon, authenticated;
     insert into auth.users values ('${OWNER}'), ('${PARTNER}'), ('${STRANGER}');`);
