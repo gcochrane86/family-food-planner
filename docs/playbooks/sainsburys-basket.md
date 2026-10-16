@@ -16,7 +16,8 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
 - **Top up only,** unless the run says `emptyFirst: true`. Never remove an item from the trolley and never lower a
   quantity. If the trolley already has some of an item, raise it to the packs needed only if it's below that. List
   anything already there in the summary.
-- **Empty and refill** (`emptyFirst: true` in the `list` or `pending` output) is the one exception. The household asked
+- **Empty and refill** (`emptyFirst: true` in the `list` output, run right before emptying) is the one exception. The
+  `pending` value is only a hint: if `list` says false, don't empty. The household asked
   for it with the **Empty and refill** button on the Shop tab, after an in-app warning that it removes everything,
   including things they added themselves. The owner chose this on 16 Oct 2026. Only then, and only at the start of
   that run, empty the trolley (step 2), then fill as usual. Never empty it for any other reason or request.
@@ -37,7 +38,8 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
      `alreadyTicked`, and any saved product and its `packs`.
    - Skip items with `alreadyTicked: true`. The household has already bought those.
    - If it says there's no request, ask them to tap **Ready for Sainsbury's** (or **Fill again**) on the Shop tab.
-   - Confirm the week and delivery with the person (see Hard rules).
+   - Confirm the week and delivery with the person (see Hard rules), then claim the run:
+     `npm run -s basket -- claim --run <run id>`. `finish` only closes a run that's been claimed.
 2. **Open the Sainsbury's groceries site** in a new tab and check the trolley.
    - **If `emptyFirst` is true:** note what's in the trolley (for the summary), then empty it: on the trolley page use
      **Empty trolley** and confirm Sainsbury's own prompt. Check the trolley shows 0 items before adding anything. If it

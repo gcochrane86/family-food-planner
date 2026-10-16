@@ -80,7 +80,9 @@ async function add() {
 
 async function failed() {
   const f = read(parseImportFailed, await stdin());
-  must(await db.from('recipe_imports').update({ status: 'failed', summary: f.summary, finished_at: new Date().toISOString() }).eq('id', f.import), 'Closing the link');
+  const closed = must<{ id: string }[]>(await db.from('recipe_imports').update({ status: 'failed', summary: f.summary, finished_at: new Date().toISOString() })
+    .eq('id', f.import).eq('status', 'importing').select('id'), 'Closing the link');
+  if (!closed.length) fail('That link is not being converted (finished, or never claimed). Not changing it.');
   console.log(`Import ${f.import} marked failed.`);
 }
 

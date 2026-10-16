@@ -108,7 +108,10 @@ async function record() {
 
 async function finish() {
   const f = read(parseFinish, await stdin());
-  must(await db.from('basket_runs').update({ status: f.status, summary: f.summary, finished_at: new Date().toISOString() }).eq('id', f.run), 'Closing the run');
+  const closed = must<{ id: string }[]>(await db.from('basket_runs').update({ status: f.status, summary: f.summary, finished_at: new Date().toISOString() })
+    .eq('id', f.run).eq('status', 'filling').select('id'), 'Closing the run');
+  // A newer request (e.g. Empty and refill tapped meanwhile) reset the run; leave it for the next check.
+  if (!closed.length) fail('That run is no longer filling (a newer request replaced it). Not closing it.');
   console.log(`Run ${f.run} marked ${f.status}.`);
 }
 

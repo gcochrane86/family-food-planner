@@ -69,7 +69,7 @@ describe("Ready for Sainsbury's", () => {
     render(<ShopList />, { wrapper: MemoryRouter });
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     await user().click(within(sunday).getByRole('button', { name: "Ready for Sainsbury's" }));
-    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun');
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', false);
     expect(await within(sunday).findByText(/Waiting for Claude. It starts within 15 minutes while your Mac is on/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).getByRole('button', { name: "Ready for Sainsbury's" })).toBeInTheDocument();
   });

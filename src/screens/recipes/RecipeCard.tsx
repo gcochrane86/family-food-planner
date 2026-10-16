@@ -14,6 +14,12 @@ import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 
+/** The original page's host for a web recipe, or null when there's no usable http(s) link. */
+function linkHost(url: string | null | undefined): string | null {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  try { return new URL(url).host || null; } catch { return null; }
+}
+
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo', web: 'From the web, converted' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
@@ -145,6 +151,7 @@ export default function RecipeCard() {
   if (error) return <div className="py-6"><ErrorBanner message={error} onRetry={reload} /></div>;
   if (loading || !data) return <p className="py-6 text-muted">Loading…</p>;
   const { recipe, members } = data;
+  const originalHost = linkHost(recipe?.source_url);
   if (!recipe) {
     return (
       <section className="py-6">
@@ -225,9 +232,9 @@ export default function RecipeCard() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
-        {recipe.source_url && /^https?:\/\//i.test(recipe.source_url) && (
-          <a href={recipe.source_url} target="_blank" rel="noreferrer" className="mr-3 mt-1 inline-block text-sm font-semibold text-accent">
-            Original recipe ({new URL(recipe.source_url).host})
+        {originalHost && (
+          <a href={recipe.source_url!} target="_blank" rel="noreferrer" className="mr-3 mt-1 inline-block text-sm font-semibold text-accent">
+            Original recipe ({originalHost})
           </a>
         )}
         {recipe.cookidoo_url && recipe.cookidoo_status !== 'none' && (

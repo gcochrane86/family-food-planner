@@ -41,7 +41,7 @@ export default function ShopList() {
     if (!data?.chosen?.week) return;
     setBanner(null);
     try {
-      const run = emptyFirst ? await repo.requestRun(data.chosen.week.id, d, true) : await repo.requestRun(data.chosen.week.id, d);
+      const run = await repo.requestRun(data.chosen.week.id, d, emptyFirst);
       setRuns((r) => ({ ...r, [d]: run }));
     } catch {
       setBanner(SAVE_ERROR);

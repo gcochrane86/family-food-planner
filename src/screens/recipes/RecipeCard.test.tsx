@@ -239,3 +239,9 @@ test('a recipe converted from the web says so and links to the original page', a
   expect(await screen.findByText('From the web, converted')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Original recipe (www.bbcgoodfood.com)' })).toHaveAttribute('href', 'https://www.bbcgoodfood.com/recipes/katsu');
 });
+
+test('an odd original link does not break the recipe page', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'web', source_url: 'https://[x]' });
+  open('r-honey');
+  expect(await screen.findByRole('heading', { name: HONEY.title })).toBeInTheDocument();
+});
