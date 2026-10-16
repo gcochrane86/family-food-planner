@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions } from '../../lib/household';
@@ -66,6 +66,7 @@ function Steps({ steps, label, minutes, timeline, markAhead }: {
 }
 
 export default function RecipeCard() {
+  const navigate = useNavigate();
   const { id = '' } = useParams();
   const { householdId } = useAuth();
   const { data, setData, error, loading, reload } = useAsync(async () => {
@@ -193,6 +194,7 @@ export default function RecipeCard() {
               ? [{ label: 'Add step photos ✨', onSelect: () => openPanel('add'), disabled: stepProgress !== null }] : []),
             ...(recipe.steps.some((s) => s.image_source === 'generated')
               ? [{ label: 'New step photos ✨', onSelect: () => openPanel('redo'), disabled: stepProgress !== null }] : []),
+            { label: 'Edit recipe', onSelect: () => navigate(`/recipes/${recipe.id}/edit`) },
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (

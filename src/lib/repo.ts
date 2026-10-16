@@ -2,7 +2,7 @@ import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import type {
   BasketRun, Equipment, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
@@ -260,6 +260,37 @@ export const repo = {
   /** This week's Cookidoo sync, or null before the week is approved. */
   async getCookidooRun(weekId: string): Promise<CookidooRun | null> {
     return must<CookidooRun | null>(await db().from('cookidoo_runs').select('*').eq('plan_week_id', weekId).maybeSingle());
+  },
+
+  /** Saves an edited recipe. Steps are numbered per phase in the order given; each keeps its photo. The recipe's
+   *  equipment follows the machines its steps use. */
+  async saveRecipe(id: string, fields: RecipeEdit, ingredients: RecipeIngredient[], steps: RecipeStep[]): Promise<void> {
+    const position: Record<string, number> = {};
+    const stepRows = steps.map((st) => ({
+      phase: st.phase, position: (position[st.phase] = (position[st.phase] ?? 0) + 1), at_minute: st.at_minute, title: st.title, body: st.body,
+      machine: st.machine, settings: st.settings, timer_minutes: st.timer_minutes,
+      image_path: st.image_path, image_source: st.image_source, photo_hint: st.photo_hint ?? null,
+    }));
+    const ingredientRows = ingredients.map((g, i) => ({
+      position: i + 1, group_name: g.group_name, name: g.name, qty: g.qty, unit: g.unit, note: g.note, qty_approx: g.qty_approx,
+    }));
+    const equipment = [...new Set(steps.map((st) => st.machine).filter((m): m is NonNullable<typeof m> => !!m))];
+    must(await db().from('recipes').update({ ...fields, equipment }).eq('id', id));
+    must(await db().rpc('replace_recipe_contents', { p_recipe_id: id, p_ingredients: ingredientRows, p_steps: stepRows }));
+  },
+
+  /** The latest "Rework with Claude" request for a recipe, unless dismissed. */
+  async getRework(recipeId: string): Promise<RecipeRework | null> {
+    return must<RecipeRework | null>(await db().from('recipe_reworks').select('*').eq('recipe_id', recipeId).order('requested_at', { ascending: false }).limit(1).maybeSingle());
+  },
+  async requestRework(householdId: string, recipeId: string, request: string): Promise<RecipeRework> {
+    return must(await db().from('recipe_reworks').insert({ household_id: householdId, recipe_id: recipeId, request }).select().single());
+  },
+  async retryRework(id: string): Promise<void> {
+    must(await db().from('recipe_reworks').update({ status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null }).eq('id', id));
+  },
+  async dismissRework(id: string): Promise<void> {
+    must(await db().from('recipe_reworks').delete().eq('id', id));
   },
 
   /** Recipe links you've pasted, newest first (finished ones stay until dismissed). */

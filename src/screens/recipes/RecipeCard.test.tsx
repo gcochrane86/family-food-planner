@@ -14,7 +14,10 @@ beforeEach(() => { h.repo = fakeRepo(); localStorage.clear(); });
 function open(id: string) {
   return render(
     <MemoryRouter initialEntries={[`/recipes/${id}`]}>
-      <Routes><Route path="/recipes/:id" element={<RecipeCard />} /></Routes>
+      <Routes>
+        <Route path="/recipes/:id" element={<RecipeCard />} />
+        <Route path="/recipes/:id/edit" element={<p>Editor</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -244,4 +247,11 @@ test('an odd original link does not break the recipe page', async () => {
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'web', source_url: 'https://[x]' });
   open('r-honey');
   expect(await screen.findByRole('heading', { name: HONEY.title })).toBeInTheDocument();
+});
+
+test('the settings menu offers Edit recipe', async () => {
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Edit recipe' }));
+  expect(await screen.findByText('Editor')).toBeInTheDocument();
 });

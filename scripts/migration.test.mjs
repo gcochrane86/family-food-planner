@@ -407,3 +407,25 @@ test("0009: recipes can come from the web", async () => {
   await as(OWNER, `update recipes set source = 'web', source_url = 'https://example.com/r' where id = '${rid}'`);
   expect(await one(OWNER, `select source from recipes where id = '${rid}'`)).toBe('web');
 });
+
+test('0010: a rework request belongs to its household, names a recipe, and needs a short request', async () => {
+  const { hid, rid } = await recipeFor(OWNER);
+  const wid = await one(OWNER, `insert into recipe_reworks (household_id, recipe_id, request) values ('${hid}', '${rid}', 'Use the Anova for the chicken') returning id`);
+  expect(await one(OWNER, `select status from recipe_reworks where id = '${wid}'`)).toBe('requested');
+  expect(await as(STRANGER, 'select * from recipe_reworks')).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into recipe_reworks (household_id, recipe_id, request) values ('${hid}', '${rid}', 'x')`)).toMatch(/row-level security/);
+  expect(await fails(OWNER, `insert into recipe_reworks (household_id, recipe_id, request) values ('${hid}', '${rid}', '  ')`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into recipe_reworks (household_id, recipe_id, request) values ('${hid}', '${rid}', '${'x'.repeat(1001)}')`)).toMatch(/check constraint/);
+  await as(OWNER, `delete from recipes where id = '${rid}'`);
+  expect(await as(OWNER, 'select * from recipe_reworks')).toHaveLength(0);
+});
+
+test('0010: replace_recipe_contents keeps a photo the caller passes for a renamed step', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, image_path, image_source, photo_hint)
+    values ('${rid}', 'finish', 1, 'Simmer', 'old', 'x.jpg', 'own', 'pan')`);
+  const steps = JSON.stringify([{ phase: 'finish', position: 1, title: 'Simmer gently', body: 'new', image_path: 'x.jpg', image_source: 'own', photo_hint: 'pan' }]);
+  await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${steps}')`);
+  expect(await as(OWNER, 'select title, image_path, image_source, photo_hint from recipe_steps'))
+    .toEqual([{ title: 'Simmer gently', image_path: 'x.jpg', image_source: 'own', photo_hint: 'pan' }]);
+});

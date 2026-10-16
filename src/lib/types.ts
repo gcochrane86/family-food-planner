@@ -245,3 +245,24 @@ export interface RecipeImport {
   recipe_id: string | null;
   summary: string | null;
 }
+
+/** "Rework with Claude": a request to rewrite one recipe, done by the scheduled task on the owner's Mac. */
+export interface RecipeRework {
+  id: string;
+  household_id: string;
+  recipe_id: string;
+  request: string;
+  status: 'requested' | 'working' | 'done' | 'failed';
+  requested_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  summary: string | null;
+}
+
+/** The recipe fields the editor changes. */
+export interface RecipeEdit {
+  title: string;
+  subtitle: string | null;
+  prep_minutes: number;
+  finish_minutes: number;
+}
