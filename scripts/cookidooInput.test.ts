@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { parseCookidooFinish, parseRecordDay, parseRecordRecipe } from './cookidooInput';
+import { parseCookidooFinish, parseRecordDay, parseRecordOwn, parseRecordRecipe } from './cookidooInput';
 
 describe('parseRecordRecipe', () => {
   it('reads a recipe id, Cookidoo link and portions', () => {
@@ -29,5 +29,13 @@ describe('parseCookidooFinish', () => {
   it('only accepts done or failed, and caps the summary', () => {
     expect(() => parseCookidooFinish('{"run":"x","status":"filling"}')).toThrow('status');
     expect(parseCookidooFinish(`{"run":"x","status":"done","summary":"${'s'.repeat(3000)}"}`).summary).toHaveLength(2000);
+  });
+});
+
+describe('parseRecordOwn', () => {
+  it('reads an imported recipe slug and its original Cookidoo link', () => {
+    expect(parseRecordOwn('{"slug":"all-in-one-bolognese","url":"https://cookidoo.co.uk/created-recipes/en-GB/01X"}'))
+      .toEqual({ slug: 'all-in-one-bolognese', url: 'https://cookidoo.co.uk/created-recipes/en-GB/01X' });
+    expect(() => parseRecordOwn('{"slug":"x","url":"https://evil.example/x"}')).toThrow('url');
   });
 });

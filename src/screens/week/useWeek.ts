@@ -165,6 +165,18 @@ export function useWeek() {
         return false;
       }
     },
+    /** Asks Claude to sync this week to Cookidoo again after it couldn't. */
+    async retryCookidoo() {
+      if (!current?.week) return;
+      setSaveError(null);
+      try {
+        await repo.requestCookidooSync(current.week.id);
+        const key = shown === 'next' ? 'nextCookidoo' : 'thisCookidoo';
+        setData((d) => d && { ...d, [key]: { ...(d[key] ?? { id: '', plan_week_id: current.week!.id, started_at: null, finished_at: null }), status: 'requested', requested_at: new Date().toISOString(), summary: null } });
+      } catch {
+        setSaveError("Couldn't ask Cookidoo to try again. Check your connection and try again.");
+      }
+    },
     async approve() {
       if (!current?.week) return;
       setSaveError(null);

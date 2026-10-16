@@ -8,7 +8,9 @@ alter table public.recipes add constraint recipes_source_check
 alter table public.recipes
   add column cookidoo_status text not null default 'none' check (cookidoo_status in ('none', 'sent', 'outdated')),
   add column cookidoo_url text,
-  add column cookidoo_portions numeric(5, 2);
+  add column cookidoo_portions numeric(5, 2),
+  add column cookidoo_hash text,      -- fingerprint of the text last sent; the sync compares it to see what changed
+  add column cookidoo_own_url text;   -- an imported recipe's original in the household's Cookidoo: used in My Week, never edited
 
 -- What Claude put in Cookidoo's My Week for this day (null = nothing). Only these entries are ever moved or removed.
 alter table public.meal_slots add column cookidoo_recipe_id uuid references public.recipes (id) on delete set null;
@@ -28,13 +30,15 @@ create policy "household access" on public.cookidoo_runs
   using (exists (select 1 from public.plan_weeks w where w.id = plan_week_id and public.is_member(w.household_id)))
   with check (exists (select 1 from public.plan_weeks w where w.id = plan_week_id and public.is_member(w.household_id)));
 
-/** Asks for a Cookidoo sync of this week (one request per week; a sync already under way is left to finish). */
+/** Asks for a Cookidoo sync of this week (one request per week). A sync under way keeps going; the newer
+ *  requested_at tells its finish step to ask again, so a change made meanwhile isn't lost. */
 create function public.request_cookidoo_sync(p_week uuid) returns void
 language sql set search_path = public as $$
   insert into public.cookidoo_runs (plan_week_id) values (p_week)
   on conflict (plan_week_id) do update
-    set status = 'requested', requested_at = now(), started_at = null, finished_at = null, summary = null
-    where public.cookidoo_runs.status <> 'filling';
+    set requested_at = clock_timestamp(),
+        status = case when public.cookidoo_runs.status = 'filling' then 'filling' else 'requested' end,
+        summary = case when public.cookidoo_runs.status = 'filling' then public.cookidoo_runs.summary else null end;
 $$;
 revoke execute on function public.request_cookidoo_sync(uuid) from public, anon;
 grant execute on function public.request_cookidoo_sync(uuid) to authenticated, service_role;
@@ -62,12 +66,22 @@ end $$;
 create trigger cookidoo_dinner_changed after update on public.meal_slots
   for each row execute function public.cookidoo_dinner_changed();
 
--- Editing a recipe that's in Cookidoo marks it outdated, so the next sync updates it. Photos don't count.
+-- Editing a recipe that's in Cookidoo marks it outdated and asks approved weeks (this one on) that use it to sync.
+-- The sync compares the text with what was sent (cookidoo_hash), so a re-seed with no real change sends nothing.
+-- Photos don't count.
 create function public.cookidoo_recipe_edited() returns trigger
 language plpgsql set search_path = public as $$
+declare
+  rid uuid := coalesce(new.recipe_id, old.recipe_id);
+  wk uuid;
 begin
-  update public.recipes set cookidoo_status = 'outdated'
-    where id = coalesce(new.recipe_id, old.recipe_id) and cookidoo_status = 'sent';
+  update public.recipes set cookidoo_status = 'outdated' where id = rid and cookidoo_status = 'sent';
+  for wk in
+    select distinct w.id from public.plan_weeks w join public.meal_slots m on m.plan_week_id = w.id
+    where m.recipe_id = rid and m.slot = 'dinner' and w.status = 'approved' and w.week_start >= current_date - 6
+  loop
+    perform public.request_cookidoo_sync(wk);
+  end loop;
   return null;
 end $$;
 create trigger cookidoo_ingredients_edited after insert or update or delete on public.recipe_ingredients

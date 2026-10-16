@@ -54,7 +54,7 @@ export default function WeekView() {
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
           <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14} balance={balance}
-            onApprove={() => void w.approve()} cookidoo={w.cookidoo} />
+            onApprove={() => void w.approve()} cookidoo={w.cookidoo} onRetry={() => void w.retryCookidoo()} />
         </div>
       )}
 

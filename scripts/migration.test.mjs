@@ -287,9 +287,11 @@ test('0007 lets a basket run be marked filling, with when it started', async () 
 
 async function cookidooWeek(uid) {
   const { hid, rid } = await recipeFor(uid);
-  const wid = await one(uid, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-19') returning id`);
+  // This week's Monday, so "recent weeks" rules keep working whatever day the tests run.
+  const monday = `date_trunc('week', current_date)::date`;
+  const wid = await one(uid, `insert into plan_weeks (household_id, week_start) values ('${hid}', ${monday}) returning id`);
   await as(uid, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, portions) values
-    ('${wid}', '2026-10-19', 'dinner', 'cook', '${rid}', 3), ('${wid}', '2026-10-19', 'breakfast', 'routine', null, null)`);
+    ('${wid}', ${monday}, 'dinner', 'cook', '${rid}', 3), ('${wid}', ${monday}, 'breakfast', 'routine', null, null)`);
   return { hid, rid, wid };
 }
 const runs = (uid, wid) => as(uid, `select status from cookidoo_runs where plan_week_id = '${wid}'`);
@@ -329,4 +331,46 @@ test("a stranger can't see another household's Cookidoo runs", async () => {
   const { wid } = await cookidooWeek(OWNER);
   await as(OWNER, `select approve_week('${wid}')`);
   expect(await as(STRANGER, 'select * from cookidoo_runs')).toHaveLength(0);
+});
+
+test('a dinner change while a sync is under way is kept for afterwards', async () => {
+  const { hid, wid } = await cookidooWeek(OWNER);
+  const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions) values ('${hid}', 'curry', 'Curry', 'meal', 'claude', 6) returning id`);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `update cookidoo_runs set status = 'filling', requested_at = now() - interval '10 minutes', started_at = now() - interval '1 minute' where plan_week_id = '${wid}'`);
+  await as(OWNER, `update meal_slots set recipe_id = '${other}' where slot = 'dinner'`);
+  expect(await as(OWNER, `select status, requested_at > started_at as changed from cookidoo_runs where plan_week_id = '${wid}'`))
+    .toEqual([{ status: 'filling', changed: true }]);
+});
+
+test("the app's upsert of a changed dinner asks for a sync", async () => {
+  const { wid, rid } = await cookidooWeek(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `update cookidoo_runs set status = 'done' where plan_week_id = '${wid}'`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, portions) values ('${wid}', date_trunc('week', current_date)::date, 'dinner', 'cook', '${rid}', 6)
+    on conflict (plan_week_id, date, slot) do update set portions = excluded.portions`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'requested' }]);
+});
+
+test("recording Claude's My Week entry does not ask for another sync", async () => {
+  const { wid, rid } = await cookidooWeek(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `update cookidoo_runs set status = 'done' where plan_week_id = '${wid}'`);
+  await as(OWNER, `update meal_slots set cookidoo_recipe_id = '${rid}' where slot = 'dinner'`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'done' }]);
+});
+
+test('editing a recipe that is in an approved week asks for a sync', async () => {
+  const { wid, rid } = await cookidooWeek(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `update cookidoo_runs set status = 'done' where plan_week_id = '${wid}'`);
+  await as(OWNER, `update recipes set cookidoo_status = 'sent' where id = '${rid}'`);
+  await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${JSON.stringify([{ phase: 'finish', position: 1, title: 'x', body: 'y' }])}')`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'requested' }]);
+});
+
+test("a stranger can't request a sync for another household's week", async () => {
+  const { wid } = await cookidooWeek(OWNER);
+  await as(STRANGER, `select request_cookidoo_sync('${wid}')`).catch(() => {});
+  expect(await runs(OWNER, wid)).toEqual([]);
 });

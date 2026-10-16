@@ -139,10 +139,11 @@ export const repo = {
     return { week, slots: slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })) };
   },
 
-  /** Saves changed slots (matched on week, date and slot). */
+  /** Saves changed slots (matched on week, date and slot). Which My Week entry Claude made is only ever written by
+   *  the Cookidoo sync, so it's left out here: a stale copy on screen must never overwrite it. */
   async saveSlots(slots: MealSlot[]): Promise<void> {
     if (!slots.length) return;
-    const rows = slots.map(({ id: _id, ...s }) => s);
+    const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
   },
 
@@ -247,6 +248,11 @@ export const repo = {
       throw new Error(detail ?? error.message);
     }
     return (data as { path: string }).path;
+  },
+
+  /** Asks Claude to sync this week to Cookidoo again (e.g. after it couldn't). */
+  async requestCookidooSync(weekId: string): Promise<void> {
+    must(await db().rpc('request_cookidoo_sync', { p_week: weekId }));
   },
 
   /** This week's Cookidoo sync, or null before the week is approved. */

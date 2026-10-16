@@ -282,6 +282,15 @@ describe('Cookidoo on the week tile', () => {
       expect(await screen.findByText(text)).toBeInTheDocument();
     });
   }
+  test("a sync that didn't finish can be tried again", async () => {
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19' ? approved : { week: null, slots: [] }));
+    h.repo.getCookidooRun.mockResolvedValue(run('failed', 'Cookidoo was signed out'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('button', { name: 'Try again' }));
+    expect(h.repo.requestCookidooSync).toHaveBeenCalledWith('w-next');
+    expect(await screen.findByText(/Cookidoo: waiting for Claude/)).toBeInTheDocument();
+  });
+
   test('a draft week shows nothing about Cookidoo, and approving says it is waiting', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await screen.findByRole('button', { name: 'Approve week' });

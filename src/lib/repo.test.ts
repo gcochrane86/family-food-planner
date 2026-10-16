@@ -9,9 +9,12 @@ const h = vi.hoisted(() => ({
   inserts: [] as { table: string; row: unknown }[],
   uploads: [] as string[],
   updates: [] as unknown[],
+  upserts: [] as unknown[],
+  rpcs: [] as { fn: string; args: unknown }[],
 }));
 vi.mock('./supabase', () => ({
   getSupabase: () => ({
+    rpc: async (fn: string, args: unknown) => { h.rpcs.push({ fn, args }); return { data: null, error: null }; },
     storage: { from: () => ({ upload: async (path: string) => { h.uploads.push(path); return { error: null }; } }) },
     from(table: string) {
       const builder: Record<string, unknown> = {};
@@ -20,13 +23,14 @@ vi.mock('./supabase', () => ({
       }
       builder.insert = (row: unknown) => { h.inserts.push({ table, row }); return builder; };
       builder.update = (row: unknown) => { h.updates.push(row); return builder; };
+      builder.upsert = (rows: unknown) => { h.upserts.push(rows); return builder; };
       builder.then = (resolve: (v: unknown) => void) => resolve(h.results[table]?.shift() ?? { data: null, error: null });
       return builder;
     },
   }),
 }));
 
-beforeEach(() => { h.results = {}; h.inserts = []; h.uploads = []; h.updates = []; });
+beforeEach(() => { h.results = {}; h.inserts = []; h.uploads = []; h.updates = []; h.upserts = []; h.rpcs = []; });
 
 test('adding a staple that is already tracked returns the existing one', async () => {
   h.results.ingredients = [{ data: { id: 'i-oil', name: 'Olive oil' }, error: null }];
@@ -52,4 +56,18 @@ test('replacing a step photo saves it under a new name so phones show the new on
   expect(second).not.toBe(first);
   expect(h.uploads).toEqual([first, second]);
   expect(h.updates).toEqual([{ image_path: first, image_source: 'own' }, { image_path: second, image_source: 'own' }]);
+});
+
+test('saving slots never sends which My Week entry Claude made (only the sync writes that)', async () => {
+  await repo.saveSlots([{ id: 'x', plan_week_id: 'w', date: '2026-10-21', slot: 'dinner', recipe_id: 'b', mode: 'cook', portions: 3, guests: 0,
+    locked: true, reason: null, source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, cookidoo_recipe_id: null }]);
+  const rows = h.upserts[0] as Record<string, unknown>[];
+  expect(rows[0]).not.toHaveProperty('cookidoo_recipe_id');
+  expect(rows[0]).not.toHaveProperty('id');
+  expect(rows[0]).toMatchObject({ recipe_id: 'b' });
+});
+
+test('asking Cookidoo to try again requests a sync for that week', async () => {
+  await repo.requestCookidooSync('w-next');
+  expect(h.rpcs).toEqual([{ fn: 'request_cookidoo_sync', args: { p_week: 'w-next' } }]);
 });

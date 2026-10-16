@@ -1,5 +1,5 @@
 import { HONEY, NEXT_WEEK } from '../test/fixtures';
-import { cookidooRecipe, myWeekChanges, portionsToSend } from './cookidoo';
+import { cookidooRecipe, finishStatus, myWeekChanges, portionsToSend, textHash, whyToSend } from './cookidoo';
 import { formatQty } from './recipes';
 
 test('ingredients are scaled and written as Cookidoo lines, with notes after a comma', () => {
@@ -39,5 +39,32 @@ test('my week: only entries we added can be removed', () => {
 
 test('portionsToSend picks the larger portions when a recipe is planned twice', () => {
   const slots = NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-21' ? { ...s, recipe_id: 'r-honey', portions: 3 } : s));
-  expect(portionsToSend(slots, 'r-honey')).toBe(6);
+  expect(portionsToSend(slots, 'r-honey', 6)).toBe(6);
+});
+
+test('portions are whole servings, and fall back to the recipe when none are planned', () => {
+  const slots = NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, portions: 3.5 } : s));
+  expect(portionsToSend(slots, 'r-honey', 6)).toBe(4);
+  const none = NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, portions: null } : s));
+  expect(portionsToSend(none, 'r-honey', 6)).toBe(6);
+});
+
+test('the text fingerprint changes when the text does, and only then', () => {
+  expect(textHash(cookidooRecipe(HONEY, 3))).toBe(textHash(cookidooRecipe(HONEY, 3)));
+  expect(textHash(cookidooRecipe(HONEY, 3))).not.toBe(textHash(cookidooRecipe(HONEY, 4)));
+  expect(textHash(cookidooRecipe(HONEY, 3))).not.toBe(textHash(cookidooRecipe({ ...HONEY, title: 'Other' }, 3)));
+});
+
+test('what to send: new, changed, nothing, and never an imported original', () => {
+  const sent = { cookidoo_url: 'https://cookidoo.co.uk/x', cookidoo_hash: 'abc', cookidoo_own_url: null };
+  expect(whyToSend({ ...sent, cookidoo_url: null, cookidoo_hash: null }, 'abc')).toBe('new');
+  expect(whyToSend(sent, 'abc')).toBeNull();
+  expect(whyToSend(sent, 'xyz')).toBe('changed');
+  expect(whyToSend({ cookidoo_url: null, cookidoo_hash: null, cookidoo_own_url: 'https://cookidoo.co.uk/own' }, 'abc')).toBeNull();
+});
+
+test('a sync that saw a change while it ran finishes by asking again', () => {
+  expect(finishStatus({ requested_at: '2026-10-16T19:05:00Z', started_at: '2026-10-16T19:00:00Z' }, 'done')).toBe('requested');
+  expect(finishStatus({ requested_at: '2026-10-16T18:55:00Z', started_at: '2026-10-16T19:00:00Z' }, 'done')).toBe('done');
+  expect(finishStatus({ requested_at: '2026-10-16T18:55:00Z', started_at: '2026-10-16T19:00:00Z' }, 'failed')).toBe('failed');
 });
