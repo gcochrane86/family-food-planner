@@ -177,18 +177,22 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
 
   const bigDay = [...chosen.entries()].find(([, c]) => c.big)?.[0];
   const slots: ProposedSlot[] = [];
+  let homeBreakfasts = 0;
   dates.forEach((date, i) => {
     const office = input.officeDays.includes(i);
+    // Overnight oats on office days (made at 8pm the night before); other days take turns.
+    const breakfast = office ? 'Overnight oats' : BREAKFAST_TURNS[homeBreakfasts++ % BREAKFAST_TURNS.length];
     slots.push({
       date, slot: 'breakfast', recipeId: null, mode: 'routine', portions: null, guests: 0, locked: false, sourceDate: null,
-      reason: i === 0 ? 'Overnight oats (made at Sunday 8pm prep)' : null,
+      reason: breakfast,
     });
 
     const fromBig = bigDay !== undefined && bigDay === i - 1 ? chosen.get(bigDay)!.recipe! : null;
     slots.push({
       date, slot: 'lunch', recipeId: fromBig?.id ?? null, mode: office ? 'packed' : fromBig ? 'reheat' : 'routine',
       portions: null, guests: 0, locked: false, sourceDate: fromBig ? dates[i - 1] : null,
-      reason: fromBig ? `${office ? 'Packed: leftover' : 'Leftover'} ${fromBig.title}` : office ? 'Packed lunch' : 'Home lunch',
+      reason: fromBig ? `${office ? 'Packed: leftover' : 'Leftover'} ${fromBig.title}` : office ? 'Packed lunch'
+        : homeLunch(i > 0 ? chosen.get(i - 1)?.recipe ?? null : null),
     });
 
     if (i === sundayIdx) {
@@ -218,6 +222,13 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   return slots;
 }
 
+export const BREAKFAST_TURNS = ['Baked oats', 'Eggs & porridge'] as const;
+
+/** What to have for a home lunch: last night's leftovers if that dinner reheats well, otherwise a sandwich. */
+export function homeLunch(lastNight: { title: string; reheatsWell: boolean } | null): string {
+  return lastNight?.reheatsWell ? `Leftover ${lastNight.title}, or a chicken sandwich` : 'Chicken sandwich on sourdough';
+}
+
 // Changes ----------------------------------------------------------------------
 
 const clone = (plan: ProposedSlot[]) => plan.map((s) => ({ ...s }));
@@ -228,7 +239,7 @@ function releaseLeftovers(plan: ProposedSlot[], date: string) {
   for (const s of plan) {
     if (s.slot === 'lunch' && s.sourceDate === date) {
       const packed = s.mode === 'packed';
-      Object.assign(s, { recipeId: null, sourceDate: null, mode: packed ? 'packed' : 'routine', reason: packed ? 'Packed lunch' : 'Home lunch' });
+      Object.assign(s, { recipeId: null, sourceDate: null, mode: packed ? 'packed' : 'routine', reason: packed ? 'Packed lunch' : homeLunch(null) });
     }
   }
 }

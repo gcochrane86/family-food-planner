@@ -57,7 +57,7 @@ test('out tonight on the cook-once dinner sends the next lunch back to its routi
   await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
   expect(within(day(/Monday/)).getByText('Out tonight')).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByText('Home lunch')).toBeInTheDocument();
+  expect(within(day(/Tuesday/)).getByText('Chicken sandwich on sourdough')).toBeInTheDocument();
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'lunch')!.mode).toBe('routine');
 });
@@ -137,15 +137,30 @@ test('a 5-day plan shows 5 day tiles and the week tile', async () => {
   expect(screen.getByRole('button', { name: 'Approve week' })).toBeInTheDocument();
 });
 
-test('Monday breakfast is fixed; other days record what you had', async () => {
+test('breakfast shows the planned choice and records what you had', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-22' ? { ...s, reason: 'Baked oats' } : s)) }
+    : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Mon');
-  expect(within(day(/Monday/)).getByText(/Overnight oats/)).toBeInTheDocument();
   await openDay('Thu');
-  await user().click(within(day(/Thursday/)).getByRole('button', { name: 'Porridge' }));
-  expect(within(day(/Thursday/)).getByRole('button', { name: 'Porridge' })).toHaveAttribute('aria-pressed', 'true');
+  const thu = () => day(/Thursday/);
+  for (const name of ['Overnight oats', 'Baked oats', 'Eggs & porridge']) expect(within(thu()).getByRole('button', { name })).toBeInTheDocument();
+  expect(within(thu()).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'true');
+  await user().click(within(thu()).getByRole('button', { name: 'Eggs & porridge' }));
+  expect(within(thu()).getByRole('button', { name: 'Eggs & porridge' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(thu()).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'false');
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
-  expect(saved[0]).toMatchObject({ slot: 'breakfast', routine_choice: 'Porridge' });
+  expect(saved[0]).toMatchObject({ slot: 'breakfast', routine_choice: 'Eggs & porridge' });
+});
+
+test('the night before an overnight-oats morning, the 8pm prep says so', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-21' ? { ...s, reason: 'Overnight oats' } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  expect(within(await tile('Tuesday 20')).getByText('8pm prep')).toBeInTheDocument();
+  await openDay('Tue');
+  expect(within(day(/Tuesday/)).getByRole('group', { name: '8pm prep' })).toHaveTextContent('Overnight oats for Wednesday');
 });
 
 test('with no plan yet it says when the first menu arrives and can propose one now', async () => {

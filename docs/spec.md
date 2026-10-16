@@ -111,7 +111,7 @@ Breakfast moves between three options, plus Monday's fixed one:
 | **Baked oats** | 4 eggs, 1 banana, cinnamon, oat flour (oats milled in the TM7) **added until it reaches batter consistency**, since egg sizes vary | Greek yoghurt, fruit, nut butter |
 | **Overnight oats** (Monday, fixed) | Oats, milk/yoghurt, made at Sunday's 8pm prep | Fruit |
 
-- **Tue–Sun on the calendar show "Breakfast: eggs / porridge / baked oats".** You tap the one you actually had, or ignore it. There's no planning.
+- **Planned rotation (decided 16 Oct 2026):** office days get **overnight oats** (made at 8pm the night before, shown in that evening's prep); other days alternate **baked oats** and **eggs & porridge** (eggs and porridge are one breakfast). The day sheet offers all three, with the planned one highlighted; tap another to record what you actually had.
 - **Shopping covers a week of breakfasts** using the mix you've actually had (starting at one third each). Over time it learns the split, e.g. more baked oats at weekends.
 - **Baked oats can be made at 8pm the night before**, and they're a good use for spare bananas and eggs. The leftover optimiser counts bananas that are going brown as baked-oats ingredients before suggesting a snack.
 - **Nut butter house rule:** prefer 100%-nut butters (no palm oil or added sugar). Or make almond butter in the TM7, since almonds are already bought for the honey chilli chicken.
@@ -121,6 +121,8 @@ Breakfast moves between three options, plus Monday's fixed one:
 - **To confirm:** whether one batch of baked oats feeds all three of you, and what goes with the boiled eggs.
 
 ### Home lunch (a pool, leftovers first)
+*Proof of concept (16 Oct 2026):* each home lunch shows a suggestion: "Leftover <last night's dinner>, or a chicken sandwich" when that dinner reheats well, otherwise "Chicken sandwich on sourdough". Sandwich chicken is a weekly basic (600g chicken breast, split across both deliveries). The fuller version below comes later.
+
 The planner fills each home lunch in this order:
 1. **Leftovers** from a 6-portion dinner (the usual case, through "cook extra")
 2. **Chicken sandwich**

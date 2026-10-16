@@ -38,7 +38,9 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const chips: DaySummary['chips'] = [];
   if (officeDays.includes(weekday(date))) chips.push({ kind: 'office', label: 'Office' });
   const tomorrowRecipe = tomorrow?.mode === 'cook' && tomorrow.recipe_id ? recipes.get(tomorrow.recipe_id) : undefined;
-  if (tomorrowRecipe && tomorrowRecipe.prep_minutes > 0) chips.push({ kind: 'prep', label: '8pm prep' });
+  const tomorrowBreakfast = find('breakfast', nextDay(date));
+  const oatsTomorrow = (tomorrowBreakfast?.routine_choice ?? tomorrowBreakfast?.reason) === 'Overnight oats';
+  if ((tomorrowRecipe && tomorrowRecipe.prep_minutes > 0) || oatsTomorrow) chips.push({ kind: 'prep', label: '8pm prep' });
   if (slots.some((s) => s.mode === 'reheat' && s.source_date === date)) chips.push({ kind: 'twice', label: 'Cook once ×2' });
   if (d?.guests) chips.push({ kind: 'guests', label: `+${d.guests} guest${d.guests === 1 ? '' : 's'}` });
   if (d?.mode === 'out') chips.push({ kind: 'out', label: 'Out tonight' });

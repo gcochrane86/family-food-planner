@@ -93,6 +93,7 @@ export default function CookMode() {
   const [index, setIndex] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useWakeLock();
   const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
@@ -140,7 +141,21 @@ export default function CookMode() {
             </button>
           ))}
         </div>
-        <button type="button" onClick={close} aria-label="Exit cook mode" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl">×</button>
+        <div className="relative flex items-center gap-2">
+          <button type="button" aria-label="Cook mode settings" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!step}
+            onClick={() => setMenuOpen((o) => !o)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}
+            className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-lg text-white disabled:opacity-35">⚙︎</button>
+          {menuOpen && step && (
+            <div role="menu" className="absolute right-12 top-11 z-10 grid min-w-56 rounded-xl bg-[#1F2822] p-1 shadow-lg"
+              onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
+              <label htmlFor="step-photo-input" role="menuitem" tabIndex={0} onClick={() => setMenuOpen(false)}
+                className="cursor-pointer rounded-lg px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">
+                {step.image_path ? "Replace this step's photo" : 'Add a photo of this step'}
+              </label>
+            </div>
+          )}
+          <button type="button" onClick={close} aria-label="Exit cook mode" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl">×</button>
+        </div>
       </div>
 
       {timers.length > 0 && (
@@ -194,11 +209,9 @@ export default function CookMode() {
                 return <img src={repo.heroUrl(path)} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
               })()}
             {photoError && <ErrorBanner message={photoError} />}
-            <label className="self-start cursor-pointer rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">
-              {saving ? 'Saving photo…' : step.image_path ? 'Replace photo' : 'Add photo'}
-              <input type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Add photo" disabled={saving}
-                onChange={(e) => { void addPhoto(e.target.files?.[0]); e.target.value = ''; }} />
-            </label>
+            {saving && <p className="m-0 text-sm font-semibold text-lcd-ink">Saving photo…</p>}
+            <input id="step-photo-input" type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Add photo" disabled={saving}
+              onChange={(e) => { void addPhoto(e.target.files?.[0]); e.target.value = ''; }} />
             </div>
           </>
         )}

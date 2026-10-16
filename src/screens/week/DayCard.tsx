@@ -7,7 +7,7 @@ import { formatPortions } from '../settings/Household';
 import { addDays, type WeekState } from './useWeek';
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const POOL = ['Eggs', 'Porridge', 'Baked oats'];
+const POOL = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
 const VERDICTS = [['not_enough', 'Not enough'], ['right', 'About right'], ['leftovers', 'Leftovers']] as const;
 const btn = 'rounded-lg border border-line bg-surface px-2.5 py-1 text-[13px] font-semibold';
 
@@ -37,9 +37,10 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
   const dinner = slot('dinner');
   const recipe = (id: string | null | undefined): Recipe | undefined => (id ? w.recipes.get(id) : undefined);
   const dinnerRecipe = recipe(dinner?.recipe_id);
-  const isMonday = dayName(date) === 'Monday';
   const tomorrow = slot('dinner', addDays(date, 1));
   const tomorrowRecipe = tomorrow?.mode === 'cook' ? recipe(tomorrow.recipe_id) : undefined;
+  const tomorrowBreakfast = slot('breakfast', addDays(date, 1));
+  const oatsTomorrow = (tomorrowBreakfast?.routine_choice ?? tomorrowBreakfast?.reason) === 'Overnight oats';
 
   /** 👍 keeps the recipe and makes its step photos; 👎 keeps it out of future menus. */
   async function rate(rating: 'up' | 'down') {
@@ -64,18 +65,17 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
       {breakfast && (
         <div className="grid gap-2 rounded-2xl border border-line bg-surface p-3.5">
           <Label tone="text-yolk">Breakfast</Label>
-          {isMonday ? (
-            <p className="m-0 font-semibold">{breakfast.reason ?? 'Overnight oats'}</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {POOL.map((p) => (
-                <button key={p} type="button" aria-pressed={breakfast.routine_choice === p} onClick={() => w.breakfast(date, p)}
-                  className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${breakfast.routine_choice === p ? 'border-yolk bg-yolk-soft text-yolk' : 'border-line bg-surface'}`}>
+          <div className="flex flex-wrap gap-1.5">
+            {POOL.map((p) => {
+              const on = (breakfast.routine_choice ?? breakfast.reason) === p;
+              return (
+                <button key={p} type="button" aria-pressed={on} onClick={() => { if (!on) w.breakfast(date, p); }}
+                  className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${on ? 'border-yolk bg-yolk-soft text-yolk' : 'border-line bg-surface'}`}>
                   {p}
                 </button>
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -181,12 +181,13 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
 
       <div role="group" aria-label="8pm prep" className="grid gap-1 rounded-2xl bg-evening-soft p-3.5">
         <Label tone="text-evening">8pm prep</Label>
+        {oatsTomorrow && <p className="m-0">Overnight oats for {dayName(tomorrowBreakfast!.date)}</p>}
         {tomorrowRecipe && tomorrowRecipe.prep_minutes > 0 ? (
           <p className="m-0">
             For {dayName(tomorrow!.date)} · {tomorrowRecipe.prep_minutes} min:{' '}
             <Link to={`/recipes/${tomorrowRecipe.id}`} className="font-semibold">{tomorrowRecipe.title}</Link>
           </p>
-        ) : tomorrow ? (
+        ) : oatsTomorrow ? null : tomorrow ? (
           <p className="m-0 text-muted">Nothing to prep tonight.</p>
         ) : (
           <p className="m-0 text-muted">Monday's prep shows once next week is planned.</p>

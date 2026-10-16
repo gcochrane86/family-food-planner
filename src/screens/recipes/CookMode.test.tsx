@@ -120,3 +120,11 @@ test('a step without its own photo shows the main photo; a generated photo is la
   await userEvent.click(screen.getByRole('tab', { name: '8pm prep' }));
   expect(screen.getByRole('img', { name: 'Photo of this step' })).toBeInTheDocument();
 });
+
+test('adding a step photo lives in the cook mode settings menu', async () => {
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(screen.queryByText(/^(Add|Replace) photo$/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Cook mode settings' }));
+  expect(screen.getByRole('menuitem', { name: 'Add a photo of this step' })).toBeInTheDocument();
+});

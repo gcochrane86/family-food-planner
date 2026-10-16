@@ -56,7 +56,7 @@ test('slot rows are ready to insert', () => {
   expect(out).toHaveLength(21);
   expect(out[0]).toEqual({
     plan_week_id: 'w1', date: '2026-10-19', slot: 'breakfast', recipe_id: null, mode: 'routine', portions: null,
-    guests: 0, locked: false, reason: 'Overnight oats (made at Sunday 8pm prep)', source_date: null,
+    guests: 0, locked: false, reason: 'Overnight oats', source_date: null,
   });
 });
 

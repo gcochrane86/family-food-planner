@@ -84,6 +84,22 @@ describe('proposeWeek', () => {
     expect(plan.find((s) => s.slot === 'lunch' && s.date === '2026-10-19')!.mode).toBe('packed');
   });
 
+  test('breakfast: overnight oats on office days, then baked oats and eggs & porridge in turn', () => {
+    const b = (p: ProposedSlot[]) => p.filter((s) => s.slot === 'breakfast').map((s) => s.reason);
+    expect(b(plan)).toEqual(['Overnight oats', 'Baked oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge']);
+    expect(b(proposeWeek(input({ officeDays: [0, 2] })))).toEqual(['Overnight oats', 'Baked oats', 'Overnight oats', 'Eggs & porridge', 'Baked oats', 'Eggs & porridge', 'Baked oats']);
+  });
+
+  test('a home lunch suggests last night\'s leftovers when they reheat well, otherwise a chicken sandwich', () => {
+    const lunches = plan.filter((s) => s.slot === 'lunch' && s.mode === 'routine');
+    expect(lunches.length).toBeGreaterThan(0);
+    for (const l of lunches) {
+      const prev = dinnerOn(plan, addDays(l.date, -1));
+      const leftovers = prev && prev.mode === 'cook' && recipe(prev.recipeId).reheatsWell;
+      expect(l.reason).toBe(leftovers ? `Leftover ${recipe(prev.recipeId).title}, or a chicken sandwich` : 'Chicken sandwich on sourdough');
+    }
+  });
+
   test('every dinner explains itself', () => {
     for (const s of dinners(plan)) expect(s.reason).toBeTruthy();
   });

@@ -6,7 +6,9 @@ const CHIP: Record<DayChip, string> = {
   office: 'bg-evening-soft text-evening', prep: 'bg-evening-soft text-evening', twice: 'bg-accent-soft text-accent',
   guests: 'bg-yolk-soft text-yolk', out: 'bg-warn-soft text-warn', cooked: 'bg-accent-soft text-accent',
 };
-const row = 'grid grid-cols-[10px_minmax(0,1fr)] items-center gap-2 text-[13.5px] leading-tight md:grid-cols-[12px_minmax(0,1fr)] md:gap-3 md:text-lg md:leading-snug';
+const row = 'grid grid-cols-[10px_minmax(0,1fr)] items-start gap-2 text-[13.5px] leading-snug md:grid-cols-[12px_minmax(0,1fr)] md:gap-3 md:text-lg';
+const dot = 'mt-[0.32em] h-2.5 w-2.5 rounded-full md:h-3 md:w-3';
+const text = 'line-clamp-2 break-words';
 
 /** One day on the week grid: breakfast, lunch and dinner at a glance. Tap to open the day. */
 const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummary; today: boolean; onOpen: () => void }>(
@@ -19,11 +21,11 @@ const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummar
           <span className="font-bold text-accent md:text-xl">{weekday}</span>
           <span className="font-display text-2xl font-extrabold leading-none md:text-4xl">{dateNum}</span>
         </span>
-        <span className={row}><i className="h-2.5 w-2.5 rounded-full bg-yolk md:h-3 md:w-3" /><span className="truncate text-muted">{summary.breakfast}</span></span>
-        <span className={row}><i className="h-2.5 w-2.5 rounded-full bg-teal md:h-3 md:w-3" /><span className="truncate text-muted">{summary.lunch}</span></span>
+        <span className={row}><i className={`${dot} bg-yolk`} /><span className={text}>{summary.breakfast}</span></span>
+        <span className={row}><i className={`${dot} bg-teal`} /><span className={text}>{summary.lunch}</span></span>
         <span className={row}>
-          <i className={`h-2.5 w-2.5 rounded-full md:h-3 md:w-3 ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
-          <span className="dinner line-clamp-2 break-words md:line-clamp-3 md:font-semibold">{summary.dinner}</span>
+          <i className={`${dot} ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
+          <span className={`dinner ${text}`}>{summary.dinner}</span>
         </span>
         {summary.chips.length > 0 && (
           <span className="flex flex-wrap gap-1">
