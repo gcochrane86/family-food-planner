@@ -41,7 +41,7 @@ for (const r of recipes) {
     household_id: householdId, slug: r.slug, title: r.title, subtitle: r.subtitle ?? null, kind: r.kind,
     component_role: r.component_role ?? null, source: r.source, base_portions: r.base_portions,
     reheats_well: !!r.reheats_well, freezes_well: !!r.freezes_well, toddler_ok: r.toddler_ok !== false,
-    toddler_note: r.toddler_note ?? null, salt_per_portion_g: r.salt_per_portion_g ?? null,
+    toddler_note: r.toddler_note ?? null, protein: r.protein ?? null, salt_per_portion_g: r.salt_per_portion_g ?? null,
     prep_minutes: r.prep_minutes ?? 0, finish_minutes: r.finish_minutes ?? 0, hands_off_minutes: r.hands_off_minutes ?? 0,
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
   };

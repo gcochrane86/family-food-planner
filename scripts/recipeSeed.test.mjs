@@ -66,6 +66,18 @@ test('values the database would reject are caught before anything is written', (
   ]));
 });
 
+test('meals must say their main protein; components may', () => {
+  const s = clone();
+  s.recipes[0].kind = 'meal';
+  delete s.recipes[0].protein;
+  expect(validateRecipeSeed(s)).toContain('recipes[0].protein must be one of chicken, fish, red_meat, veggie, egg, other');
+  s.recipes[0].protein = 'fish';
+  expect(validateRecipeSeed(s)).toEqual([]);
+  const c = clone();
+  c.recipes[0].protein = 'tofu';
+  expect(validateRecipeSeed(c)).toContain('recipes[0].protein must be one of chicken, fish, red_meat, veggie, egg, other');
+});
+
 test('a file that is not { recipes: [...] } is rejected', () => {
   expect(validateRecipeSeed([])).toEqual(['file must be an object with a "recipes" list']);
 });

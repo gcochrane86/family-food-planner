@@ -176,3 +176,54 @@ test("a stranger cannot replace another household's recipe", async () => {
   await as(STRANGER, `select replace_recipe_contents('${rid}', '[]', '[]')`).catch(() => {});
   expect(await as(OWNER, 'select name from recipe_ingredients')).toEqual([{ name: 'rice' }]);
 });
+
+// Phase 3: plans ---------------------------------------------------------------
+
+async function weekFor(uid) {
+  const { hid, rid } = await recipeFor(uid);
+  const wid = await one(uid, `insert into plan_weeks (household_id, week_start, days) values ('${hid}', '2026-10-19', 7) returning id`);
+  await as(uid, `insert into meal_slots (plan_week_id, date, slot, recipe_id, mode, portions, reason)
+    values ('${wid}', '2026-10-19', 'dinner', '${rid}', 'cook', 6, 'Chicken night')`);
+  await as(uid, `insert into shopping_ticks (plan_week_id, delivery, item_key, ticked) values ('${wid}', 'sun', 'onion|', true)`);
+  return { hid, rid, wid };
+}
+
+test("a stranger cannot see or change another household's plans", async () => {
+  const { wid } = await weekFor(OWNER);
+  for (const t of ['plan_weeks', 'meal_slots', 'shopping_ticks']) expect(await as(STRANGER, `select * from ${t}`)).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-10-20', 'dinner', 'out')`))
+    .toMatch(/row-level security/);
+});
+
+test('one plan per household per week', async () => {
+  const { hid } = await weekFor(OWNER);
+  expect(await fails(OWNER, `insert into plan_weeks (household_id, week_start, days) values ('${hid}', '2026-10-19', 5)`)).toMatch(/duplicate key/);
+});
+
+test('approving a week twice is harmless', async () => {
+  const { wid } = await weekFor(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  const first = await one(OWNER, `select approved_at from plan_weeks where id = '${wid}'`);
+  await as(OWNER, `select approve_week('${wid}')`);
+  expect(await one(OWNER, `select status from plan_weeks where id = '${wid}'`)).toBe('approved');
+  expect(await one(OWNER, `select approved_at from plan_weeks where id = '${wid}'`)).toEqual(first);
+});
+
+test("a stranger cannot approve someone else's week", async () => {
+  const { wid } = await weekFor(OWNER);
+  await as(STRANGER, `select approve_week('${wid}')`).catch(() => {});
+  expect(await one(OWNER, `select status from plan_weeks where id = '${wid}'`)).toBe('draft');
+});
+
+test('deleting a week removes its slots and ticks', async () => {
+  const { wid } = await weekFor(OWNER);
+  await as(OWNER, `delete from plan_weeks where id = '${wid}'`);
+  expect(await as(OWNER, 'select * from meal_slots')).toHaveLength(0);
+  expect(await as(OWNER, 'select * from shopping_ticks')).toHaveLength(0);
+});
+
+test('recipe protein only accepts the known kinds', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `update recipes set protein = 'fish' where id = '${rid}'`);
+  expect(await fails(OWNER, `update recipes set protein = 'tofu' where id = '${rid}'`)).toMatch(/check constraint/);
+});

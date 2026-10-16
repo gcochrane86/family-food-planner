@@ -4,6 +4,7 @@ const MACHINES = ['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle'];
 const KINDS = ['meal', 'component'];
 const ROLES = ['sauce', 'protein', 'veg', 'carb', 'bread'];
 const SOURCES = ['hellofresh', 'own_doc', 'claude'];
+const PROTEINS = ['chicken', 'fish', 'red_meat', 'veggie', 'egg', 'other'];
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -22,6 +23,7 @@ export function validateRecipeSeed(file) {
     if (!isText(r?.title)) problems.push(`${at}.title missing`);
     if (!KINDS.includes(r?.kind)) problems.push(`${at}.kind must be meal or component`);
     if (r?.component_role != null && !ROLES.includes(r.component_role)) problems.push(`${at}.component_role must be one of ${ROLES.join(', ')}`);
+    if ((r?.kind === 'meal' || r?.protein != null) && !PROTEINS.includes(r?.protein)) problems.push(`${at}.protein must be one of ${PROTEINS.join(', ')}`);
     if (!SOURCES.includes(r?.source)) problems.push(`${at}.source must be one of ${SOURCES.join(', ')}`);
     if (!isNum(r?.base_portions) || r.base_portions <= 0 || r.base_portions >= 100) problems.push(`${at}.base_portions must be a positive number under 100`);
     if (r?.status != null && !['draft', 'active', 'archived'].includes(r.status)) problems.push(`${at}.status must be draft, active or archived`);

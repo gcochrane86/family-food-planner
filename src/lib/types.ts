@@ -71,6 +71,7 @@ export interface Household {
 // Recipes (Phase 2) ------------------------------------------------------------
 
 export type Phase = 'prep_8pm' | 'finish' | 'reheat';
+export type Protein = 'chicken' | 'fish' | 'red_meat' | 'veggie' | 'egg' | 'other';
 export type Machine = 'tm7' | 'apo' | 'hy24' | 'meater' | 'hob' | 'oven' | 'kettle';
 
 export interface RecipeIngredient {
@@ -106,6 +107,7 @@ export interface Recipe {
   kind: 'meal' | 'component';
   component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;
   source: 'hellofresh' | 'own_doc' | 'claude';
+  protein: Protein | null;
   base_portions: number;
   reheats_well: boolean;
   freezes_well: boolean;
@@ -126,4 +128,36 @@ export interface Recipe {
 export interface RecipeDetail extends Recipe {
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
+}
+
+// Planning (Phase 3) ------------------------------------------------------------
+
+export type SlotKind = 'breakfast' | 'lunch' | 'dinner';
+export type SlotMode = 'cook' | 'reheat' | 'leftovers' | 'out' | 'routine' | 'packed';
+
+export interface PlanWeek {
+  id: string;
+  household_id: string;
+  week_start: string; // YYYY-MM-DD, a Monday
+  days: 5 | 7;
+  status: 'draft' | 'approved';
+  proposed_at: string;
+  approved_at: string | null;
+}
+
+export interface MealSlot {
+  id?: string;
+  plan_week_id?: string;
+  date: string;
+  slot: SlotKind;
+  recipe_id: string | null;
+  mode: SlotMode;
+  portions: number | null;
+  guests: number;
+  locked: boolean;
+  reason: string | null;
+  source_date: string | null;
+  routine_choice: string | null;
+  cooked_at: string | null;
+  portions_verdict: 'not_enough' | 'right' | 'leftovers' | null;
 }

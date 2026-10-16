@@ -1,7 +1,7 @@
 import type { Recipe, RecipeDetail } from '../lib/types';
 
 const base: Omit<Recipe, 'id' | 'slug' | 'title'> = {
-  household_id: 'h1', subtitle: null, kind: 'meal', component_role: null, source: 'own_doc', base_portions: 6,
+  household_id: 'h1', subtitle: null, kind: 'meal', component_role: null, source: 'own_doc', protein: 'chicken', base_portions: 6,
   reheats_well: true, freezes_well: false, toddler_ok: true, toddler_note: null, salt_per_portion_g: null,
   prep_minutes: 15, finish_minutes: 30, hands_off_minutes: 20, tags: [], equipment: ['tm7', 'hy24'], reheat: null,
   hero_image_path: null, hero_image_source: null, status: 'active',
