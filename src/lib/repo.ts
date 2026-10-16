@@ -147,9 +147,9 @@ export const repo = {
     return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
   },
 
-  /** Saves a photo for a step (replacing any earlier one) and returns its storage path. */
+  /** Saves a photo for a step (replacing any earlier one on the card) and returns its storage path. */
   async uploadStepPhoto(householdId: string, stepId: string, photo: Blob): Promise<string> {
-    const path = `${householdId}/steps/${stepId}.jpg`;
+    const path = `${householdId}/steps/${stepId}-${Date.now()}.jpg`; // new name each time: no stale cached photo
     const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
     if (error) throw new Error(error.message);
     must(await db().from('recipe_steps').update({ image_path: path }).eq('id', stepId));
