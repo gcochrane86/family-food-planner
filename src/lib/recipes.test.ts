@@ -56,6 +56,24 @@ describe('pantryLabel', () => {
   ])('%s → %s', (name, label) => {
     expect(pantryLabel(name, staples)).toBe(label);
   });
+
+  const more: Staple[] = [
+    { id: '6', ingredient_id: 'f', name: 'Eggs', status: 'have' },
+    { id: '7', ingredient_id: 'g', name: 'Tinned tomatoes', status: 'have' },
+    { id: '8', ingredient_id: 'h', name: 'Canned black beans', status: 'have' },
+  ];
+  test.each([
+    ['dried egg noodles', 'To buy'],
+    ['egg white', 'In pantry'],
+    ['eggs', 'In pantry'],
+    ['large tomatoes', 'To buy'],
+    ['vine tomatoes', 'To buy'],
+    ['baby plum tomatoes', 'To buy'],
+    ['tinned tomatoes', 'In pantry'],
+    ['black beans', 'In pantry'],
+  ])('real recipe names: %s → %s', (name, label) => {
+    expect(pantryLabel(name, more)).toBe(label);
+  });
 });
 
 describe('toddlerSaltNote', () => {
