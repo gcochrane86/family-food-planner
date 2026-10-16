@@ -5,6 +5,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
+import AddRecipe from './AddRecipe';
 import HeroImage from './HeroImage';
 
 const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
@@ -17,7 +18,7 @@ const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
   { label: 'Components', test: (r) => r.kind === 'component' },
 ];
 
-const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo' };
+const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo', web: 'From the web, converted' };
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
@@ -61,6 +62,7 @@ export default function RecipeLibrary() {
   return (
     <section className="grid gap-4 py-4">
       <h1 className="text-3xl font-bold">Recipes</h1>
+      <AddRecipe householdId={householdId!} />
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
         className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">

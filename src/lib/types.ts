@@ -109,7 +109,7 @@ export interface Recipe {
   subtitle: string | null;
   kind: 'meal' | 'component';
   component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;
-  source: 'hellofresh' | 'own_doc' | 'claude' | 'cookidoo';
+  source: 'hellofresh' | 'own_doc' | 'claude' | 'cookidoo' | 'web';
   protein: Protein | null;
   base_portions: number;
   reheats_well: boolean;
@@ -131,6 +131,8 @@ export interface Recipe {
   cookidoo_status?: 'none' | 'sent' | 'outdated';
   cookidoo_url?: string | null;
   cookidoo_portions?: number | null;
+  /** The web page a 'web' recipe was converted from. */
+  source_url?: string | null;
 }
 
 export interface RecipeDetail extends Recipe {
@@ -225,5 +227,19 @@ export interface CookidooRun {
   requested_at: string;
   started_at: string | null;
   finished_at: string | null;
+  summary: string | null;
+}
+
+/** A recipe link pasted on the Recipes tab, waiting for (or converted by) Claude on the owner's Mac. */
+export interface RecipeImport {
+  id: string;
+  household_id: string;
+  url: string;
+  note: string | null;
+  status: 'requested' | 'importing' | 'done' | 'failed';
+  requested_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  recipe_id: string | null;
   summary: string | null;
 }

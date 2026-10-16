@@ -232,3 +232,10 @@ test('a recipe from Cookidoo is labelled From your Cookidoo', async () => {
   open('r-honey');
   expect(await screen.findByText(/From your Cookidoo/)).toBeInTheDocument();
 });
+
+test('a recipe converted from the web says so and links to the original page', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'web', source_url: 'https://www.bbcgoodfood.com/recipes/katsu' });
+  open('r-honey');
+  expect(await screen.findByText('From the web, converted')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Original recipe (www.bbcgoodfood.com)' })).toHaveAttribute('href', 'https://www.bbcgoodfood.com/recipes/katsu');
+});

@@ -14,7 +14,7 @@ import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 
-const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo' } as const;
+const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo', web: 'From the web, converted' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
 /** A rough cost for n AI photos: about 3p each with Google's image model. */
@@ -225,6 +225,11 @@ export default function RecipeCard() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
+        {recipe.source_url && /^https?:\/\//i.test(recipe.source_url) && (
+          <a href={recipe.source_url} target="_blank" rel="noreferrer" className="mr-3 mt-1 inline-block text-sm font-semibold text-accent">
+            Original recipe ({new URL(recipe.source_url).host})
+          </a>
+        )}
         {recipe.cookidoo_url && recipe.cookidoo_status !== 'none' && (
           <a href={recipe.cookidoo_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm font-semibold text-accent">
             {recipe.cookidoo_status === 'outdated' ? 'In Cookidoo (update pending)' : 'In Cookidoo'}

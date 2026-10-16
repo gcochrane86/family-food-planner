@@ -1,4 +1,4 @@
-import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun } from '../lib/types';
+import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -44,6 +44,10 @@ export function fakeRepo() {
     addQuick: vi.fn(async (_hid: string, name: string): Promise<QuickItem> => ({ id: `q-${name}`, household_id: 'h1', name, note: null, done: false, created_at: '2026-10-16T08:00:00Z' })),
     setQuickDone: vi.fn(async () => {}),
     clearQuickDone: vi.fn(async () => {}),
+    listImports: vi.fn(async (): Promise<RecipeImport[]> => []),
+    requestImport: vi.fn(async (householdId: string, url: string, note: string | null): Promise<RecipeImport> => ({ id: 'i-new', household_id: householdId, url, note, status: 'requested', requested_at: '2026-10-16T08:00:00Z', started_at: null, finished_at: null, recipe_id: null, summary: null })),
+    retryImport: vi.fn(async () => {}),
+    dismissImport: vi.fn(async () => {}),
     getRuns: vi.fn(async (): Promise<BasketRun[]> => []),
     requestRun: vi.fn(async (weekId: string, delivery: 'sun' | 'tue'): Promise<BasketRun> => ({ id: `run-${delivery}`, plan_week_id: weekId, delivery, status: 'requested', requested_at: '2026-10-16T08:00:00Z', finished_at: null, summary: null })),
     listProducts: vi.fn(async (): Promise<Product[]> => []),

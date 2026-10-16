@@ -1,7 +1,7 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import type {
-  BasketRun, Equipment, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
+  BasketRun, Equipment, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
@@ -259,6 +259,21 @@ export const repo = {
   /** This week's Cookidoo sync, or null before the week is approved. */
   async getCookidooRun(weekId: string): Promise<CookidooRun | null> {
     return must<CookidooRun | null>(await db().from('cookidoo_runs').select('*').eq('plan_week_id', weekId).maybeSingle());
+  },
+
+  /** Recipe links you've pasted, newest first (finished ones stay until dismissed). */
+  async listImports(householdId: string): Promise<RecipeImport[]> {
+    return must(await db().from('recipe_imports').select('*').eq('household_id', householdId).order('requested_at', { ascending: false }).limit(20));
+  },
+  /** Asks Claude on the Mac to convert a recipe page for this household. */
+  async requestImport(householdId: string, url: string, note: string | null): Promise<RecipeImport> {
+    return must(await db().from('recipe_imports').insert({ household_id: householdId, url, note }).select().single());
+  },
+  async retryImport(id: string): Promise<void> {
+    must(await db().from('recipe_imports').update({ status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null }).eq('id', id));
+  },
+  async dismissImport(id: string): Promise<void> {
+    must(await db().from('recipe_imports').delete().eq('id', id));
   },
 
   heroUrl(path: string): string {
