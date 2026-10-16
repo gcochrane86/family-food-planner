@@ -107,7 +107,7 @@ export interface Recipe {
   subtitle: string | null;
   kind: 'meal' | 'component';
   component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;
-  source: 'hellofresh' | 'own_doc' | 'claude';
+  source: 'hellofresh' | 'own_doc' | 'claude' | 'cookidoo';
   protein: Protein | null;
   base_portions: number;
   reheats_well: boolean;
@@ -126,6 +126,9 @@ export interface Recipe {
   status: 'draft' | 'active' | 'archived';
   /** "Have it again?" after cooking: 'down' keeps it out of menus; 'up' gets step photos. */
   rating: 'up' | 'down' | null;
+  cookidoo_status?: 'none' | 'sent' | 'outdated';
+  cookidoo_url?: string | null;
+  cookidoo_portions?: number | null;
 }
 
 export interface RecipeDetail extends Recipe {
@@ -163,6 +166,7 @@ export interface MealSlot {
   routine_choice: string | null;
   cooked_at: string | null;
   portions_verdict: 'not_enough' | 'right' | 'leftovers' | null;
+  cookidoo_recipe_id?: string | null;
 }
 
 // Shopping (Phase 4) -------------------------------------------------------------
@@ -206,6 +210,18 @@ export interface BasketRun {
   status: 'requested' | 'filling' | 'done' | 'failed';
   requested_at: string;
   started_at?: string | null;
+  finished_at: string | null;
+  summary: string | null;
+}
+
+// Cookidoo (Phase 6) -------------------------------------------------------------
+
+export interface CookidooRun {
+  id: string;
+  plan_week_id: string;
+  status: 'requested' | 'filling' | 'done' | 'failed';
+  requested_at: string;
+  started_at: string | null;
   finished_at: string | null;
   summary: string | null;
 }

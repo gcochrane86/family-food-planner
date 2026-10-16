@@ -2,8 +2,7 @@ import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import type {
   BasketRun, Equipment, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic,
-} from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
@@ -248,6 +247,11 @@ export const repo = {
       throw new Error(detail ?? error.message);
     }
     return (data as { path: string }).path;
+  },
+
+  /** This week's Cookidoo sync, or null before the week is approved. */
+  async getCookidooRun(weekId: string): Promise<CookidooRun | null> {
+    return must<CookidooRun | null>(await db().from('cookidoo_runs').select('*').eq('plan_week_id', weekId).maybeSingle());
   },
 
   heroUrl(path: string): string {

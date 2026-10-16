@@ -13,7 +13,7 @@ import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
 
-const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' } as const;
+const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
 /** A rough cost for n AI photos: about 3p each with Google's image model. */

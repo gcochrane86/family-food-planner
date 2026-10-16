@@ -1,4 +1,4 @@
-import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic } from '../lib/types';
+import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -54,6 +54,7 @@ export function fakeRepo() {
     proposeNow: vi.fn(async () => 'created'),
     recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
+    getCookidooRun: vi.fn(async (_weekId: string): Promise<CookidooRun | null> => null),
     rateRecipe: vi.fn(async (_recipeId: string, _rating: 'up' | 'down' | null) => {}),
     generateStepPhoto: vi.fn(async (recipeId: string, stepId: string, _replace?: boolean, _asked?: boolean) => `h1/steps/${recipeId}-${stepId}-gen.jpg`),
     uploadStepPhoto: vi.fn(async (_hid: string, stepId: string) => `h1/steps/${stepId}.jpg`),

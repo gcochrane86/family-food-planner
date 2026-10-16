@@ -3,7 +3,7 @@ const PHASES = ['prep_8pm', 'finish', 'reheat'];
 const MACHINES = ['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle'];
 const KINDS = ['meal', 'component'];
 const ROLES = ['sauce', 'protein', 'veg', 'carb', 'bread'];
-const SOURCES = ['hellofresh', 'own_doc', 'claude'];
+const SOURCES = ['hellofresh', 'own_doc', 'claude', 'cookidoo'];
 const PROTEINS = ['chicken', 'fish', 'red_meat', 'veggie', 'egg', 'other'];
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const isText = (v) => typeof v === 'string' && v.trim() !== '';

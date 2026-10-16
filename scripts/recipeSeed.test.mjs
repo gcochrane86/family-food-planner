@@ -81,3 +81,9 @@ test('meals must say their main protein; components may', () => {
 test('a file that is not { recipes: [...] } is rejected', () => {
   expect(validateRecipeSeed([])).toEqual(['file must be an object with a "recipes" list']);
 });
+
+test('cookidoo is a valid source', () => {
+  const s = clone();
+  s.recipes[0].source = 'cookidoo';
+  expect(validateRecipeSeed(s)).toEqual([]);
+});

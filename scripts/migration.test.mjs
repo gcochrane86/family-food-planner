@@ -284,3 +284,49 @@ test('0007 lets a basket run be marked filling, with when it started', async () 
   expect(await one(OWNER, `select status from basket_runs where id = '${rid}'`)).toBe('filling');
   expect(await fails(OWNER, `update basket_runs set status = 'busy' where id = '${rid}'`)).toMatch(/check constraint/);
 });
+
+async function cookidooWeek(uid) {
+  const { hid, rid } = await recipeFor(uid);
+  const wid = await one(uid, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-19') returning id`);
+  await as(uid, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, portions) values
+    ('${wid}', '2026-10-19', 'dinner', 'cook', '${rid}', 3), ('${wid}', '2026-10-19', 'breakfast', 'routine', null, null)`);
+  return { hid, rid, wid };
+}
+const runs = (uid, wid) => as(uid, `select status from cookidoo_runs where plan_week_id = '${wid}'`);
+
+test('approving a week asks for a Cookidoo sync, once', async () => {
+  const { wid } = await cookidooWeek(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `select approve_week('${wid}')`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'requested' }]);
+});
+
+test("changing an approved week's dinner asks for a sync again", async () => {
+  const { hid, wid } = await cookidooWeek(OWNER);
+  const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions) values ('${hid}', 'curry', 'Curry', 'meal', 'claude', 6) returning id`);
+  await as(OWNER, `select approve_week('${wid}')`);
+  await as(OWNER, `update cookidoo_runs set status = 'done' where plan_week_id = '${wid}'`);
+  await as(OWNER, `update meal_slots set routine_choice = 'Baked oats' where slot = 'breakfast'`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'done' }]);
+  await as(OWNER, `update meal_slots set recipe_id = '${other}' where slot = 'dinner'`);
+  expect(await runs(OWNER, wid)).toEqual([{ status: 'requested' }]);
+});
+
+test('a dinner change in a draft week does not ask for a sync', async () => {
+  const { wid } = await cookidooWeek(OWNER);
+  await as(OWNER, `update meal_slots set portions = 6 where slot = 'dinner'`);
+  expect(await runs(OWNER, wid)).toEqual([]);
+});
+
+test('editing a sent recipe marks it outdated', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `update recipes set cookidoo_status = 'sent', cookidoo_url = 'https://cookidoo.co.uk/created-recipes/en-GB/x' where id = '${rid}'`);
+  await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${JSON.stringify([{ phase: 'finish', position: 1, title: 'x', body: 'y' }])}')`);
+  expect(await one(OWNER, `select cookidoo_status from recipes where id = '${rid}'`)).toBe('outdated');
+});
+
+test("a stranger can't see another household's Cookidoo runs", async () => {
+  const { wid } = await cookidooWeek(OWNER);
+  await as(OWNER, `select approve_week('${wid}')`);
+  expect(await as(STRANGER, 'select * from cookidoo_runs')).toHaveLength(0);
+});

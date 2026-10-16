@@ -17,7 +17,7 @@ const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
   { label: 'Components', test: (r) => r.kind === 'component' },
 ];
 
-const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' };
+const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo' };
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
