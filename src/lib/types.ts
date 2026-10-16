@@ -203,8 +203,9 @@ export interface BasketRun {
   id: string;
   plan_week_id: string;
   delivery: 'sun' | 'tue';
-  status: 'requested' | 'done' | 'failed';
+  status: 'requested' | 'filling' | 'done' | 'failed';
   requested_at: string;
+  started_at?: string | null;
   finished_at: string | null;
   summary: string | null;
 }

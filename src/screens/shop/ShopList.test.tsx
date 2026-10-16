@@ -70,7 +70,7 @@ describe("Ready for Sainsbury's", () => {
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     await user().click(within(sunday).getByRole('button', { name: "Ready for Sainsbury's" }));
     expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun');
-    expect(await within(sunday).findByText(/Waiting for Claude to fill the basket/)).toBeInTheDocument();
+    expect(await within(sunday).findByText(/Waiting for Claude. It starts within 15 minutes while your Mac is on/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).getByRole('button', { name: "Ready for Sainsbury's" })).toBeInTheDocument();
   });
 
@@ -82,6 +82,14 @@ describe("Ready for Sainsbury's", () => {
     expect(within(sunday).getByText('24 items added; swaps: none')).toBeInTheDocument();
     expect(within(sunday).getByRole('button', { name: 'Fill again (tops up only)' })).toBeInTheDocument();
     expect(within(sunday).queryByRole('button', { name: "Ready for Sainsbury's" })).not.toBeInTheDocument();
+  });
+
+  test('a run being filled says so and offers no button', async () => {
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'filling', requested_at: '2026-10-17T09:00:00Z', finished_at: null, summary: null }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(within(sunday).getByText(/Claude is filling your basket now/)).toBeInTheDocument();
+    expect(within(sunday).queryByRole('button', { name: /Sainsbury's|Fill again/ })).not.toBeInTheDocument();
   });
 
   test('an item with a saved Sainsbury’s product shows it', async () => {

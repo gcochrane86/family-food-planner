@@ -94,7 +94,10 @@ export default function ShopList() {
 
 function RunStatus({ run, onReady }: { run: BasketRun | null; onReady: () => void }) {
   if (run?.status === 'requested') {
-    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">Waiting for Claude to fill the basket. Ask Claude: "fill my Sainsbury's basket".</p>;
+    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">Waiting for Claude. It starts within 15 minutes while your Mac is on.</p>;
+  }
+  if (run?.status === 'filling') {
+    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm font-semibold">Claude is filling your basket now…</p>;
   }
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm">

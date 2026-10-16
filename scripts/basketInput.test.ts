@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { parseFinish, parseProduct } from './basketInput';
+import { parseFinish, parseProduct, parseSpar } from './basketInput';
 
 describe('parseProduct', () => {
   it('reads a product with odd characters in its name untouched', () => {
@@ -32,5 +32,15 @@ describe('parseFinish', () => {
   });
   it('caps a long summary', () => {
     expect(parseFinish(`{"run":"r1","status":"failed","summary":"${'x'.repeat(3000)}"}`).summary).toHaveLength(2000);
+  });
+});
+
+describe('parseSpar', () => {
+  it('reads a name and note', () => {
+    expect(parseSpar('{"name":"Spring onions","note":"Sainsbury\'s had none"}')).toEqual({ name: 'Spring onions', note: "Sainsbury's had none" });
+  });
+  it('needs a name and caps it at 80 characters', () => {
+    expect(() => parseSpar('{"note":"x"}')).toThrow('name');
+    expect(parseSpar(`{"name":"${'x'.repeat(200)}"}`).name).toHaveLength(80);
   });
 });

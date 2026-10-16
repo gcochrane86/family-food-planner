@@ -275,3 +275,12 @@ test('replace_recipe_contents keeps a generated photo and its source', async () 
   await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${steps}')`);
   expect(await as(OWNER, 'select image_path, image_source from recipe_steps')).toEqual([{ image_path: 'x.jpg', image_source: 'generated' }]);
 });
+
+test('0007 lets a basket run be marked filling, with when it started', async () => {
+  const hid = await one(OWNER, `select create_household('Home')`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-19') returning id`);
+  const rid = await one(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'sun') returning id`);
+  await as(OWNER, `update basket_runs set status = 'filling', started_at = now() where id = '${rid}'`);
+  expect(await one(OWNER, `select status from basket_runs where id = '${rid}'`)).toBe('filling');
+  expect(await fails(OWNER, `update basket_runs set status = 'busy' where id = '${rid}'`)).toMatch(/check constraint/);
+});

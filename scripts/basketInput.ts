@@ -32,3 +32,11 @@ export function parseFinish(input: string): FinishInput {
   if (o.status !== 'done' && o.status !== 'failed') throw new Error('"status" must be done or failed');
   return { run, status: o.status, summary: text(o.summary, 2000) };
 }
+
+export interface SparInput { name: string; note: string | null }
+
+export function parseSpar(input: string): SparInput {
+  const o = parse(input);
+  const name = text(o.name, 80) ?? (() => { throw new Error('"name" is required'); })();
+  return { name, note: text(o.note, 200) };
+}

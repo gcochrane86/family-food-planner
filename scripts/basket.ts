@@ -3,12 +3,15 @@
 //   npx tsx scripts/basket.ts list   --household <id> --delivery sun|tue
 //   npx tsx scripts/basket.ts record --household <id> < product.json   {"key","name","url","size","unit","price","pin"?}
 //   npx tsx scripts/basket.ts finish < finish.json                      {"run","status":"done"|"failed","summary"}
-// record and finish read JSON on stdin so text copied from web pages never goes through a shell command line.
+//   npx tsx scripts/basket.ts pending --household <id>                  requests waiting to be filled (cheap: no browsing)
+//   npx tsx scripts/basket.ts claim --run <run id>                      marks a request 'filling' so no other check takes it
+//   npx tsx scripts/basket.ts spar --household <id> < item.json         {"name","note"?} onto the Spar list
+// record, finish and spar read JSON on stdin so text copied from web pages never goes through a shell command line.
 import { createClient } from '@supabase/supabase-js';
 import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
-import { parseFinish, parseProduct } from './basketInput';
+import { parseFinish, parseProduct, parseSpar } from './basketInput';
 import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
@@ -41,7 +44,7 @@ async function list() {
   const run = must<{ id: string; status: string } | null>(
     await db.from('basket_runs').select('id, status').eq('plan_week_id', week.id).eq('delivery', delivery).maybeSingle(), 'Finding the basket request')
     ?? fail(`No "Ready for Sainsbury's" request for the ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} delivery of the week of ${week.week_start}. Tap the button on the Shop tab first.`);
-  if (run.status !== 'requested') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
+  if (run.status !== 'requested' && run.status !== 'filling') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
 
   const slots = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
   const ids = [...new Set(slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
@@ -109,5 +112,47 @@ async function finish() {
   console.log(`Run ${f.run} marked ${f.status}.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { list, record, finish };
-await (commands[command] ?? (() => fail('Use: list | record | finish')))();
+const STALE_MS = 2 * 60 * 60 * 1000; // a fill that started over 2 hours ago has stopped (Mac asleep, Chrome closed)
+
+/** Requests waiting to be filled, oldest first. A fill that stalled is marked failed so the app offers "Fill again". */
+async function pending() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const weeks = must<{ id: string; week_start: string }[]>(
+    await db.from('plan_weeks').select('id, week_start').eq('household_id', householdId), 'Reading weeks');
+  const byId = new Map(weeks.map((w) => [w.id, w.week_start]));
+  const runs = must<{ id: string; plan_week_id: string; delivery: 'sun' | 'tue'; status: string; started_at: string | null; requested_at: string }[]>(
+    await db.from('basket_runs').select('id, plan_week_id, delivery, status, started_at, requested_at')
+      .in('plan_week_id', weeks.length ? weeks.map((w) => w.id) : ['00000000-0000-0000-0000-000000000000'])
+      .in('status', ['requested', 'filling']).order('requested_at'), 'Reading requests');
+  const waiting = [];
+  for (const r of runs) {
+    if (r.status === 'filling') {
+      if (r.started_at && Date.now() - Date.parse(r.started_at) > STALE_MS) {
+        must(await db.from('basket_runs').update({ status: 'failed', summary: 'Stopped part-way (the Mac may have slept). Tap "Fill again" to finish it.', finished_at: new Date().toISOString() }).eq('id', r.id), 'Closing a stalled fill');
+      }
+      continue;
+    }
+    const weekStart = byId.get(r.plan_week_id)!;
+    waiting.push({ id: r.id, delivery: r.delivery, weekStart, deliveryDate: addDays(weekStart, r.delivery === 'sun' ? -1 : 1) });
+  }
+  console.log(JSON.stringify(waiting));
+}
+
+/** Takes a request for this fill; fails if another check already took it. */
+async function claim() {
+  const id = arg('run') ?? fail('--run is required');
+  const rows = must<{ id: string }[]>(await db.from('basket_runs').update({ status: 'filling', started_at: new Date().toISOString() })
+    .eq('id', id).eq('status', 'requested').select('id'), 'Claiming the request');
+  if (!rows.length) fail('That request is already being filled or is finished.');
+  console.log(`Run ${id} claimed.`);
+}
+
+async function spar() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const item = read(parseSpar, await stdin());
+  must(await db.from('quick_shop_items').insert({ household_id: householdId, name: item.name, note: item.note }), 'Adding to the Spar list');
+  console.log(`Added ${item.name} to the Spar list.`);
+}
+
+const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, spar };
+await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | spar')))();
