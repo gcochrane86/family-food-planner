@@ -10,6 +10,30 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg'],
+      workbox: {
+        // Keep recipe photos and fonts on the device, so opening the app doesn't download them again.
+        // Photos get a new file name whenever they change, so a kept copy is never out of date.
+        runtimeCaching: [
+          {
+            urlPattern: /\/storage\/v1\/object\/public\/recipe-images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'recipe-images',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'fonts',
+              expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'Family Food Planner',
         short_name: 'Food',
