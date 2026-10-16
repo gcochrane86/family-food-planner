@@ -199,7 +199,9 @@ Every table has `household_id` and row-level security, so only your household ca
 
 ### Planning
 - **plan_weeks** — `week_start (Mon), days (5|7), status (draft|approved|ordered|in_progress|done), notes`
-- **week_requests** — `plan_week_id, raw_text (what you typed or said), requests (json: [{date, slot, type: dish|protein|people|out|quick|general, value}]), status (applied|couldnt_meet), note`
+- **meal_slots** additions: `locked (bool)`, `guests (int)`, and `mode` gains `leftovers`
+- **settings.balance**: `{chicken: 2, fish: 1, red_meat: 1, veggie: 1}`, plus `no_repeat_days: 14`
+- **recipes.protein**: `chicken|fish|red_meat|veggie|egg|other`, used by the balance rules
 - **week_overrides** — this week only: `date, member_id, office (bool)`, events (`hosting +N`, `eating_out`, `busy_evening`)
 - **meal_slots** — `date, slot (breakfast|lunch|dinner|prep_8pm|snack), recipe_id | routine_id | prepared_item_id, mode (cook|reheat|leftover|routine|packed|eating_out|hosting|freezer), portions, for_members[], is_anchor, reason (why the planner chose it), status (planned|done|skipped)`
 - **routines** — `weekday (or null = any day), slot, name, recipe_id, kind (fixed|pool)` (e.g. Monday breakfast = overnight oats, fixed; Tue–Sun breakfast = pool of eggs / porridge / baked oats)
@@ -281,41 +283,35 @@ Each cell shows the meal name, an icon (🔥 cook · ♻️ reheat · 🥡 packe
 
 The **8pm prep** row lists tomorrow's prep steps with their total minutes, e.g. "Mon prep: overnight oats · flatbread dough · honey chilli sauce, 25 min".
 
-### Planning wizard: "Plan the week"
-The planning screen **opens with one question: "What do you fancy this week?"** You type or speak in your own words, for example:
-> "Chicken on Tuesday, the fish pie on Wednesday, and we've got guests on Thursday so make it for 6 people."
+### Weekly proposal (Friday 7pm) and review
+*Replaces the earlier "What do you fancy this week?" screen (decided 16 Oct 2026).*
 
-- **Claude turns it into requests** you can see and edit before anything is planned. Each request is a chip you can remove:
-  - `Tue · dinner with chicken`
-  - `Wed · Classic Fish Pie`
-  - `Thu · hosting · 6 people`
-- **Request types:**
-  - a **specific dish** on a day
-  - a **protein or cuisine** on a day ("chicken", "something Thai")
-  - **people or guests** (scales portions; "hosting" mode)
-  - **eating out** or a takeaway
-  - **quick** or **make-ahead**
-  - **general wishes** ("no fish this week", "something new", "use the freezer bolognese")
-- **Requests are hard constraints for the optimiser** and count as anchors. If you've asked for 3 dinners, the app only fills the rest.
-- **Mid-week requests** go through the same box, or the kitchen assistant, and trigger a re-plan of the remaining days.
-- If a request can't be met (e.g. no beef recipe in the library), Claude says so and offers to write one.
+**Every Friday at 7pm, a menu for next week is proposed automatically.**
+- **Runs on Supabase's scheduler** (`pg_cron` calling a `propose-week` Edge Function), so it happens even if no device is on. It uses the planner logic below; no AI call is needed for the basic proposal.
+- **Covers next Mon–Sun**, or Mon–Fri when the plan length setting is 5 days.
+- **Balance rules** (editable in Settings → Planning):
+  - targets per week: about **2 chicken, 1 fish, 1 red meat** (beef, lamb or pork), **1 veggie**; the rest is free
+  - never the same protein two nights running
+  - quick dinners (within the weekday limit) on office days; longer cooks at weekends
+  - one 6-portion "cook once, eat twice" dinner where it fits, to cover lunches
+  - prefers recipes that use up leftovers, fit the week's offers (later phases), and haven't been eaten in the last 2 weeks
+- **Nudge:** an in-app banner, "Next week's menu is ready". Web push to the home-screen app comes later.
 
-Then, all of these are optional and already filled from your defaults:
+**You review it.** Each night shows the proposed dinner and why it was picked. Actions on any night:
 
-1. **Length:** 5 or 7 days
-2. **Office days:** Monday ✓, Wednesday? (toggle)
-3. **Events:** hosting +N, eating out, busy evening
-4. **Use up:** shows what's in the fridge or freezer that's going off soon; add anything else
-5. **Pick anchors:** if your requests don't already fix 3 (or 4) dinners, choose the rest from favourites, offers-led suggestions or the library
-6. **Generate:** the optimiser runs (§7), then go to Plan review
+| Action | What happens |
+|---|---|
+| **✓ Keep** | Locks the meal |
+| **Swap** | 3 alternatives that keep the week balanced (e.g. "fish instead: Tuesday is chicken"), or choose any recipe |
+| **Out tonight** | Removes the dinner; leftovers it was meant to supply are re-planned |
+| **Guests +N** | Rescales the portions and prefers dishes that suit a crowd |
+| **Leftovers / freezer** | A night off, using leftovers or something from the freezer |
 
-### Plan review
-Every suggested meal comes with its reason, for example:
-> **Wed: Spinach & ricotta chicken, TM7 sauce** — uses 200g spinach left from Monday's 500g pack (on offer, 1.25 → 1.00) and the second half of the cream batch.
+- **Approve week** fixes the plan, which then builds the shopping list (Phase 3) and syncs Cookidoo (Phase 6).
+- **If it's not approved by Saturday 2pm**, you get a reminder, because of the Sunday delivery cut-off.
+- **Mid-week changes** (out tonight, guests, swap) use the same actions on the calendar, or the kitchen assistant later.
 
-From here you can swap a meal (alternatives are ranked), lock it in, or approve the whole plan.
-
----
+**Recipe library gap:** balance needs choice. Phase 3 adds about 6 more dinners in the house style (2 fish, 2 beef or pork, 2 veggie, with TM7 sauces and quick weeknight finishes).
 
 ## 7. Planning optimiser
 
@@ -361,8 +357,8 @@ The meal slots (each with a reason), the shopping lists, the estimated cost and 
 
 | When | Who | What |
 |---|---|---|
-| **Fri (scheduled)** | Claude | Check Sainsbury's offers and prices for likely ingredients → run the optimiser → create a draft plan → notify you |
-| **Fri/Sat** | You | Go through the wizard and review the plan; swap or lock meals; approve |
+| **Fri 7pm (scheduled)** | Supabase scheduler | `propose-week` makes a balanced draft menu for next week → banner in the app (later: Claude adds Sainsbury's offers before 7pm) |
+| **Fri evening / Sat** | You | Review: keep, swap, out tonight, guests, leftovers → **Approve week** (reminder at Sat 2pm if not approved) |
 | **On approval** | Claude (Chrome) | Sync Cookidoo: create or update the week's Created Recipes and add each meal to My Week on its day |
 | **Sat** | Claude (Chrome) | Check the Sunday 7–8pm slot is booked; fill the basket for the Sunday list; report anything unavailable and the alternatives chosen |
 | **Sat** | **You** | Review the basket and **check out** before the cut-off |
