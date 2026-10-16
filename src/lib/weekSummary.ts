@@ -32,9 +32,9 @@ export function lunchLeftover(date: string, slots: MealSlot[], recipes: Map<stri
 }
 
 /** A home lunch: whatever was picked, else last night's leftovers when there are some, else a chicken sandwich. */
-export function homeLunchChoice(choice: string | null, leftovers: boolean): string {
-  if (choice && HOME_LUNCHES.includes(choice)) return choice;
-  return leftovers ? 'Leftovers' : HOME_LUNCHES[0];
+export function homeLunchChoice(choice: string | null, leftovers: boolean, first: string = HOME_LUNCHES[0]): string {
+  if (choice && choice !== 'Leftovers') return choice;
+  return leftovers ? 'Leftovers' : first;
 }
 
 export function daySummary(date: string, slots: MealSlot[], recipes: Map<string, Recipe>, officeDays: number[]): DaySummary {

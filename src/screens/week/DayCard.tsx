@@ -1,27 +1,17 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { HOME_LUNCHES, routineRecipe } from '../../lib/mealPhotos';
+import { routineRecipe } from '../../lib/mealPhotos';
 import { homeLunchChoice, lunchLeftover } from '../../lib/weekSummary';
-import { repo } from '../../lib/repo';
 import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import type { WeekState } from './useWeek';
+import MealPhoto from './MealPhoto';
+import MealOptions from './MealOptions';
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const POOL = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
 
 export function dayLabel(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   return `${DAY[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' })}`;
-}
-
-/** A meal's photo, or a soft shaded box with its name while there isn't one yet. */
-function Photo({ recipe, alt, className }: { recipe?: Recipe; alt: string; className: string }) {
-  const [failed, setFailed] = useState(false);
-  if (recipe?.hero_image_path && !failed) {
-    return <img src={repo.heroUrl(recipe.hero_image_path)} alt={alt} loading="lazy" onError={() => setFailed(true)} className={`w-full object-cover ${className}`} />;
-  }
-  return <div className={`grid w-full place-items-center bg-gradient-to-br from-yolk-soft to-surface-2 p-3 text-center text-[13px] font-semibold text-muted ${className}`}>Photo of {alt}</div>;
 }
 
 function Label({ children, tone }: { children: string; tone: string }) {
@@ -52,13 +42,14 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const lastNightRecipe = lunchLeftover(date, w.slots, w.recipes);
   const swap = onSwap ?? (() => {});
 
-  const breakfastName = breakfast?.routine_choice ?? breakfast?.reason ?? 'Eggs & porridge';
+  const breakfastName = breakfast?.routine_choice ?? breakfast?.reason ?? w.mealOptions.breakfast[0];
+  const breakfastOptions = w.mealOptions.breakfast.map((n) => ({ value: n, name: n, recipe: routineRecipe(n, w.recipes), removable: true }));
   // A home lunch (not packed, not a planned reheat) is picked from the lunch options, plus last night's leftovers.
   const lunchChoice = lunch?.mode === 'routine' && !lunch.recipe_id;
-  const picked = homeLunchChoice(lunch?.routine_choice ?? null, !!lastNightRecipe);
+  const picked = homeLunchChoice(lunch?.routine_choice ?? null, !!lastNightRecipe, w.mealOptions.lunch[0]);
   const lunchOptions = [
-    ...(lastNightRecipe ? [{ value: 'Leftovers', name: `Leftover ${lastNightRecipe.title}`, r: lastNightRecipe as Recipe | undefined }] : []),
-    ...HOME_LUNCHES.map((n) => ({ value: n, name: n, r: routineRecipe(n, w.recipes) })),
+    ...(lastNightRecipe ? [{ value: 'Leftovers', name: `Leftover ${lastNightRecipe.title}`, recipe: lastNightRecipe as Recipe | undefined, removable: false }] : []),
+    ...w.mealOptions.lunch.map((n) => ({ value: n, name: n, recipe: routineRecipe(n, w.recipes), removable: true })),
   ];
   const card = 'overflow-hidden rounded-[20px] bg-surface shadow-sm';
 
@@ -69,21 +60,8 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       {breakfast && (
         <div className="grid gap-2">
           <Label tone="text-yolk">Breakfast</Label>
-          <div className={card}>
-            <Photo recipe={routineRecipe(breakfastName, w.recipes)} alt={breakfastName} className="aspect-[16/9]" />
-            <p className="m-0 px-4 py-2.5 font-display text-lg font-bold">{breakfastName}</p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {POOL.map((p) => {
-              const on = breakfastName === p;
-              return (
-                <button key={p} type="button" aria-pressed={on} onClick={() => { if (!on) w.breakfast(date, p); }}
-                  className={`rounded-full border px-3 py-1 text-[13.5px] font-semibold ${on ? 'border-yolk text-ink' : 'border-line bg-surface text-muted'}`}>
-                  {p}
-                </button>
-              );
-            })}
-          </div>
+          <MealOptions label="Breakfast" options={breakfastOptions} picked={breakfastName}
+            onPick={(v) => w.breakfast(date, v)} onAdd={(n, photo) => w.addMealOption('breakfast', n, photo)} onRemove={(v) => w.removeMealOption('breakfast', v)} />
         </div>
       )}
 
@@ -91,27 +69,16 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
         <div className="grid gap-2">
           <Label tone="text-teal">{lunchChoice ? 'Lunch · pick one' : 'Lunch'}</Label>
           {lunchChoice ? (
-            <div className="-mx-1 flex snap-x gap-2.5 overflow-x-auto px-1 pb-1">
-              {lunchOptions.map((o) => {
-                const on = picked === o.value;
-                return (
-                  <button key={o.value} type="button" aria-pressed={on} onClick={() => { if (!on) w.lunch(date, o.value); }}
-                    className={`relative w-[44%] max-w-[220px] shrink-0 snap-start overflow-hidden rounded-[20px] border-[3px] bg-surface text-left shadow-sm ${on ? 'border-accent' : 'border-transparent'}`}>
-                    <Photo recipe={o.r} alt={o.name} className="aspect-[4/3]" />
-                    {on && <span aria-hidden className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-accent font-bold text-accent-ink">✓</span>}
-                    <span className="block px-3 py-2 text-sm font-bold leading-snug">{o.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <MealOptions label="Lunch" options={lunchOptions} picked={picked}
+              onPick={(v) => w.lunch(date, v)} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />
           ) : (() => {
             const packed = lunch.mode === 'packed' && !lunch.recipe_id;
             const reheat = lunch.recipe_id ? recipe(lunch.recipe_id) : undefined;
-            const name = packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : HOME_LUNCHES[0];
-            const r = packed ? routineRecipe('Packed lunch', w.recipes) : reheat ?? routineRecipe(HOME_LUNCHES[0], w.recipes);
+            const name = packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : w.mealOptions.lunch[0];
+            const r = packed ? routineRecipe('Packed lunch', w.recipes) : reheat ?? routineRecipe(w.mealOptions.lunch[0], w.recipes);
             return (
               <div className={card}>
-                <Photo recipe={r} alt={name} className="aspect-[16/9]" />
+                <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
                 <p className="m-0 px-4 py-2.5 font-display text-lg font-bold">{name}</p>
               </div>
             );
@@ -124,7 +91,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
           <Label tone="text-accent">Dinner</Label>
           {dinner.mode === 'cook' && dinnerRecipe ? (
             <Link to={`/recipes/${dinnerRecipe.id}`} className={`${card} block text-ink no-underline`}>
-              <Photo recipe={dinnerRecipe} alt={dinnerRecipe.title} className="aspect-[16/9]" />
+              <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} className="aspect-[16/9]" />
               <span className="grid gap-0.5 px-4 py-2.5">
                 <b className="font-display text-lg leading-tight">{dinnerRecipe.title}</b>
                 <span className="text-sm text-muted">

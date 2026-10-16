@@ -1,6 +1,7 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
+import { slugify } from './mealPhotos';
 import type {
   BasketRun, Equipment, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
@@ -261,6 +262,17 @@ export const repo = {
   /** This week's Cookidoo sync, or null before the week is approved. */
   async getCookidooRun(weekId: string): Promise<CookidooRun | null> {
     return must<CookidooRun | null>(await db().from('cookidoo_runs').select('*').eq('plan_week_id', weekId).maybeSingle());
+  },
+
+  /** The recipe behind a breakfast or lunch you added (found by its name's slug, or created as a small component). */
+  async addMealRecipe(householdId: string, name: string, tag: 'Breakfast' | 'Lunch'): Promise<Recipe> {
+    const slug = slugify(name);
+    const existing = must<Recipe | null>(await db().from('recipes').select('*').eq('household_id', householdId).eq('slug', slug).maybeSingle());
+    if (existing) return toRecipe(existing);
+    return toRecipe(must<Recipe>(await db().from('recipes').insert({
+      household_id: householdId, slug, title: name, kind: 'component', source: 'own_doc', base_portions: 2, tags: [tag],
+      status: 'active', toddler_ok: true, finish_minutes: 10,
+    }).select('*').single()));
   },
 
   /** Saves an edited recipe in one transaction (see recipeSavePayload). Each step keeps its photo. */

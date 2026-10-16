@@ -476,3 +476,80 @@ describe('feedback card failures', () => {
     await vi.waitFor(() => expect(within(card).getByRole('button', { name: 'About right' })).toHaveAttribute('aria-pressed', 'false'));
   });
 });
+
+describe('breakfast and lunch options', () => {
+  const withOptions = (breakfasts: string[], lunches?: string[]) => h.repo.getSettings.mockResolvedValue({
+    weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
+    breakfasts, lunches: lunches ?? ['Chicken sandwich', 'Egg sandwich'],
+  });
+  const thu = () => day(/Thursday/);
+  const breakfastRow = () => within(thu()).getByRole('group', { name: 'Breakfast options' });
+
+  test('breakfast is a row of photo cards from your own list', async () => {
+    withOptions(['Overnight oats', 'Banana pancakes']);
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY,
+      { ...TACOS, id: 'r-bp', slug: 'banana-pancakes', title: 'Banana pancakes', kind: 'component', hero_image_path: 'h1/hero/bp.jpg' }]);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    expect(within(breakfastRow()).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
+      .toEqual(['Overnight oats', 'Banana pancakes', 'Add a breakfast']);
+    expect(within(breakfastRow()).getByRole('img', { name: 'Banana pancakes' })).toHaveAttribute('src', expect.stringContaining('h1/hero/bp.jpg'));
+  });
+
+  test('+ adds a breakfast with a photo, and it can be picked straight away', async () => {
+    withOptions(['Overnight oats', 'Baked oats']);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    await user().click(within(breakfastRow()).getByRole('button', { name: 'Add a breakfast' }));
+    const form = screen.getByRole('dialog', { name: 'Add a breakfast' });
+    expect(within(form).getByRole('checkbox', { name: /Make a photo/ })).toBeChecked();
+    await user().type(within(form).getByRole('textbox', { name: 'Name' }), ' Granola bowl ');
+    await user().click(within(form).getByRole('button', { name: 'Add' }));
+    expect(h.repo.addMealRecipe).toHaveBeenCalledWith('h1', 'Granola bowl', 'Breakfast');
+    expect(h.repo.generateHero).toHaveBeenCalledWith('r-granola-bowl');
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].breakfasts).toEqual(['Overnight oats', 'Baked oats', 'Granola bowl']);
+    await user().click(await within(breakfastRow()).findByRole('button', { name: 'Granola bowl' }));
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ slot: 'breakfast', routine_choice: 'Granola bowl' });
+  });
+
+  test('holding a card offers to remove it from the list; a quick tap still picks it', async () => {
+    withOptions(['Overnight oats', 'Baked oats', 'Eggs & porridge']);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    const baked = within(breakfastRow()).getByRole('button', { name: 'Baked oats' });
+    fireEvent.pointerDown(baked, { clientX: 10, clientY: 10 });
+    await act(async () => { vi.advanceTimersByTime(700); });
+    fireEvent.pointerUp(baked);
+    fireEvent.click(baked);
+    expect(h.repo.saveSlots).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('alertdialog', { name: 'Remove Baked oats?' });
+    await user().click(within(confirm).getByRole('button', { name: 'Remove' }));
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].breakfasts).toEqual(['Overnight oats', 'Eggs & porridge']);
+    expect(within(breakfastRow()).queryByRole('button', { name: 'Baked oats' })).not.toBeInTheDocument();
+  });
+
+  test('a press that turns into a scroll does not offer removal', async () => {
+    withOptions(['Overnight oats', 'Baked oats']);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    const baked = within(breakfastRow()).getByRole('button', { name: 'Baked oats' });
+    fireEvent.pointerDown(baked, { clientX: 10, clientY: 10 });
+    fireEvent.scroll(breakfastRow());
+    await act(async () => { vi.advanceTimersByTime(700); });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  test('right-click removes too, the last option cannot be removed, and lunch works the same way', async () => {
+    withOptions(['Overnight oats'], ['Chicken sandwich', 'Egg sandwich']);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    fireEvent.contextMenu(within(breakfastRow()).getByRole('button', { name: 'Overnight oats' }));
+    expect(screen.getByRole('alertdialog', { name: "Can't remove Overnight oats" })).toBeInTheDocument();
+    await user().click(screen.getByRole('button', { name: 'OK' }));
+    const lunchRow = within(thu()).getByRole('group', { name: 'Lunch options' });
+    fireEvent.contextMenu(within(lunchRow).getByRole('button', { name: 'Egg sandwich' }));
+    await user().click(within(screen.getByRole('alertdialog', { name: 'Remove Egg sandwich?' })).getByRole('button', { name: 'Remove' }));
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].lunches).toEqual(['Chicken sandwich']);
+    expect(within(lunchRow).getByRole('button', { name: 'Add a lunch' })).toBeInTheDocument();
+  });
+});

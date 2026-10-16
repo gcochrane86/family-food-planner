@@ -1,4 +1,4 @@
-import type { BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep } from '../lib/types';
+import type { Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -16,7 +16,7 @@ export function fakeRepo() {
     getWeekPattern: vi.fn(async () => [{ member_id: YOU.id, weekday: 0, office: true }]),
     setOffice: vi.fn(async () => {}),
     getSettings: vi.fn(),
-    saveSettings: vi.fn(async () => {}),
+    saveSettings: vi.fn(async (_householdId: string, _settings: Partial<Settings>) => {}),
     listRules: vi.fn(async () => []),
     saveRule: vi.fn(),
     deleteRule: vi.fn(async () => {}),
@@ -44,6 +44,7 @@ export function fakeRepo() {
     addQuick: vi.fn(async (_hid: string, name: string): Promise<QuickItem> => ({ id: `q-${name}`, household_id: 'h1', name, note: null, done: false, created_at: '2026-10-16T08:00:00Z' })),
     setQuickDone: vi.fn(async () => {}),
     clearQuickDone: vi.fn(async () => {}),
+    addMealRecipe: vi.fn(async (householdId: string, name: string, tag: 'Breakfast' | 'Lunch'): Promise<Recipe> => ({ ...TACOS, id: `r-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, household_id: householdId, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title: name, kind: 'component', tags: [tag], hero_image_path: null, hero_image_source: null })),
     saveRecipe: vi.fn(async (_original: RecipeDetail, _fields: RecipeEdit, _ingredients: RecipeIngredient[], _steps: RecipeStep[]) => {}),
     getRework: vi.fn(async (): Promise<RecipeRework | null> => null),
     requestRework: vi.fn(async (householdId: string, recipeId: string, request: string): Promise<RecipeRework> => ({ id: 'w-new', household_id: householdId, recipe_id: recipeId, request, status: 'requested', requested_at: '2026-10-16T08:00:00Z', started_at: null, finished_at: null, summary: null })),

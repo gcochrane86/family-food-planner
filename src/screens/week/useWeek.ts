@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
+import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
 import type { MealSlot, PlanWeek, Recipe } from '../../lib/types';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
@@ -64,6 +65,10 @@ export function useWeek() {
   const current = data ? (shown === 'next' ? data.nextWeek : data.thisWeek) : null;
   const weekStart = shown === 'next' ? starts.nextWeek : starts.thisWeek;
   const recipes = useMemo(() => new Map((data?.recipes ?? []).map((r) => [r.id, r])), [data]);
+  const mealOptions = useMemo(() => ({
+    breakfast: data?.settings?.breakfasts?.length ? data.settings.breakfasts : DEFAULT_BREAKFASTS,
+    lunch: data?.settings?.lunches?.length ? data.settings.lunches : HOME_LUNCHES,
+  }), [data]);
   const [dismissedTick, setDismissedTick] = useState(0);
 
   /** Last night's dinner (tonight's after 8pm), from this week or next, if it still needs "How was it?". */
@@ -176,6 +181,42 @@ export function useWeek() {
     lunch: (date: string, choice: string) => update(date, 'lunch', (l) => (l.routine_choice === choice ? null : { ...l, routine_choice: choice })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
+    /** Your breakfast and home-lunch options (from household settings). */
+    mealOptions,
+    /** Adds a breakfast or lunch option, with its own small recipe (and a photo, about 3p, if asked). Resolves to a
+     *  problem to show, or null. The option is kept even if only the photo fails. */
+    async addMealOption(kind: 'breakfast' | 'lunch', name: string, photo: boolean): Promise<string | null> {
+      if (!data) return null;
+      const key = kind === 'breakfast' ? 'breakfasts' : 'lunches';
+      const list = mealOptions[kind];
+      if (list.some((n) => n.toLowerCase() === name.toLowerCase())) return `${name} is already one of your ${kind === 'breakfast' ? 'breakfasts' : 'lunches'}.`;
+      let recipe: Recipe;
+      try {
+        recipe = await repo.addMealRecipe(hid, name, kind === 'breakfast' ? 'Breakfast' : 'Lunch');
+        const settings = { ...data.settings, [key]: [...list, name] };
+        await repo.saveSettings(hid, settings);
+        setData((d) => d && { ...d, settings, recipes: d.recipes.some((r: Recipe) => r.id === recipe.id) ? d.recipes : [...d.recipes, recipe] });
+      } catch {
+        return "Couldn't add it. Check your connection and try again.";
+      }
+      if (!photo || recipe.hero_image_path) return null;
+      try {
+        const path = await repo.generateHero(recipe.id);
+        setData((d) => d && { ...d, recipes: d.recipes.map((r: Recipe) => (r.id === recipe.id ? { ...r, hero_image_path: path, hero_image_source: 'generated' as const } : r)) });
+        return null;
+      } catch {
+        return `Added ${name}, but its photo couldn't be made. Try Recipes → Make photos later.`;
+      }
+    },
+    /** Takes an option off the list (its recipe stays in the library). Puts it back if the save fails. */
+    async removeMealOption(kind: 'breakfast' | 'lunch', name: string) {
+      if (!data) return;
+      const key = kind === 'breakfast' ? 'breakfasts' : 'lunches';
+      const before = data.settings;
+      const settings = { ...before, [key]: mealOptions[kind].filter((n) => n !== name) };
+      setData((d) => d && { ...d, settings });
+      try { await repo.saveSettings(hid, settings); } catch { setData((d) => d && { ...d, settings: before }); setSaveError("Couldn't save that. Check your connection and try again."); }
+    },
     lastNight,
     /** Saves the portions answer for last night's dinner, in whichever week it's in, and marks it cooked. */
     lastNightVerdict(v: NonNullable<MealSlot['portions_verdict']>): Promise<boolean> {
