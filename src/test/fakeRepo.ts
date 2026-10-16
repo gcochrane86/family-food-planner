@@ -44,7 +44,7 @@ export function fakeRepo() {
     addQuick: vi.fn(async (_hid: string, name: string): Promise<QuickItem> => ({ id: `q-${name}`, household_id: 'h1', name, note: null, done: false, created_at: '2026-10-16T08:00:00Z' })),
     setQuickDone: vi.fn(async () => {}),
     clearQuickDone: vi.fn(async () => {}),
-    saveRecipe: vi.fn(async (_id: string, _fields: RecipeEdit, _ingredients: RecipeIngredient[], _steps: RecipeStep[]) => {}),
+    saveRecipe: vi.fn(async (_original: RecipeDetail, _fields: RecipeEdit, _ingredients: RecipeIngredient[], _steps: RecipeStep[]) => {}),
     getRework: vi.fn(async (): Promise<RecipeRework | null> => null),
     requestRework: vi.fn(async (householdId: string, recipeId: string, request: string): Promise<RecipeRework> => ({ id: 'w-new', household_id: householdId, recipe_id: recipeId, request, status: 'requested', requested_at: '2026-10-16T08:00:00Z', started_at: null, finished_at: null, summary: null })),
     retryRework: vi.fn(async () => {}),

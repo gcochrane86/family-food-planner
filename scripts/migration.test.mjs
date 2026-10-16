@@ -429,3 +429,15 @@ test('0010: replace_recipe_contents keeps a photo the caller passes for a rename
   expect(await as(OWNER, 'select title, image_path, image_source, photo_hint from recipe_steps'))
     .toEqual([{ title: 'Simmer gently', image_path: 'x.jpg', image_source: 'own', photo_hint: 'pan' }]);
 });
+
+test('0010: save_recipe changes the recipe and its contents together, and nothing when the contents are bad', async () => {
+  const { rid } = await recipeFor(OWNER);
+  const steps = JSON.stringify([{ phase: 'finish', position: 1, title: 'Roast', body: 'In the Anova', machine: 'apo' }]);
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"New name","equipment":["apo","meater"],"slug":"hacked","household_id":"${STRANGER}"}', '[]', '${steps}')`);
+  expect(await as(OWNER, `select title, equipment, slug != 'hacked' as kept_slug from recipes where id = '${rid}'`))
+    .toEqual([{ title: 'New name', equipment: ['apo', 'meater'], kept_slug: true }]);
+  const bad = JSON.stringify([{ phase: 'later', position: 1, title: 'x', body: 'x' }]);
+  expect(await fails(OWNER, `select save_recipe('${rid}', '{"title":"Half saved"}', '[]', '${bad}')`)).toMatch(/check constraint/);
+  expect(await one(OWNER, `select title from recipes where id = '${rid}'`)).toBe('New name');
+  expect(await fails(STRANGER, `select save_recipe('${rid}', '{"title":"x"}', '[]', '[]')`)).toMatch(/recipe_not_found/);
+});

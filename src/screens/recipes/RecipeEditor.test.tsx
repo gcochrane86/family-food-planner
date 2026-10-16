@@ -34,8 +34,8 @@ test('changing a step to the Anova oven and renaming the recipe saves and goes b
   await userEvent.type(settings, '100°C · 100% steam · 20 min');
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(h.repo.saveRecipe).toHaveBeenCalledTimes(1);
-  const [id, fields, ingredients, steps] = h.repo.saveRecipe.mock.calls[0];
-  expect(id).toBe('r-honey');
+  const [original, fields, ingredients, steps] = h.repo.saveRecipe.mock.calls[0];
+  expect(original.id).toBe('r-honey');
   expect(fields).toMatchObject({ title: 'Honey Chilli Chicken', subtitle: 'with peppers & basmati rice' });
   expect(ingredients.map((i: { name: string }) => i.name)).toEqual(['chicken breast or thigh', 'basmati rice']);
   expect(steps.find((s: { title: string }) => s.title === 'Rice on')).toMatchObject({ phase: 'finish', machine: 'apo', settings: '100°C · 100% steam · 20 min' });

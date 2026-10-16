@@ -1,5 +1,6 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
+import { recipeSavePayload } from './recipeEdit';
 import type {
   BasketRun, Equipment, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
@@ -262,21 +263,10 @@ export const repo = {
     return must<CookidooRun | null>(await db().from('cookidoo_runs').select('*').eq('plan_week_id', weekId).maybeSingle());
   },
 
-  /** Saves an edited recipe. Steps are numbered per phase in the order given; each keeps its photo. The recipe's
-   *  equipment follows the machines its steps use. */
-  async saveRecipe(id: string, fields: RecipeEdit, ingredients: RecipeIngredient[], steps: RecipeStep[]): Promise<void> {
-    const position: Record<string, number> = {};
-    const stepRows = steps.map((st) => ({
-      phase: st.phase, position: (position[st.phase] = (position[st.phase] ?? 0) + 1), at_minute: st.at_minute, title: st.title, body: st.body,
-      machine: st.machine, settings: st.settings, timer_minutes: st.timer_minutes,
-      image_path: st.image_path, image_source: st.image_source, photo_hint: st.photo_hint ?? null,
-    }));
-    const ingredientRows = ingredients.map((g, i) => ({
-      position: i + 1, group_name: g.group_name, name: g.name, qty: g.qty, unit: g.unit, note: g.note, qty_approx: g.qty_approx,
-    }));
-    const equipment = [...new Set(steps.map((st) => st.machine).filter((m): m is NonNullable<typeof m> => !!m))];
-    must(await db().from('recipes').update({ ...fields, equipment }).eq('id', id));
-    must(await db().rpc('replace_recipe_contents', { p_recipe_id: id, p_ingredients: ingredientRows, p_steps: stepRows }));
+  /** Saves an edited recipe in one transaction (see recipeSavePayload). Each step keeps its photo. */
+  async saveRecipe(original: RecipeDetail, fields: RecipeEdit, ingredients: RecipeIngredient[], steps: RecipeStep[]): Promise<void> {
+    const p = recipeSavePayload(original, fields, ingredients, steps);
+    must(await db().rpc('save_recipe', { p_recipe_id: original.id, p_fields: p.fields, p_ingredients: p.ingredients, p_steps: p.steps }));
   },
 
   /** The latest "Rework with Claude" request for a recipe, unless dismissed. */

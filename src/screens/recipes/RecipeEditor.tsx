@@ -62,7 +62,7 @@ export default function RecipeEditor() {
     setProblem(null);
     setSaving(true);
     try {
-      await repo.saveRecipe(id!, {
+      await repo.saveRecipe(data!, {
         title: recipe!.title.trim(), subtitle: recipe!.subtitle?.trim() || null,
         prep_minutes: recipe!.prep_minutes, finish_minutes: recipe!.finish_minutes,
       }, kept.map(({ key: _k, ...g }, i) => ({ ...g, name: g.name.trim(), unit: g.unit.trim(), group_name: g.group_name?.trim() || null, note: g.note?.trim() || null, qty: qtys[i] })),

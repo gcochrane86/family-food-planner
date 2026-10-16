@@ -135,10 +135,9 @@ async function rework() {
   const { recipe: next, summary } = read(parseRework, await stdin());
   const { w, recipe } = await loadRework(id);
   if (w.status !== 'working') fail(`That rework is ${w.status}, not working. Claim it first.`);
-  const { status: _s, slug: _slug, source: _src, household_id: _h, ...fields } = recipeRow(w.household_id, next);
-  must(await db.from('recipes').update(fields).eq('id', recipe.id), 'Updating the recipe');
+  // save_recipe never changes slug, source, status or household, and saves everything or nothing.
   const { ingredients, steps } = contentRows(next);
-  must(await db.rpc('replace_recipe_contents', { p_recipe_id: recipe.id, p_ingredients: ingredients, p_steps: steps }), 'Saving ingredients and steps');
+  must(await db.rpc('save_recipe', { p_recipe_id: recipe.id, p_fields: recipeRow(w.household_id, next), p_ingredients: ingredients, p_steps: steps }), 'Saving the recipe');
   const closed = must<{ id: string }[]>(await db.from('recipe_reworks').update({ status: 'done', summary, finished_at: new Date().toISOString() })
     .eq('id', id).eq('status', 'working').select('id'), 'Closing the rework');
   if (!closed.length) fail('The recipe was saved, but the rework was no longer marked working.');
