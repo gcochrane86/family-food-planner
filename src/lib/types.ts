@@ -161,3 +161,47 @@ export interface MealSlot {
   cooked_at: string | null;
   portions_verdict: 'not_enough' | 'right' | 'leftovers' | null;
 }
+
+// Shopping (Phase 4) -------------------------------------------------------------
+
+export interface WeeklyBasic {
+  id?: string;
+  household_id: string;
+  position: number;
+  name: string;
+  qty: number | null;
+  unit: string;
+  approx: boolean;
+  delivery: 'sun' | 'tue' | 'split';
+}
+
+export interface QuickItem {
+  id: string;
+  household_id: string;
+  name: string;
+  note: string | null;
+  done: boolean;
+  created_at: string;
+}
+
+export interface Product {
+  id?: string;
+  household_id: string;
+  item_key: string;
+  product_name: string;
+  product_url: string | null;
+  pack_size: number | null;
+  pack_unit: string;
+  price: number | null;
+  pinned: boolean;
+}
+
+export interface BasketRun {
+  id: string;
+  plan_week_id: string;
+  delivery: 'sun' | 'tue';
+  status: 'requested' | 'done' | 'failed';
+  requested_at: string;
+  finished_at: string | null;
+  summary: string | null;
+}

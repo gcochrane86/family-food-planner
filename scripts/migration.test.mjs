@@ -230,3 +230,31 @@ test('recipe protein only accepts the known kinds', async () => {
   await as(OWNER, `update recipes set protein = 'fish' where id = '${rid}'`);
   expect(await fails(OWNER, `update recipes set protein = 'tofu' where id = '${rid}'`)).toMatch(/check constraint/);
 });
+
+// Phase 4: basics, Spar list, products, basket runs ------------------------------
+
+test("a stranger cannot see or change another household's basics, Spar list, products or basket runs", async () => {
+  const { hid, wid } = await weekFor(OWNER);
+  await as(OWNER, `insert into weekly_basics (household_id, position, name, qty, unit, delivery) values ('${hid}', 1, 'Eggs', 18, '', 'sun')`);
+  await as(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', 'Coriander')`);
+  await as(OWNER, `insert into products (household_id, item_key, product_name, pack_size, pack_unit) values ('${hid}', 'egg|', 'Free range eggs x12', 12, '')`);
+  await as(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'sun')`);
+  for (const t of ['weekly_basics', 'quick_shop_items', 'products', 'basket_runs']) {
+    expect(await as(OWNER, `select * from ${t}`)).toHaveLength(1);
+    expect(await as(STRANGER, `select * from ${t}`)).toHaveLength(0);
+  }
+  expect(await fails(STRANGER, `insert into quick_shop_items (household_id, name) values ('${hid}', 'x')`)).toMatch(/row-level security/);
+  expect(await fails(STRANGER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'tue')`)).toMatch(/row-level security/);
+});
+
+test('one basket run per delivery per week', async () => {
+  const { wid } = await weekFor(OWNER);
+  await as(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'sun')`);
+  expect(await fails(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'sun')`)).toMatch(/duplicate key/);
+});
+
+test('a Spar item needs a name of 1 to 80 characters', async () => {
+  const { hid } = await recipeFor(OWNER);
+  expect(await fails(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', '  ')`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', '${'x'.repeat(81)}')`)).toMatch(/check constraint/);
+});
