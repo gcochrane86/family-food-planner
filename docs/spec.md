@@ -434,7 +434,9 @@ A Spar is close enough to cover gaps at short notice, so the app keeps a separat
 - **Mid-week changes keep Cookidoo in step.** If a meal is swapped, moved or marked eating out (including through the kitchen assistant), the next sync moves or removes it in Cookidoo's planner.
 - **This app's planner stays the master copy.** Claude only adds, moves and removes entries it created itself, and leaves anything you add to Cookidoo by hand alone. Cookidoo's own shopping list isn't used, because Sainsbury's is driven from this app.
 - **"Send to Cookidoo"** on a recipe still works on its own, for recipes outside the week's plan.
-- **Recipe status:** `cookidoo_status` tracks *sent* and *outdated* (outdated means the recipe has been edited since it was sent). Each meal slot records `cookidoo_planned (bool)`.
+- **Recipe status:** `cookidoo_status` tracks *sent* and *outdated* (outdated means the recipe's ingredients or steps changed since it was sent; photos don't count). Each dinner slot records `cookidoo_recipe_id`, the recipe Claude put in My Week that day, so only those entries are ever moved or removed.
+- **How it runs (built 16 Oct 2026):** approving a week, or changing an approved week's dinners, leaves a `cookidoo_runs` request. A scheduled Claude task on the owner's Mac (every 15 minutes, 7am–10pm) claims it and follows `docs/playbooks/cookidoo.md`, using `npm run cookidoo`. The week tile shows "Cookidoo: waiting for Claude", "sending…", "✓ In Cookidoo" or why it didn't sync; a recipe card links to its Cookidoo copy.
+- **Imported recipes:** the household's useful Cookidoo recipes are in the library with source "From your Cookidoo".
 - **Needs** your Mac awake with Chrome open and logged in to Cookidoo. If it isn't, the sync waits and the app shows "Cookidoo sync pending".
 - **To check first:** how much guided cooking the TM7 gives for created recipes. We'll test with one recipe before relying on it.
 - **Later option:** the unofficial Cookidoo API library, if it supports what we need.

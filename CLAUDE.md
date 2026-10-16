@@ -20,4 +20,5 @@ Storage, Edge Functions) behind it. The product spec is `docs/spec.md`, and each
 
 ## Playbooks (tasks done in the owner's Chrome)
 - Fill the Sainsbury's basket: `docs/playbooks/sainsburys-basket.md`
+- Sync approved menus to Cookidoo, and import Cookidoo recipes: `docs/playbooks/cookidoo.md`
 - Always ask before acting on Sainsbury's, Cookidoo or email. Never check out, book slots or enter payment details.
