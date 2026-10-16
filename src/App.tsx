@@ -5,6 +5,7 @@ import BottomNav from './components/BottomNav';
 import Placeholder from './screens/Placeholder';
 import CookMode from './screens/recipes/CookMode';
 import WeekView from './screens/week/WeekView';
+import ShopList from './screens/shop/ShopList';
 import RecipeCard from './screens/recipes/RecipeCard';
 import RecipeLibrary from './screens/recipes/RecipeLibrary';
 import Household from './screens/settings/Household';
@@ -42,7 +43,7 @@ export function AppRoutes() {
       <Route path="/recipes/:id" element={<RecipeCard />} />
       <Route path="/recipes/:id/cook" element={<CookMode />} />
       <Route path="/pantry" element={<Placeholder title="Pantry" phase={3} />} />
-      <Route path="/shop" element={<Placeholder title="Shop" phase={3} />} />
+      <Route path="/shop" element={<ShopList />} />
       <Route path="/settings">
         <Route index element={<SettingsHome />} />
         <Route path="household" element={<Household />} />

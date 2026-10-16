@@ -39,7 +39,7 @@ export function scaleFactor(target: number, base: number): number {
   return target / base;
 }
 
-function words(name: string): string[] {
+export function words(name: string): string[] {
   return name.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean)
     .map((w) => (w.endsWith('oes') ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w));
 }

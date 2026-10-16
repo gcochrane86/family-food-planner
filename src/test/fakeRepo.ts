@@ -34,6 +34,8 @@ export function fakeRepo() {
     heroUrl: vi.fn((path: string) => `https://img.test/${path}`),
     getWeek: vi.fn(async (_hid: string, weekStart: string) =>
       (weekStart === NEXT_WEEK.week.week_start ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] }),
+    getTicks: vi.fn(async (): Promise<{ delivery: 'sun' | 'tue'; item_key: string; ticked: boolean }[]> => []),
+    setTick: vi.fn(async () => {}),
     saveSlots: vi.fn(async (_slots: MealSlot[]) => {}),
     approveWeek: vi.fn(async () => {}),
     proposeNow: vi.fn(async () => 'created'),

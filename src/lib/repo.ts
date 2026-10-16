@@ -147,6 +147,16 @@ export const repo = {
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
   },
 
+  async getTicks(weekId: string): Promise<{ delivery: 'sun' | 'tue'; item_key: string; ticked: boolean }[]> {
+    return must(await db().from('shopping_ticks').select('delivery, item_key, ticked').eq('plan_week_id', weekId));
+  },
+
+  async setTick(weekId: string, delivery: 'sun' | 'tue', itemKey: string, ticked: boolean): Promise<void> {
+    must(await db().from('shopping_ticks').upsert(
+      { plan_week_id: weekId, delivery, item_key: itemKey, ticked }, { onConflict: 'plan_week_id,delivery,item_key' },
+    ));
+  },
+
   async approveWeek(weekId: string): Promise<void> {
     must(await db().rpc('approve_week', { p_week: weekId }));
   },
