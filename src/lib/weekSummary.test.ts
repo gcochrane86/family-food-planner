@@ -39,7 +39,7 @@ test('chips: office, prep tonight, cook once, guests, out, cooked, in that order
   const prepped = new Map(recipes).set(BEEF.id, { ...BEEF, prep_minutes: 10 });
   const slots = edit('2026-10-20', 'dinner', { guests: 2, cooked_at: '2026-10-20T19:00:00Z' });
   expect(daySummary('2026-10-20', slots, prepped, []).chips).toEqual([
-    { kind: 'prep', label: '8pm prep' },
+    { kind: 'prep', label: 'Prep tonight' },
     { kind: 'guests', label: '+2 guests' },
     { kind: 'cooked', label: '✓ Cooked' },
   ]);

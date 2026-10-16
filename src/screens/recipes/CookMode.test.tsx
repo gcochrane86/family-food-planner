@@ -10,7 +10,7 @@ vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../../lib/image')>()), resizeImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })) }));
 
-beforeEach(() => { h.repo = fakeRepo(); sessionStorage.clear(); });
+beforeEach(() => { h.repo = fakeRepo(); sessionStorage.clear(); localStorage.setItem('ffp.prepAhead', 'on'); });
 afterEach(() => { vi.useRealTimers(); });
 
 function open() {
@@ -34,10 +34,10 @@ test('starts on the first dinner step and moves through the steps', async () => 
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
 });
 
-test('the 8pm prep tab shows the prep steps', async () => {
+test('the night before tab shows the prep steps', async () => {
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('tab', { name: '8pm prep' }));
+  await userEvent.click(screen.getByRole('tab', { name: 'Night before' }));
   expect(screen.getByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
 });
 
@@ -117,7 +117,7 @@ test('a step without its own photo shows the main photo; a generated photo is la
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', steps });
   open();
   expect(await screen.findByRole('img', { name: HONEY.title })).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('tab', { name: '8pm prep' }));
+  await userEvent.click(screen.getByRole('tab', { name: 'Night before' }));
   expect(screen.getByRole('img', { name: 'Photo of this step' })).toBeInTheDocument();
 });
 
@@ -177,4 +177,17 @@ test('swiping moves between steps', async () => {
   fireEvent.touchStart(area, { touches: [{ clientX: 300, clientY: 100 }] });
   fireEvent.touchEnd(area, { changedTouches: [{ clientX: 280, clientY: 400 }] });
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+});
+
+
+test('with prep ahead off, cook mode walks every step in order, and the switch splits them', async () => {
+  localStorage.removeItem('ffp.prepAhead');
+  open();
+  expect(await screen.findByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
+  expect(screen.getByText(/Step 1 of 3/)).toBeInTheDocument();
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('switch', { name: 'Prep ahead' }));
+  expect(screen.getByRole('tab', { name: 'On the night' })).toHaveAttribute('aria-selected', 'true');
 });

@@ -273,7 +273,7 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 | **This week (planning wizard)** | Step by step | Same |
 | **Plan review** | List of suggested meals, each with its reason | Calendar with suggestions highlighted |
 | **Recipe library** | Search and filters (TM7, ≤30 min, make-ahead, toddler OK, uses X) | Grid |
-| **Recipe card** | Scrolling card | Full card, print / PDF |
+| **Recipe card** | Scrolling card. Steps read as one method in cooking order; a **Prep ahead** switch (remembered per device) splits them into "The night before" and "On the night" when a recipe has steps that can be done ahead. Cook mode follows the same switch | Full card, print / PDF |
 | **Cook mode** | — | One step at a time, large text, timers, machine badges, screen stays on |
 | **Pantry** | Fridge / freezer / cupboard tabs; "use soon" first; quick "we're out of…" | Same |
 | **Shopping** | Sunday and Tuesday lists, each with cost, offers used and status | Same |

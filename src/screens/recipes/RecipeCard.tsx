@@ -12,6 +12,7 @@ import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
+import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
@@ -22,14 +23,16 @@ export function photoCost(n: number): string {
   return pence < 100 ? `${pence}p` : `£${(pence / 100).toFixed(2)}`;
 }
 
-function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: string; pill: string; timeline?: boolean }) {
+function Steps({ steps, label, minutes, timeline, markAhead }: {
+  steps: RecipeStep[]; label: string; minutes?: number; timeline?: boolean; markAhead?: boolean;
+}) {
   if (!steps.length) return null;
   const id = label.replace(/\W+/g, '-').toLowerCase();
   return (
-    <section aria-labelledby={id} className="mt-6">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${pill}`}>{timeline ? 'Phase 2' : 'Phase 1'}</span>
+    <section aria-labelledby={id} className="mt-6 first:mt-0">
+      <div className="mb-2 flex flex-wrap items-baseline gap-2">
         <h2 id={id} className="text-xl font-bold">{label}</h2>
+        {minutes !== undefined && minutes > 0 && <span className="text-sm font-semibold text-muted">{minutes} min</span>}
       </div>
       <ol className="grid gap-3">
         {steps.map((s, i) => (
@@ -39,6 +42,7 @@ function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: s
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 font-display text-lg font-bold">{i + 1}</span>
                 <div>
                   <h3 className="text-lg font-bold leading-tight">{s.title}</h3>
+                  {markAhead && s.phase === 'prep_8pm' && <small className="mr-2 rounded-full bg-evening-soft px-2 py-0.5 text-[11px] font-semibold text-evening">Can be done ahead</small>}
                   {timeline && s.at_minute !== null && <small className="font-mono text-[11px] font-medium text-muted">at {s.at_minute} min</small>}
                 </div>
               </div>
@@ -63,6 +67,7 @@ export default function RecipeCard() {
     return { recipe, members };
   }, [id, householdId]);
   const [portions, setPortions] = useState<number | null>(null);
+  const [prepAhead, setPrepAhead] = usePrepAhead();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
@@ -157,6 +162,7 @@ export default function RecipeCard() {
   const saltNote = toddler ? toddlerSaltNote(recipe.salt_per_portion_g, toddler.portion_weight) : null;
   const prep = recipe.steps.filter((s) => s.phase === 'prep_8pm');
   const finish = recipe.steps.filter((s) => s.phase === 'finish');
+  const split = prepAhead && prep.length > 0;
   const settings = recipe.steps.filter((s) => s.machine && s.settings);
   const missingPhotos = recipe.steps.filter((s) => s.id && !s.image_path).length;
   const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
@@ -243,11 +249,18 @@ export default function RecipeCard() {
         </div>
       </header>
 
-      <dl className="grid grid-cols-3 gap-2">
-        <div className="rounded-2xl bg-evening-soft p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.prep_minutes} min</dd><dt className="text-xs text-muted">8pm prep, night before</dt></div>
-        <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.finish_minutes} min</dd><dt className="text-xs text-muted">Dinner finish</dt></div>
-        <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.hands_off_minutes} min</dd><dt className="text-xs text-muted">of that, hands-off</dt></div>
-      </dl>
+      {split ? (
+        <dl className="grid grid-cols-3 gap-2">
+          <div className="rounded-2xl bg-evening-soft p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.prep_minutes} min</dd><dt className="text-xs text-muted">The night before</dt></div>
+          <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.finish_minutes} min</dd><dt className="text-xs text-muted">On the night</dt></div>
+          <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.hands_off_minutes} min</dd><dt className="text-xs text-muted">of that, hands-off</dt></div>
+        </dl>
+      ) : (
+        <dl className="grid grid-cols-2 gap-2">
+          <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.prep_minutes + recipe.finish_minutes} min</dd><dt className="text-xs text-muted">Start to finish</dt></div>
+          <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.hands_off_minutes} min</dd><dt className="text-xs text-muted">of that, hands-off</dt></div>
+        </dl>
+      )}
 
       <div className="grid items-start gap-6 md:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] md:gap-8">
         <div>
@@ -290,8 +303,25 @@ export default function RecipeCard() {
         </div>
 
         <div>
-          <Steps steps={prep} label="8pm prep, the night before" pill="bg-evening-soft text-evening" />
-          <Steps steps={finish} label="Dinner-time finish" pill="bg-accent-soft text-accent" timeline />
+          {prep.length > 0 && (
+            <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-evening-soft px-4 py-3 print:hidden">
+              <span className="text-sm">
+                <b className="block">Prep ahead</b>
+                <span className="text-muted">Split out what you can do the night before ({recipe.prep_minutes} min)</span>
+              </span>
+              <button type="button" role="switch" aria-checked={split} aria-label="Prep ahead" onClick={() => setPrepAhead(!split)} className={switchClasses(split)}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${split ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          )}
+          {split ? (
+            <>
+              <Steps steps={prep} label="The night before" minutes={recipe.prep_minutes} />
+              <Steps steps={finish} label="On the night" minutes={recipe.finish_minutes} timeline />
+            </>
+          ) : (
+            <Steps steps={[...prep, ...finish]} label="Method" markAhead />
+          )}
           {settings.length > 0 && (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-4">
               <h2 className="mb-2 text-base font-bold">Machine settings</h2>

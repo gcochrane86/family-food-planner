@@ -179,8 +179,8 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
         </div>
       )}
 
-      <div role="group" aria-label="8pm prep" className="grid gap-1 rounded-2xl bg-evening-soft p-3.5">
-        <Label tone="text-evening">8pm prep</Label>
+      <div role="group" aria-label="Prep tonight" className="grid gap-1 rounded-2xl bg-evening-soft p-3.5">
+        <Label tone="text-evening">Prep tonight</Label>
         {oatsTomorrow && <p className="m-0">Overnight oats for {dayName(tomorrowBreakfast!.date)}</p>}
         {tomorrowRecipe && tomorrowRecipe.prep_minutes > 0 ? (
           <p className="m-0">

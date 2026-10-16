@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 
-beforeEach(() => { h.repo = fakeRepo(); });
+beforeEach(() => { h.repo = fakeRepo(); localStorage.clear(); });
 
 function open(id: string) {
   return render(
@@ -35,10 +35,35 @@ test('ingredients have no pantry or to-buy labels', async () => {
   expect(screen.queryByText('To buy')).not.toBeInTheDocument();
 });
 
-test('both phases, machine badges and bold ingredients are shown', async () => {
+test('steps read as one method by default, in cooking order', async () => {
   open('r-honey');
-  expect(await screen.findByRole('heading', { name: '8pm prep, the night before' })).toBeInTheDocument();
-  const finish = screen.getByRole('region', { name: 'Dinner-time finish' });
+  const method = await screen.findByRole('region', { name: 'Method' });
+  const titles = within(method).getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+  expect(titles).toEqual(['The bulk sauce', 'Rice on', 'Final toss']);
+  expect(screen.queryByRole('heading', { name: /night before/i })).not.toBeInTheDocument();
+});
+
+test('prep ahead splits out the steps you can do the night before, and is remembered', async () => {
+  open('r-honey');
+  const toggle = await screen.findByRole('switch', { name: 'Prep ahead' });
+  expect(toggle).toHaveAttribute('aria-checked', 'false');
+  await userEvent.click(toggle);
+  expect(within(screen.getByRole('region', { name: 'The night before' })).getByText('The bulk sauce')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'On the night' })).getByText('Rice on')).toBeInTheDocument();
+  expect(localStorage.getItem('ffp.prepAhead')).toBe('on');
+});
+
+test('no prep ahead switch when nothing can be done ahead', async () => {
+  open('r-doner');
+  await screen.findByRole('region', { name: 'Method' });
+  expect(screen.queryByRole('switch', { name: 'Prep ahead' })).not.toBeInTheDocument();
+});
+
+test('both phases, machine badges and bold ingredients are shown', async () => {
+  localStorage.setItem('ffp.prepAhead', 'on');
+  open('r-honey');
+  expect(await screen.findByRole('heading', { name: 'The night before' })).toBeInTheDocument();
+  const finish = screen.getByRole('region', { name: 'On the night' });
   expect(within(finish).getByText('Rice on')).toBeInTheDocument();
   expect(within(finish).getAllByText('TM7')[0]).toBeInTheDocument();
   expect(within(finish).getByText('20 min · 100°C · speed 4')).toBeInTheDocument();

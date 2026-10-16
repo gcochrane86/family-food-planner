@@ -73,7 +73,7 @@ test('guests +2 shows the new portions', async () => {
 test('the 8pm prep row shows tomorrow’s prep', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Fri');
-  const prep = within(day(/Friday/)).getByRole('group', { name: '8pm prep' });
+  const prep = within(day(/Friday/)).getByRole('group', { name: 'Prep tonight' });
   expect(prep).toHaveTextContent('For Saturday · 15 min');
 });
 
@@ -158,9 +158,9 @@ test('the night before an overnight-oats morning, the 8pm prep says so', async (
     ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-21' ? { ...s, reason: 'Overnight oats' } : s)) }
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
-  expect(within(await tile('Tuesday 20')).getByText('8pm prep')).toBeInTheDocument();
+  expect(within(await tile('Tuesday 20')).getByText('Prep tonight')).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByRole('group', { name: '8pm prep' })).toHaveTextContent('Overnight oats for Wednesday');
+  expect(within(day(/Tuesday/)).getByRole('group', { name: 'Prep tonight' })).toHaveTextContent('Overnight oats for Wednesday');
 });
 
 test('with no plan yet it says when the first menu arrives and can propose one now', async () => {

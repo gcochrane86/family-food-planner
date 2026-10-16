@@ -6,6 +6,7 @@ import { resizeImage } from '../../lib/image';
 import { machineLabel } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { photoCost } from './RecipeCard';
+import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 import { remaining } from '../../lib/timer';
 import type { Phase, RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
@@ -91,6 +92,7 @@ export default function CookMode() {
   const { householdId } = useAuth();
   const { data: recipe, setData, error, loading, reload } = useAsync(() => repo.getRecipe(id), [id]);
   const [phase, setPhase] = useState<Phase>('finish');
+  const [prepAhead, setPrepAhead] = usePrepAhead();
   const [index, setIndex] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -114,7 +116,11 @@ export default function CookMode() {
     return <div className={shell} style={pad}>{!loading && <p>This recipe isn't in your library.</p>}{loading && <p>Loading…</p>}</div>;
   }
 
-  const steps = recipe.steps.filter((s) => s.phase === phase);
+  const prepSteps = recipe.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+  const finishSteps = recipe.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
+  // Prep ahead on: two tabs (night before / on the night). Off: every step in cooking order.
+  const split = prepAhead && prepSteps.length > 0;
+  const steps = split ? (phase === 'prep_8pm' ? prepSteps : finishSteps) : [...prepSteps, ...finishSteps];
   const step: RecipeStep | undefined = steps[Math.min(index, steps.length - 1)];
   const last = index >= steps.length - 1;
 
@@ -169,13 +175,26 @@ export default function CookMode() {
   return (
     <div className={shell} style={pad}>
       <div className="flex items-center justify-between gap-3">
-        <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-white/10 p-1">
-          {(['prep_8pm', 'finish'] as const).map((p) => (
-            <button key={p} type="button" role="tab" aria-selected={phase === p} onClick={() => { setPhase(p); setIndex(0); setPhotoError(null); }}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${phase === p ? 'bg-white/20 text-white' : 'text-[#9AA89F]'}`}>
-              {p === 'prep_8pm' ? '8pm prep' : 'Dinner'}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-3">
+          {split && (
+            <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-white/10 p-1">
+              {(['prep_8pm', 'finish'] as const).map((p) => (
+                <button key={p} type="button" role="tab" aria-selected={phase === p} onClick={() => { setPhase(p); setIndex(0); setPhotoError(null); }}
+                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${phase === p ? 'bg-white/20 text-white' : 'text-[#9AA89F]'}`}>
+                  {p === 'prep_8pm' ? 'Night before' : 'On the night'}
+                </button>
+              ))}
+            </div>
+          )}
+          {prepSteps.length > 0 && (
+            <label className="flex items-center gap-2 text-sm font-semibold text-[#9AA89F]">
+              <button type="button" role="switch" aria-checked={split} aria-label="Prep ahead"
+                onClick={() => { setPrepAhead(!split); setPhase('finish'); setIndex(0); setPhotoError(null); }} className={switchClasses(split)}>
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${split ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+              Prep ahead
+            </label>
+          )}
         </div>
         <div className="relative flex items-center gap-2">
           <button type="button" aria-label="Cook mode settings" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!step}
@@ -212,7 +231,7 @@ export default function CookMode() {
       <section aria-label="Step" onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
         {!step ? (
-          <p className="text-xl">No {phase === 'prep_8pm' ? '8pm prep' : 'dinner'} steps for this recipe.</p>
+          <p className="text-xl">No {split && phase === 'prep_8pm' ? 'night-before' : ''} steps for this recipe.</p>
         ) : (
           <>
             <div className="flex flex-col gap-5">
@@ -228,7 +247,7 @@ export default function CookMode() {
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             {step.timer_minutes ? (() => {
-              const key = `${phase}-${step.id ?? index}`;
+              const key = `${step.phase}-${step.id ?? index}`;
               const running = timers.find((t) => t.key === key);
               return running ? (
                 <span aria-hidden="true" className="font-mono text-5xl text-white tabular-nums">{running.done ? 'Done' : remaining(running.endAt, now)}</span>
