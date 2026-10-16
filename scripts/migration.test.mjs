@@ -258,3 +258,20 @@ test('a Spar item needs a name of 1 to 80 characters', async () => {
   expect(await fails(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', '  ')`)).toMatch(/check constraint/);
   expect(await fails(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', '${'x'.repeat(81)}')`)).toMatch(/check constraint/);
 });
+
+test('0006 adds rating and image_source with their checks', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `update recipes set rating = 'up' where id = '${rid}'`);
+  expect(await fails(OWNER, `update recipes set rating = 'meh' where id = '${rid}'`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, image_path, image_source)
+    values ('${rid}', 'finish', 1, 'x', 'x', 'p.jpg', 'ai')`)).toMatch(/check constraint/);
+});
+
+test('replace_recipe_contents keeps a generated photo and its source', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, image_path, image_source)
+    values ('${rid}', 'finish', 1, 'Simmer', 'old', 'x.jpg', 'generated')`);
+  const steps = JSON.stringify([{ phase: 'finish', position: 1, title: 'Simmer', body: 'new' }]);
+  await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${steps}')`);
+  expect(await as(OWNER, 'select image_path, image_source from recipe_steps')).toEqual([{ image_path: 'x.jpg', image_source: 'generated' }]);
+});

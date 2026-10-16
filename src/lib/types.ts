@@ -96,6 +96,7 @@ export interface RecipeStep {
   settings: string | null;
   timer_minutes: number | null;
   image_path: string | null;
+  image_source: 'own' | 'generated' | null;
 }
 
 export interface Recipe {
@@ -123,6 +124,8 @@ export interface Recipe {
   hero_image_path: string | null;
   hero_image_source: 'generated' | 'own' | null;
   status: 'draft' | 'active' | 'archived';
+  /** "Have it again?" after cooking: 'down' keeps it out of menus; 'up' gets step photos. */
+  rating: 'up' | 'down' | null;
 }
 
 export interface RecipeDetail extends Recipe {

@@ -123,7 +123,7 @@ export const repo = {
     if (!recipe) return null;
     const [ingredients, steps] = await Promise.all([
       db().from('recipe_ingredients').select('id, position, group_name, name, qty, unit, note, qty_approx').eq('recipe_id', id).order('position'),
-      db().from('recipe_steps').select('id, phase, position, at_minute, title, body, machine, settings, timer_minutes, image_path')
+      db().from('recipe_steps').select('id, phase, position, at_minute, title, body, machine, settings, timer_minutes, image_path, image_source')
         .eq('recipe_id', id).order('phase').order('position'),
     ]);
     return {
@@ -234,6 +234,22 @@ export const repo = {
     return (data as { path: string }).path;
   },
 
+  /** Saves "Have it again?" for a recipe; null clears it (Undo). */
+  async rateRecipe(recipeId: string, rating: 'up' | 'down' | null): Promise<void> {
+    must(await db().from('recipes').update({ rating, rated_at: rating ? new Date().toISOString() : null }).eq('id', recipeId));
+  },
+
+  /** Asks the generate-step-photo Edge Function for one step's photo. Returns the new image path. */
+  async generateStepPhoto(recipeId: string, stepId: string, replace = false): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace } });
+    if (error) {
+      const context = (error as { context?: Response }).context;
+      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
+      throw new Error(detail ?? error.message);
+    }
+    return (data as { path: string }).path;
+  },
+
   heroUrl(path: string): string {
     return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
   },
@@ -243,7 +259,7 @@ export const repo = {
     const path = `${householdId}/steps/${stepId}-${Date.now()}.jpg`; // new name each time: no stale cached photo
     const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
     if (error) throw new Error(error.message);
-    must(await db().from('recipe_steps').update({ image_path: path }).eq('id', stepId));
+    must(await db().from('recipe_steps').update({ image_path: path, image_source: 'own' }).eq('id', stepId));
     return path;
   },
 };

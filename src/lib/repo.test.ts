@@ -51,5 +51,5 @@ test('replacing a step photo saves it under a new name so phones show the new on
   expect(first).toMatch(/^h1\/steps\/s1-\d+\.jpg$/);
   expect(second).not.toBe(first);
   expect(h.uploads).toEqual([first, second]);
-  expect(h.updates).toEqual([{ image_path: first }, { image_path: second }]);
+  expect(h.updates).toEqual([{ image_path: first, image_source: 'own' }, { image_path: second, image_source: 'own' }]);
 });

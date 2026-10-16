@@ -5,7 +5,7 @@ const recipe = (id: string, base: number, ingredients: [string, number | null, s
   id, household_id: 'h1', slug: id, title: id, subtitle: null, kind: 'meal', component_role: null, source: 'claude', protein: 'chicken',
   base_portions: base, reheats_well: false, freezes_well: false, toddler_ok: true, toddler_note: null, salt_per_portion_g: null,
   prep_minutes: 0, finish_minutes: 20, hands_off_minutes: 0, tags: [], equipment: [], reheat: null, hero_image_path: null,
-  hero_image_source: null, status: 'active', steps: [],
+  hero_image_source: null, status: 'active', rating: null, steps: [],
   ingredients: ingredients.map(([name, qty, unit], i) => ({ position: i + 1, group_name: null, name, qty, unit, note: null, qty_approx: false })),
 });
 const dinner = (date: string, recipeId: string | null, portions: number | null, mode: MealSlot['mode'] = 'cook', guests = 0): MealSlot => ({

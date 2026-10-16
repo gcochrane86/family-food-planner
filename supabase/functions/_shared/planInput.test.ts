@@ -59,3 +59,14 @@ test('slot rows are ready to insert', () => {
     guests: 0, locked: false, reason: 'Overnight oats (made at Sunday 8pm prep)', source_date: null,
   });
 });
+
+test('a recipe rated down is left out', () => {
+  const input = buildPlannerInput({
+    ...rows,
+    recipes: [
+      { ...rows.recipes[0], rating: 'down' },
+      { ...rows.recipes[4], rating: 'up' },
+    ],
+  });
+  expect(input.recipes.map((r) => r.id)).toEqual(['e']);
+});
