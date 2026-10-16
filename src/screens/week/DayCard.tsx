@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
+import { lunchLeftover } from '../../lib/weekSummary';
 import { repo } from '../../lib/repo';
 import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
-import { addDays, type WeekState } from './useWeek';
+import type { WeekState } from './useWeek';
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const POOL = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
@@ -49,12 +50,11 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const lunch = slot('lunch');
   const dinner = slot('dinner');
   const dinnerRecipe = recipe(dinner?.recipe_id);
-  const lastNight = slot('dinner', addDays(date, -1));
-  const lastNightRecipe = lastNight?.mode === 'cook' ? recipe(lastNight.recipe_id) : undefined;
+  const lastNightRecipe = lunchLeftover(date, w.slots, w.recipes);
   const swap = onSwap ?? (() => {});
 
   const breakfastName = breakfast?.routine_choice ?? breakfast?.reason ?? 'Eggs & porridge';
-  const lunchChoice = lunch?.mode === 'routine' && lastNightRecipe?.reheats_well;
+  const lunchChoice = !!lastNightRecipe;
   const picked = lunch?.routine_choice === SANDWICH ? SANDWICH : 'Leftovers';
   const card = 'overflow-hidden rounded-[20px] bg-surface shadow-sm';
 

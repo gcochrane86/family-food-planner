@@ -12,14 +12,39 @@ export function hasTm7Steps(recipe: Pick<RecipeDetail, 'steps'>): boolean {
 }
 
 const words = (t: string) => t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+/** Singular and plural spellings of a word: tomato/tomatoes, chilli/chillies, berry/berries, olive/olives. */
+function forms(w: string): Set<string> {
+  const f = new Set([w]);
+  if (w.endsWith('ies')) { f.add(`${w.slice(0, -3)}y`); f.add(`${w.slice(0, -3)}i`); }
+  if (w.endsWith('es')) f.add(w.slice(0, -2));
+  if (w.endsWith('s')) f.add(w.slice(0, -1));
+  return f;
+}
+const same = (a: string, b: string) => { const fb = forms(b); return [...forms(a)].some((x) => fb.has(x)); };
+const PARTS = ['zest', 'juice', 'flour', 'leaves', 'wedges']; // "lemon zest" is the lemon
+
+/** The one ingredient a bolded name in a step refers to: an exact name first, then the one whose main (last) word
+ *  matches, then the fewest extra words. "rice" → "basmati rice", not "rice vinegar". */
+function ingredientFor<T extends { name: string }>(phrase: string[], ingredients: T[]): T | undefined {
+  for (const want of [phrase, phrase.filter((w) => !PARTS.includes(w))]) {
+    if (!want.length) continue;
+    const found = ingredients
+      .map((i) => ({ i, ws: words(i.name) }))
+      .filter(({ ws }) => want.every((w) => ws.some((x) => same(x, w))))
+      .map(({ i, ws }) => ({ i, extra: ws.length - want.length, head: same(ws[ws.length - 1], want[want.length - 1]) ? 0 : 1 }))
+      .sort((a, b) => Number(a.extra !== 0) - Number(b.extra !== 0) || a.head - b.head || a.extra - b.extra);
+    if (found.length) return found[0].i;
+  }
+  return undefined;
+}
 
 /** The TM7 steps, in cooking order, and only the ingredients named (in **bold**) in them, scaled to the portions. */
 export function cookidooRecipe(recipe: RecipeDetail, portions: number): CookidooText {
   const factor = scaleFactor(portions, recipe.base_portions);
   const tm7 = recipe.steps.filter((s) => s.machine === 'tm7');
   const named = tm7.flatMap((s) => [...s.body.matchAll(/\*\*(.+?)\*\*/g)].map((m) => words(m[1]))).filter((w) => w.length);
-  // An ingredient is used when every word of a bolded name appears in it, e.g. "rice" in "basmati rice".
-  const used = recipe.ingredients.filter((i) => named.some((n) => n.every((w) => words(i.name).some((x) => x === w || x === `${w}s` || `${x}s` === w))));
+  const picked = new Set(named.map((n) => ingredientFor(n, recipe.ingredients)).filter(Boolean));
+  const used = recipe.ingredients.filter((i) => picked.has(i));
   const ingredients = used.map((i) => {
     const qty = formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx);
     return [qty, i.name].filter(Boolean).join(' ') + (i.note ? `, ${i.note}` : '');

@@ -385,3 +385,72 @@ describe("How was last night's dinner?", () => {
     expect(screen.queryByRole('region', { name: /How was last night/ })).not.toBeInTheDocument();
   });
 });
+
+describe('review fixes', () => {
+  test('the lunch tile and the day agree after last night changes', async () => {
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, { ...BEEF, reheats_well: true }, COD, CURRY]);
+    render(<WeekView />, { wrapper: MemoryRouter });
+    expect(within(await tile('Thursday 22')).getByText('Leftovers')).toBeInTheDocument();
+    await openDay('Wed');
+    await user().click(within(day(/Wednesday/)).getByRole('button', { name: 'Out tonight' }));
+    await user().keyboard('{Escape}');
+    expect(within(await tile('Thursday 22')).getByText('Chicken sandwich')).toBeInTheDocument();
+    await openDay('Thu');
+    expect(within(day(/Thursday/)).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
+  });
+
+  test('a failed save after switching weeks only undoes that week', async () => {
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19' ? JSON.parse(JSON.stringify(NEXT_WEEK))
+      : start === '2026-10-12' ? { week: { ...NEXT_WEEK.week, id: 'w-this', week_start: '2026-10-12', status: 'approved' }, slots: [] } : { week: null, slots: [] }));
+    h.repo.saveSlots.mockImplementationOnce(() => new Promise((_r, reject) => setTimeout(() => reject(new Error('offline')), 50)));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    await user().click(within(day(/Monday/)).getByRole('button', { name: 'Add a guest' }));
+    await user().keyboard('{Escape}');
+    await user().click(screen.getByRole('tab', { name: 'This week' }));
+    await act(async () => { vi.advanceTimersByTime(200); });
+    await user().click(screen.getByRole('tab', { name: 'Next week' }));
+    expect(within(await tile('Monday 19')).getByText(HONEY.title)).toBeInTheDocument();
+  });
+
+  test('the swap screen takes focus, and gives it back when closed', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    const swap = within(day(/Tuesday/)).getByRole('button', { name: 'Swap' });
+    await user().click(swap);
+    expect(screen.getByRole('button', { name: 'Choose' })).toHaveFocus();
+    await user().keyboard('{Escape}');
+    expect(within(day(/Tuesday/)).getByRole('button', { name: 'Swap' })).toHaveFocus();
+  });
+});
+
+describe('feedback card failures', () => {
+  const THIS_WEEK = {
+    week: { ...NEXT_WEEK.week, id: 'w-this', week_start: '2026-10-12', status: 'approved' as const },
+    slots: [{ ...NEXT_WEEK.slots.find((s) => s.slot === 'dinner' && s.date === '2026-10-19')!, id: 'thu-dinner', plan_week_id: 'w-this', date: '2026-10-15', portions: 3 }],
+  };
+  beforeEach(() => {
+    vi.setSystemTime(new Date('2026-10-16T09:00:00Z')); localStorage.clear();
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-12' ? JSON.parse(JSON.stringify(THIS_WEEK))
+      : start === '2026-10-19' ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }));
+  });
+
+  test('a 👍 that fails to save is not thanked and can be tried again', async () => {
+    h.repo.rateRecipe.mockRejectedValueOnce(new Error('offline'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night/ });
+    await user().click(within(card).getByRole('button', { name: 'About right' }));
+    await user().click(within(card).getByRole('button', { name: '👍 Have it again' }));
+    await vi.waitFor(() => expect(h.repo.rateRecipe).toHaveBeenCalled());
+    expect(screen.queryByText(/Thanks/)).not.toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: '👍 Have it again' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('a portions answer that fails to save is cleared', async () => {
+    h.repo.saveSlots.mockRejectedValueOnce(new Error('offline'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night/ });
+    await user().click(within(card).getByRole('button', { name: 'About right' }));
+    await vi.waitFor(() => expect(within(card).getByRole('button', { name: 'About right' })).toHaveAttribute('aria-pressed', 'false'));
+  });
+});

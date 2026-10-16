@@ -69,3 +69,23 @@ test('a sync that saw a change while it ran finishes by asking again', () => {
   expect(finishStatus({ requested_at: '2026-10-16T18:55:00Z', started_at: '2026-10-16T19:00:00Z' }, 'done')).toBe('done');
   expect(finishStatus({ requested_at: '2026-10-16T18:55:00Z', started_at: '2026-10-16T19:00:00Z' }, 'failed')).toBe('failed');
 });
+
+describe('which ingredients a TM7 step uses', () => {
+  const recipe = (body: string, names: string[]) => ({
+    ...HONEY,
+    ingredients: names.map((name, i) => ({ position: i + 1, group_name: null, name, qty: 1, unit: '', note: null, qty_approx: false })),
+    steps: [{ ...HONEY.steps[1], body }],
+  });
+  const used = (body: string, names: string[]) => cookidooRecipe(recipe(body, names), 6).ingredients.map((l) => l.replace(/^\S+ /, ''));
+
+  test('an exact name wins over longer ones', () => {
+    expect(used('Add the **soy sauce**.', ['soy sauce', 'low-sodium soy sauce'])).toEqual(['soy sauce']);
+    expect(used('Add the **rice**.', ['basmati rice', 'rice vinegar'])).toEqual(['basmati rice']);
+    expect(used('Add the **olives**.', ['pitted black olives', 'olive oil'])).toEqual(['pitted black olives']);
+  });
+  test('zest and juice point at the fruit, and plurals match', () => {
+    expect(used('Add the **lemon zest**.', ['lemon', 'orange'])).toEqual(['lemon']);
+    expect(used('Add the **tomatoes**.', ['cherry tomato'])).toEqual(['cherry tomato']);
+    expect(used('Add the **chillies**.', ['red chilli'])).toEqual(['red chilli']);
+  });
+});

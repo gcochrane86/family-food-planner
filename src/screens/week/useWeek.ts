@@ -111,18 +111,25 @@ export function useWeek() {
 
   /** Shows the change at once and saves it after any earlier saves, so they reach the database in order.
    *  If a save fails, only the slots it changed go back. */
-  const commit = useCallback((next: MealSlot[], changed: MealSlot[], before: MealSlot[]) => {
-    if (!changed.length) return;
-    latest.current = next;
-    setCurrent(next);
-    // An earlier failure message stays up (it says a change was undone) until the screen is reloaded.
-    queue.current = queue.current.then(() => repo.saveSlots(changed)).catch(() => {
-      const restored = latest.current.map((s) => (changed.some((c) => sameSlot(c, s)) ? before.find((b) => sameSlot(b, s)) ?? s : s));
-      latest.current = restored;
-      setCurrent(restored);
+  /** Shows the change at once and saves it after any earlier saves, so they reach the database in order.
+   *  If a save fails, only the slots it changed go back, in the week they belong to (even after switching tabs).
+   *  Resolves true when saved. */
+  const commit = useCallback((next: MealSlot[], changed: MealSlot[], before: MealSlot[], key: 'thisWeek' | 'nextWeek' = shown === 'next' ? 'nextWeek' : 'thisWeek'): Promise<boolean> => {
+    if (!changed.length) return Promise.resolve(true);
+    const isShown = (key === 'nextWeek') === (shown === 'next');
+    if (isShown) latest.current = next;
+    setData((d) => d && { ...d, [key]: { ...d[key], slots: isShown ? next : d[key].slots.map((s: MealSlot) => changed.find((c) => sameSlot(c, s)) ?? s) } });
+    const saved = queue.current.then(() => repo.saveSlots(changed)).then(() => true, () => {
+      const undo = (slots: MealSlot[]) => slots.map((s) => (changed.some((c) => sameSlot(c, s)) ? before.find((b) => sameSlot(b, s)) ?? s : s));
+      setData((d) => d && { ...d, [key]: { ...d[key], slots: undo(d[key].slots) } });
+      if (latestFor.current?.startsWith(key === 'nextWeek' ? 'next:' : 'this:')) latest.current = undo(latest.current);
+      // An earlier failure message stays up (it says a change was undone) until the screen is reloaded.
       setSaveError("Couldn't save that change. Check your connection and try again.");
+      return false;
     });
-  }, [setCurrent]);
+    queue.current = saved.then(() => undefined);
+    return saved;
+  }, [setData, shown]);
 
   const change = useCallback((fn: (plan: ProposedSlot[]) => ProposedSlot[]) => {
     const base = latest.current;
@@ -135,8 +142,8 @@ export function useWeek() {
     const base = latest.current;
     const target = base.find((s) => s.date === date && s.slot === kind);
     const updated = target ? edit(target) : null;
-    if (!target || !updated) return;
-    commit(base.map((s) => (s === target ? updated : s)), [updated], base);
+    if (!target || !updated) return Promise.resolve(true);
+    return commit(base.map((s) => (s === target ? updated : s)), [updated], base);
   }, [commit]);
 
   return {
@@ -171,14 +178,14 @@ export function useWeek() {
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
     lastNight,
     /** Saves the portions answer for last night's dinner, in whichever week it's in, and marks it cooked. */
-    lastNightVerdict(v: NonNullable<MealSlot['portions_verdict']>) {
-      if (!lastNight) return;
+    lastNightVerdict(v: NonNullable<MealSlot['portions_verdict']>): Promise<boolean> {
+      if (!lastNight || !data) return Promise.resolve(false);
       const { key, slot } = lastNight;
-      const updated = { ...slot, portions_verdict: v, cooked_at: slot.cooked_at ?? new Date().toISOString() };
-      const same = (s: MealSlot) => s.date === slot.date && s.slot === 'dinner';
-      setData((d) => d && { ...d, [key]: { ...d[key], slots: d[key].slots.map((s: MealSlot) => (same(s) ? updated : s)) } });
-      if ((key === 'nextWeek') === (shown === 'next')) latest.current = latest.current.map((s) => (same(s) ? updated : s));
-      repo.saveSlots([updated]).catch(() => setSaveError("Couldn't save that. Check your connection and try again."));
+      // Goes through the same save queue as every other change, built from the newest copy of that week.
+      const base = (key === 'nextWeek') === (shown === 'next') ? latest.current : data[key].slots;
+      const current = base.find((s) => s.date === slot.date && s.slot === 'dinner') ?? slot;
+      const updated = { ...current, portions_verdict: v, cooked_at: current.cooked_at ?? new Date().toISOString() };
+      return commit(base.map((s) => (s === current ? updated : s)), [updated], base, key);
     },
     /** Hides the "How was it?" card for that dinner on this device. */
     dismissLastNight() {

@@ -14,6 +14,18 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
   const [query, setQuery] = useState('');
   const [drag, setDrag] = useState(0);
   const start = useRef<{ x: number; y: number } | null>(null);
+  const chooseBtn = useRef<HTMLButtonElement>(null);
+  const closeBtn = useRef<HTMLButtonElement>(null);
+
+  // Take focus on open, and give it back to whatever opened the stack (or the sheet's Close if that's gone).
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    (chooseBtn.current ?? closeBtn.current)?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+      else (document.querySelector('[role="dialog"] button[aria-label="Close"]') as HTMLElement | null)?.focus();
+    };
+  }, []);
 
   useEffect(() => {
     // Capture Escape here so it closes only the stack, not the day underneath.
@@ -37,7 +49,7 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
           <h2 className="text-[22px] font-bold">Swap {dayName}'s dinner</h2>
           <p className="m-0 text-[13.5px] text-muted">{card && !browse ? `${at + 1} of ${cards.length} · swipe right to choose, left to skip` : 'Pick any recipe'}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg">×</button>
+        <button ref={closeBtn} type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg">×</button>
       </div>
 
       <div className="relative mx-auto w-full max-w-[520px] min-h-0">
@@ -91,7 +103,7 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
         {card && !browse && (
           <>
             <button type="button" aria-label="Skip" onClick={skip} className="grid h-16 w-16 place-items-center rounded-full bg-surface text-3xl font-extrabold text-warn shadow">✕</button>
-            <button type="button" aria-label="Choose" onClick={() => choose(card.recipeId)} className="grid h-16 w-16 place-items-center rounded-full bg-accent text-3xl font-extrabold text-accent-ink shadow">✓</button>
+            <button ref={chooseBtn} type="button" aria-label="Choose" onClick={() => choose(card.recipeId)} className="grid h-16 w-16 place-items-center rounded-full bg-accent text-3xl font-extrabold text-accent-ink shadow">✓</button>
           </>
         )}
       </div>

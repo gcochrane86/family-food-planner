@@ -19,6 +19,17 @@ const nextDay = (iso: string) => {
 /** 0 = Monday … 6 = Sunday, matching officeDays. */
 const weekday = (iso: string) => (new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7;
 
+/** Last night's dinner when today's lunch can be its leftovers: a home (routine) lunch after a cooked dinner that
+ *  reheats well. The tile and the day sheet both use this, so they always agree. */
+export function lunchLeftover(date: string, slots: MealSlot[], recipes: Map<string, Recipe>): Recipe | undefined {
+  const lunch = slots.find((s) => s.date === date && s.slot === 'lunch');
+  if (lunch?.mode !== 'routine') return undefined;
+  const prev = new Date(`${date}T00:00:00Z`); prev.setUTCDate(prev.getUTCDate() - 1);
+  const dinner = slots.find((s) => s.date === prev.toISOString().slice(0, 10) && s.slot === 'dinner');
+  const r = dinner?.mode === 'cook' && dinner.recipe_id ? recipes.get(dinner.recipe_id) : undefined;
+  return r?.reheats_well ? r : undefined;
+}
+
 export function daySummary(date: string, slots: MealSlot[], recipes: Map<string, Recipe>, officeDays: number[]): DaySummary {
   const find = (kind: MealSlot['slot'], d = date) => slots.find((s) => s.date === d && s.slot === kind);
   const title = (id: string | null | undefined) => (id ? recipes.get(id)?.title : undefined);
@@ -28,14 +39,11 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const tomorrow = find('dinner', nextDay(date));
 
   // Tiles are small: the day sheet keeps the full suggestion.
-  // A lunch offering leftovers or a sandwich shows what was picked (leftovers until you choose).
-  const short = (r: string | null | undefined) =>
-    r && /, or a chicken sandwich$/.test(r) ? (l?.routine_choice === 'Chicken sandwich' ? 'Chicken sandwich' : 'Leftovers')
-      : r === 'Chicken sandwich on sourdough' ? 'Chicken sandwich' : r;
-  const lunch = short(l?.reason)
-    ?? (l?.mode === 'packed' ? 'Packed lunch'
-      : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}`
-        : 'Home lunch');
+  // A home lunch is last night's leftovers or a chicken sandwich (whichever was picked; leftovers by default).
+  const leftover = lunchLeftover(date, slots, recipes);
+  const lunch = l?.mode === 'routine'
+    ? (leftover && l.routine_choice !== 'Chicken sandwich' ? 'Leftovers' : 'Chicken sandwich')
+    : l?.reason ?? (l?.mode === 'packed' ? 'Packed lunch' : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}` : 'Home lunch');
   const dinner = d?.mode === 'out' ? 'Out tonight'
     : d?.mode === 'cook' && title(d.recipe_id) ? title(d.recipe_id)!
       : 'Leftovers night';

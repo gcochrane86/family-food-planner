@@ -281,10 +281,8 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 | **Import** | Upload a PDF or paste a link | Same |
 | **Assistant** | Mic button on every screen; chat sheet | Large mic button in cook mode |
 
-### Calendar cells
-Each cell shows the meal name, an icon (🔥 cook · ♻️ reheat · 🥡 packed · 🍽 out · 👥 hosting · ❄️ freezer) and the portion count. Tapping a cell opens the recipe or the routine. Long-press to swap, skip or mark as cooked.
-
-The **8pm prep** row lists tomorrow's prep steps with their total minutes, e.g. "Mon prep: overnight oats · flatbread dough · honey chilli sauce, 25 min".
+### Day tiles and the day sheet
+Tiles show breakfast, lunch and dinner only, with no tags. The night-before prep isn't shown on the week page (the owner's choice, 17 Oct 2026). It lives in each recipe's **Prep ahead** view and in cook mode. Changes happen in the day sheet (see Home above).
 
 ### Weekly proposal (Friday 7pm) and review
 *Replaces the earlier "What do you fancy this week?" screen (decided 16 Oct 2026).*
@@ -429,7 +427,7 @@ A Spar is close enough to cover gaps at short notice, so the app keeps a separat
 ### Cookidoo (Claude in Chrome, logged in as you; requires a subscription)
 - **Automatic weekly sync.** **Approving the weekly menu is your OK** for Claude to update Cookidoo for that week. There's no separate confirmation for each recipe. Straight after approval, Claude:
   1. **creates or updates Created Recipes** for any planned meal that isn't in Cookidoo yet or has changed since it was sent: ingredients scaled to the planned portions, steps, and TM7 settings for each step;
-  2. **adds each meal to Cookidoo's weekly planner ("My Week")** on the day it's eaten. 8pm prep stays in this app's calendar, because Cookidoo's planner has no separate prep slot. Breakfast and lunch routines are only added if they use the TM7 (e.g. baked oats);
+  2. **adds each meal to Cookidoo's weekly planner ("My Week")** on the day it's eaten. Only the Thermomix parts of each recipe go to Cookidoo (its TM7 steps and their ingredients; owner's choice, 17 Oct 2026), and recipes with no TM7 step stay in this app only. Prep ahead stays in this app (recipe Prep ahead and cook mode). Breakfast and lunch routines are only added if they use the TM7 (e.g. baked oats);
   3. **reports back** in the app: "Cookidoo synced: 5 recipes, 2 new", or lists anything that failed.
 - **Mid-week changes keep Cookidoo in step.** If a meal is swapped, moved or marked eating out (including through the kitchen assistant), the next sync moves or removes it in Cookidoo's planner.
 - **This app's planner stays the master copy.** Claude only adds, moves and removes entries it created itself, and leaves anything you add to Cookidoo by hand alone. Cookidoo's own shopping list isn't used, because Sainsbury's is driven from this app.

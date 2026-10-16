@@ -27,7 +27,8 @@ export default function FeedbackCard({ w }: { w: WeekState }) {
 
   async function rate(r: 'up' | 'down') {
     setRating(r);
-    if (!(await w.rate(target!.recipe.id, r)) || r === 'down') return;
+    if (!(await w.rate(target!.recipe.id, r))) { setRating(null); return; } // not saved: no thanks, ask again
+    if (r === 'down') return;
     const detail = await repo.getRecipe(target!.recipe.id).catch(() => null);
     if (detail) void makeStepPhotos(detail.id, detail.steps, () => {});
   }
@@ -47,7 +48,7 @@ export default function FeedbackCard({ w }: { w: WeekState }) {
           <div className="flex flex-wrap gap-1.5">
             {VERDICTS.map(([v, label]) => (
               <button key={v} type="button" aria-pressed={answeredVerdict === v} className={pill(answeredVerdict === v)}
-                onClick={() => { setVerdict(v); w.lastNightVerdict(v); }}>{label}</button>
+                onClick={() => { setVerdict(v); void w.lastNightVerdict(v).then((ok) => { if (!ok) setVerdict(null); }); }}>{label}</button>
             ))}
           </div>
           <div className="flex flex-wrap gap-1.5">
