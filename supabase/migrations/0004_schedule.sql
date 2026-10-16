@@ -1,5 +1,6 @@
 -- Friday 7pm menu proposal. The scheduler (pg_cron, UTC) fires hourly 17:00–20:00 on Fridays; the
--- propose-week function only acts when it is 19:xx in London, which covers summer and winter time.
+-- propose-week function acts from 19:00 London time, which covers summer and winter time; later runs
+-- that evening retry anything that failed, and weeks that already have a plan are left alone.
 -- The shared secret lives in Supabase Vault as 'cron_secret' (created separately, never committed),
 -- and must match the function secret CRON_SECRET.
 
@@ -18,7 +19,8 @@ select cron.schedule(
       'Content-Type', 'application/json',
       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
     ),
-    body := '{}'::jsonb
+    body := '{}'::jsonb,
+    timeout_milliseconds := 60000
   );
   $$
 );

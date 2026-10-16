@@ -21,5 +21,6 @@ export function nextMonday(date: string): string {
 
 export function shouldPropose(now: Date): { go: boolean; weekStart: string } {
   const { date, hour, weekday } = londonParts(now);
-  return { go: weekday === 5 && hour === 19, weekStart: nextMonday(date) };
+  // 7pm or later: the later Friday runs retry if 7pm failed. Weeks that already have a plan are skipped.
+  return { go: weekday === 5 && hour >= 19, weekStart: nextMonday(date) };
 }

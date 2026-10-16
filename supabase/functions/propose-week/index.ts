@@ -82,7 +82,15 @@ Deno.serve(async (req) => {
       const { data: households, error } = await admin.from('households').select('id');
       if (error) throw error;
       const results: Record<string, string> = {};
-      for (const h of households ?? []) results[h.id] = await proposeFor(admin, h.id, weekStart);
+      // One household's problem must not stop the others; the next hourly run retries it.
+      for (const h of households ?? []) {
+        try {
+          results[h.id] = await proposeFor(admin, h.id, weekStart);
+        } catch (e) {
+          console.error(`propose-week ${h.id}:`, e);
+          results[h.id] = 'failed';
+        }
+      }
       return reply(200, { weekStart, results });
     }
 
