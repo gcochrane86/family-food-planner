@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions } from '../../lib/household';
 import { formatQty, groupIngredients, machineLabel, pantryLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
+import { makeStepPhotos } from '../../lib/stepPhotos';
 import type { Machine, RecipeStep } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import { useAsync } from '../settings/useAsync';
@@ -14,7 +15,9 @@ import MachineBadge, { StepText } from './MachineBadge';
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
-function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: string; pill: string; timeline?: boolean }) {
+function Steps({ steps, label, pill, timeline, redo, redoing }: {
+  steps: RecipeStep[]; label: string; pill: string; timeline?: boolean; redo: (s: RecipeStep) => void; redoing: string | null;
+}) {
   if (!steps.length) return null;
   const id = label.replace(/\W+/g, '-').toLowerCase();
   return (
@@ -35,6 +38,12 @@ function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: s
               {s.machine && <div><MachineBadge machine={s.machine} settings={s.settings} /></div>}
               <p className="m-0"><StepText text={s.body} /></p>
               {s.image_path && <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="mt-1 max-h-60 rounded-xl object-cover" />}
+              {s.image_path && s.image_source === 'generated' && (
+                <button type="button" onClick={() => redo(s)} disabled={redoing !== null}
+                  className="justify-self-start text-[13px] font-semibold text-muted underline disabled:opacity-60 print:hidden">
+                  {redoing === s.id ? 'Making photo…' : 'Redo photo'}
+                </button>
+              )}
             </div>
           </li>
         ))}
@@ -53,6 +62,50 @@ export default function RecipeCard() {
   const [portions, setPortions] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
+  const [redoing, setRedoing] = useState<string | null>(null);
+  const started = useRef<string | null>(null);
+
+  const setStepPhoto = (stepId: string, path: string) => setData((d) => d && d.recipe ? {
+    ...d, recipe: { ...d.recipe, steps: d.recipe.steps.map((s) => (s.id === stepId ? { ...s, image_path: path, image_source: 'generated' as const } : s)) },
+  } : d);
+
+  // A liked recipe gets a photo for every step: start, join or carry on that run whenever the recipe is open.
+  const liked = data?.recipe?.rating === 'up' ? data.recipe : null;
+  useEffect(() => {
+    if (!liked || started.current === liked.id || !liked.steps.some((s) => s.id && !s.image_path)) return;
+    started.current = liked.id;
+    void makeStepPhotos(liked.id, liked.steps, (done, total, stepId, path) => {
+      setStepProgress({ done, total });
+      if (stepId && path) setStepPhoto(stepId, path);
+    }).then((result) => {
+      setStepProgress(null);
+      if (result.error) setPhotoError(`Couldn't make step photos: ${result.error}`);
+    });
+  }, [liked]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function redo(step: RecipeStep) {
+    if (!data?.recipe || !step.id) return;
+    setRedoing(step.id);
+    setPhotoError(null);
+    try {
+      setStepPhoto(step.id, await repo.generateStepPhoto(data.recipe.id, step.id, true));
+    } catch (e) {
+      setPhotoError(`Couldn't make a photo: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRedoing(null);
+    }
+  }
+
+  async function undoNotForUs() {
+    if (!data?.recipe) return;
+    try {
+      await repo.rateRecipe(data.recipe.id, null);
+      setData({ ...data, recipe: { ...data.recipe, rating: null } });
+    } catch {
+      setPhotoError("Couldn't undo that. Check your connection and try again.");
+    }
+  }
 
   async function newPhoto() {
     if (!data?.recipe) return;
@@ -113,6 +166,12 @@ export default function RecipeCard() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
+        {recipe.rating === 'down' && (
+          <p className="mt-1 text-sm font-semibold text-warn">
+            <span>Not for us</span> · <button type="button" onClick={() => void undoNotForUs()} className="font-semibold underline">Undo</button>
+          </p>
+        )}
+        {stepProgress && <p className="mt-1 text-sm font-semibold text-accent">Making step photos… {stepProgress.done} of {stepProgress.total}</p>}
         <div className="mt-2 flex flex-wrap gap-1.5">
           {recipe.equipment.filter((e) => KNOWN_MACHINES.has(e)).map((e) => (
             <span key={e} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-muted">{machineLabel(e as Machine)}</span>
@@ -177,8 +236,8 @@ export default function RecipeCard() {
         </div>
 
         <div>
-          <Steps steps={prep} label="8pm prep, the night before" pill="bg-evening-soft text-evening" />
-          <Steps steps={finish} label="Dinner-time finish" pill="bg-accent-soft text-accent" timeline />
+          <Steps steps={prep} label="8pm prep, the night before" pill="bg-evening-soft text-evening" redo={(s) => void redo(s)} redoing={redoing} />
+          <Steps steps={finish} label="Dinner-time finish" pill="bg-accent-soft text-accent" timeline redo={(s) => void redo(s)} redoing={redoing} />
           {settings.length > 0 && (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-4">
               <h2 className="mb-2 text-base font-bold">Machine settings</h2>

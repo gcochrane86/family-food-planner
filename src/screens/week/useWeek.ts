@@ -146,6 +146,21 @@ export function useWeek() {
     verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => update(date, 'dinner', (d) => ({ ...d, portions_verdict: v })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
+    /** Saves "Have it again?" for a recipe, showing it at once and putting it back if the save fails. */
+    async rate(recipeId: string, rating: 'up' | 'down') {
+      const set = (value: Recipe['rating']) =>
+        setData((d) => d && { ...d, recipes: d.recipes.map((r: Recipe) => (r.id === recipeId ? { ...r, rating: value } : r)) });
+      const before = data?.recipes.find((r: Recipe) => r.id === recipeId)?.rating ?? null;
+      set(rating);
+      try {
+        await repo.rateRecipe(recipeId, rating);
+        return true;
+      } catch {
+        set(before);
+        setSaveError("Couldn't save that. Check your connection and try again.");
+        return false;
+      }
+    },
     async approve() {
       if (!current?.week) return;
       setSaveError(null);

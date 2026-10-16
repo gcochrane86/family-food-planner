@@ -76,3 +76,42 @@ test('a recipe that does not exist says so', async () => {
   open('nope');
   expect(await screen.findByText("This recipe isn't in your library.")).toBeInTheDocument();
 });
+
+test('a liked recipe with missing step photos finishes them', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, rating: 'up' });
+  let release = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  const make = h.repo.generateStepPhoto.getMockImplementation()!;
+  h.repo.generateStepPhoto.mockImplementationOnce(async (...args) => { await held; return make(...args); });
+  open('r-honey');
+  expect(await screen.findByText('Making step photos… 0 of 3')).toBeInTheDocument();
+  release();
+  await vi.waitFor(() => expect(screen.getAllByRole('img', { name: /^Step \d/ })).toHaveLength(3));
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3);
+  expect(screen.queryByText(/Making step photos/)).not.toBeInTheDocument();
+});
+
+test('a recipe that is not rated makes no step photos', async () => {
+  open('r-honey');
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+});
+
+test('a generated photo can be redone, your own photos cannot', async () => {
+  const steps = HONEY.steps.map((s, i) => ({ ...s, image_path: `p${i}.jpg`, image_source: i === 0 ? 'generated' as const : 'own' as const }));
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, rating: 'up', steps });
+  open('r-honey');
+  const redo = await screen.findAllByRole('button', { name: 'Redo photo' });
+  expect(redo).toHaveLength(1);
+  await userEvent.click(redo[0]);
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true);
+});
+
+test('a down-rated recipe shows Not for us with Undo', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, rating: 'down' });
+  open('r-honey');
+  expect(await screen.findByText('Not for us')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Undo' }));
+  expect(h.repo.rateRecipe).toHaveBeenCalledWith(HONEY.id, null);
+  expect(screen.queryByText('Not for us')).not.toBeInTheDocument();
+});

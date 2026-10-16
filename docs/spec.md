@@ -217,6 +217,7 @@ Every table has `household_id` and row-level security, so only your household ca
 
 ### Feedback
 - **meal_feedback** — `meal_slot_id, portions_verdict (not_enough|right|leftovers), leftover_portions, rating, notes`
+- **recipes.rating** (`up` | `down`, with `rated_at`): the "Have it again?" answer after cooking. `up` gets step photos; `down` keeps the recipe out of proposals and swap suggestions (it can still be chosen by hand, and Undo on the recipe clears it). **recipe_steps.image_source** (`own` | `generated`) says where a step photo came from.
 
 ---
 
@@ -251,7 +252,7 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 |---|---|
 | **Hero photo** (1 per recipe) | **AI-generated** when a recipe is saved without one: a plated photo in a consistent house style (natural light, overhead or 45°, the same kind of plates and table). HelloFresh imports keep their original hero photo |
 | **Ingredient icons** | **AI-generated once per ingredient**, in one consistent style (a single item on a plain background, like the HelloFresh grid), then reused in every recipe |
-| **Step photos** | **Not AI-generated** (they come out inconsistent and get equipment wrong). Steps show their ingredient icons and machine badge. HelloFresh imports keep their original step photos. **"Add photo" in cook mode** lets you photograph a step, and your photo replaces the default |
+| **Step photos** | **AI-made only for recipes you like** (decided 16 Oct 2026, after a test on the chickpea curry). After you mark a dinner cooked and answer "Have it again?" with 👍, each step gets a photo, one at a time, using the hero photo as the style reference. They're **close-ups of the food only**: shots showing the TM7 drew the machine wrong. Each prompt names just the ingredients added so far. A 👎 recipe never gets them. **Your own photo always wins:** "Add photo" in cook mode replaces a generated one, and a generated one never replaces yours. Generated photos have "Redo photo". A few pence a photo, within the £5/month Google cap; a run stops at the first failure. |
 
 - **How it works:** a `generate-images` Edge Function calls **Google's Gemini image API** (key from Google AI Studio, stored only as the Edge Function secret `GOOGLE_AI_API_KEY`), stores the result in Supabase Storage, and saves where each image came from. Regenerating a hero image is one tap ("try another").
 - **Prompts** are built from the recipe title, its main ingredients and the house style, so a whole library looks like one set.
@@ -266,7 +267,7 @@ The layout comes from HelloFresh; the structure comes from your Google Docs reci
 
 | Screen | Phone | iPad |
 |---|---|---|
-| **Home: calendar** | One day at a time, swipe between days. Rows: Breakfast · Lunch · Dinner · 8pm prep | Week grid, days across and the four rows down |
+| **Home: week grid** | A grid of day tiles, 2 across: each shows breakfast, lunch and dinner, with chips for office day, 8pm prep, cook once, guests, out and cooked. An eighth tile holds the week's status, protein balance and **Approve week**. Tap a day for a sheet with all its options (breakfast choice, swap, out tonight, leftovers, portions ±, guests ±, mark cooked, Have it again?, 8pm prep) | Same grid, 4 across; the day opens as a centred card |
 | **This week (planning wizard)** | Step by step | Same |
 | **Plan review** | List of suggested meals, each with its reason | Calendar with suggestions highlighted |
 | **Recipe library** | Search and filters (TM7, ≤30 min, make-ahead, toddler OK, uses X) | Grid |
@@ -316,7 +317,7 @@ The **8pm prep** row lists tomorrow's prep steps with their total minutes, e.g. 
 ## 7. Planning optimiser
 
 ### Inputs
-Plan days, members, week overrides, anchors, pantry and prepared items, the recipe library, product prices and offers, house rules, settings.
+Plan days, members, week overrides, anchors, pantry and prepared items, the recipe library (leaving out recipes rated 👎 "Not for us"), product prices and offers, house rules, settings.
 
 ### Steps
 1. **Lay out the week.** Fill breakfast and lunch from routines. Apply the Monday rules and any office days (packed lunch, quick dinner). Mark Sunday dinner as a "use it up" dinner, because the shop arrives at 7–8pm.

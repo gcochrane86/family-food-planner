@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { repo } from '../../lib/repo';
+import { makeStepPhotos } from '../../lib/stepPhotos';
 import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import { addDays, type WeekState } from './useWeek';
@@ -26,6 +28,9 @@ function Label({ children, tone }: { children: string; tone: string }) {
 
 export default function DayCard({ date, w, hideTitle = false }: { date: string; w: WeekState; hideTitle?: boolean }) {
   const [swapping, setSwapping] = useState(false);
+  const [photos, setPhotos] = useState<{ done: number; total: number } | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [notForUs, setNotForUs] = useState(false);
   const slot = (kind: MealSlot['slot'], d = date) => w.slots.find((s) => s.date === d && s.slot === kind);
   const breakfast = slot('breakfast');
   const lunch = slot('lunch');
@@ -35,6 +40,22 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
   const isMonday = dayName(date) === 'Monday';
   const tomorrow = slot('dinner', addDays(date, 1));
   const tomorrowRecipe = tomorrow?.mode === 'cook' ? recipe(tomorrow.recipe_id) : undefined;
+
+  /** 👍 keeps the recipe and makes its step photos; 👎 keeps it out of future menus. */
+  async function rate(rating: 'up' | 'down') {
+    if (!dinnerRecipe || !(await w.rate(dinnerRecipe.id, rating))) return;
+    if (rating === 'down') { setNotForUs(true); return; }
+    try {
+      const detail = await repo.getRecipe(dinnerRecipe.id);
+      if (!detail) return;
+      const result = await makeStepPhotos(detail.id, detail.steps, (done, total) => setPhotos({ done, total }));
+      setPhotos(null);
+      if (result.error) setPhotoError(`Couldn't make step photos: ${result.error}`);
+    } catch (e) {
+      setPhotos(null);
+      setPhotoError(`Couldn't make step photos: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   return (
     <section aria-label={dayLabel(date)} className="grid gap-2.5">
@@ -121,6 +142,19 @@ export default function DayCard({ date, w, hideTitle = false }: { date: string; 
               ✓ Cooked · portions {VERDICTS.find(([v]) => v === dinner.portions_verdict)![1].toLowerCase()}
             </p>
           )}
+          {dinner.mode === 'cook' && dinner.portions_verdict && dinnerRecipe && dinnerRecipe.rating === null && (
+            <div className="grid gap-1.5 rounded-xl bg-accent-soft p-2.5">
+              <p className="m-0 text-sm font-semibold">Have it again?</p>
+              <p className="m-0 text-[12.5px] text-muted">👍 keeps it in the rotation and makes photos for each step, ready for next time.</p>
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" className="rounded-lg bg-accent px-3 py-1.5 text-[13px] font-semibold text-accent-ink" onClick={() => void rate('up')}>👍 Have it again</button>
+                <button type="button" className={btn} onClick={() => void rate('down')}>👎 Not for us</button>
+              </div>
+            </div>
+          )}
+          {notForUs && <p className="m-0 text-sm text-muted">Got it: it won't be suggested again. You can undo this on the recipe.</p>}
+          {photos && <p className="m-0 text-sm font-semibold text-accent">Making step photos… {photos.done} of {photos.total}</p>}
+          {photoError && <p role="alert" className="m-0 rounded-lg bg-warn-soft px-2.5 py-1.5 text-[13px] text-warn">{photoError}</p>}
 
           {swapping && (
             <div className="grid gap-1.5 rounded-xl bg-surface-2 p-2.5">

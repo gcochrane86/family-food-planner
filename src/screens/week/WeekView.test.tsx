@@ -205,3 +205,38 @@ test('two very quick taps both count and save in order', async () => {
   const guestsSaved = h.repo.saveSlots.mock.calls.map((c) => c[0].find((s) => s.slot === 'dinner')!.guests);
   expect(guestsSaved).toEqual([1, 2]);
 });
+
+test('after the portions verdict, asks Have it again and 👍 makes step photos', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Mon');
+  const mon = () => day(/Monday/);
+  await user().click(within(mon()).getByRole('button', { name: 'Mark cooked' }));
+  expect(within(mon()).queryByText('Have it again?')).not.toBeInTheDocument();
+  await user().click(within(mon()).getByRole('button', { name: 'About right' }));
+  expect(within(mon()).getByText('Have it again?')).toBeInTheDocument();
+  await user().click(within(mon()).getByRole('button', { name: '👍 Have it again' }));
+  expect(h.repo.rateRecipe).toHaveBeenCalledWith('r-honey', 'up');
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(HONEY.steps.length));
+  expect(within(mon()).queryByText('Have it again?')).not.toBeInTheDocument();
+});
+
+test('👎 Not for us makes no photos', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  const tue = () => day(/Tuesday/);
+  await user().click(within(tue()).getByRole('button', { name: 'Mark cooked' }));
+  await user().click(within(tue()).getByRole('button', { name: 'About right' }));
+  await user().click(within(tue()).getByRole('button', { name: '👎 Not for us' }));
+  expect(h.repo.rateRecipe).toHaveBeenCalledWith('r-salmon', 'down');
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+  expect(within(tue()).getByText(/won't be suggested again/)).toBeInTheDocument();
+});
+
+test('a recipe that is already rated is not asked about again', async () => {
+  h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...SALMON, rating: 'up' }, PENNE, CHOW, BEEF, COD, CURRY]);
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Mark cooked' }));
+  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'About right' }));
+  expect(within(day(/Tuesday/)).queryByText('Have it again?')).not.toBeInTheDocument();
+});
