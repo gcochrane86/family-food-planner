@@ -18,7 +18,7 @@ const fails = async (uid, sql) => as(uid, sql).then(() => null, (e) => e.message
 beforeEach(async () => {
   db = new PGlite();
   await db.exec(`
-    create role anon; create role authenticated; create schema auth;
+    create role anon; create role authenticated; create role service_role; create schema auth;
     create table auth.users (id uuid primary key);
     create function auth.uid() returns uuid language sql stable
       as $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
@@ -151,4 +151,28 @@ test('images can only be saved into your own household folder', async () => {
     .toMatch(/row-level security/);
   await db.exec('reset role');
   expect((await db.query(`select public from storage.buckets where id = 'recipe-images'`)).rows[0].public).toBe(true);
+});
+
+test('replacing a recipe keeps step photos and is all-or-nothing', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_ingredients (recipe_id, position, name) values ('${rid}', 1, 'old rice')`);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, image_path)
+    values ('${rid}', 'finish', 1, 'Rice on', 'old', 'h/steps/s-1.jpg')`);
+  const ingredients = JSON.stringify([{ position: 1, name: 'basmati rice', qty: 400, unit: 'g' }]);
+  const steps = JSON.stringify([{ phase: 'finish', position: 1, title: 'Rice on', body: 'new', at_minute: 0, timer_minutes: 20 }]);
+  expect(await one(OWNER, `select replace_recipe_contents('${rid}', '${ingredients}', '${steps}')`)).toBe(1);
+  expect(await as(OWNER, 'select name from recipe_ingredients')).toEqual([{ name: 'basmati rice' }]);
+  expect(await as(OWNER, 'select body, image_path from recipe_steps')).toEqual([{ body: 'new', image_path: 'h/steps/s-1.jpg' }]);
+
+  const bad = JSON.stringify([{ phase: 'lunch', position: 1, title: 'x', body: 'x' }]);
+  expect(await fails(OWNER, `select replace_recipe_contents('${rid}', '[]', '${bad}')`)).toMatch(/check constraint/);
+  expect(await as(OWNER, 'select name from recipe_ingredients')).toEqual([{ name: 'basmati rice' }]);
+  expect(await as(OWNER, 'select body from recipe_steps')).toEqual([{ body: 'new' }]);
+});
+
+test("a stranger cannot replace another household's recipe", async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_ingredients (recipe_id, position, name) values ('${rid}', 1, 'rice')`);
+  await as(STRANGER, `select replace_recipe_contents('${rid}', '[]', '[]')`).catch(() => {});
+  expect(await as(OWNER, 'select name from recipe_ingredients')).toEqual([{ name: 'rice' }]);
 });

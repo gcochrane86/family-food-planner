@@ -48,6 +48,24 @@ test('ingredient quantities must be numbers or null', () => {
   expect(validateRecipeSeed(s)).toContain('recipes[0].ingredients[0].qty must be a number or null');
 });
 
+test('values the database would reject are caught before anything is written', () => {
+  const s = clone();
+  s.recipes[0].status = 'maybe';
+  s.recipes[0].base_portions = 120;
+  s.recipes[0].salt_per_portion_g = 150;
+  s.recipes[0].steps[0].at = 2.5;
+  s.recipes[0].steps[0].settings = 12;
+  s.recipes[0].ingredients[0].unit = 5;
+  expect(validateRecipeSeed(s)).toEqual(expect.arrayContaining([
+    'recipes[0].status must be draft, active or archived',
+    'recipes[0].base_portions must be a positive number under 100',
+    'recipes[0].salt_per_portion_g must be a number under 100',
+    'recipes[0].steps[0].at must be whole minutes',
+    'recipes[0].steps[0].settings must be text',
+    'recipes[0].ingredients[0].unit must be text',
+  ]));
+});
+
 test('a file that is not { recipes: [...] } is rejected', () => {
   expect(validateRecipeSeed([])).toEqual(['file must be an object with a "recipes" list']);
 });

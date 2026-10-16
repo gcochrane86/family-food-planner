@@ -45,30 +45,25 @@ for (const r of recipes) {
     prep_minutes: r.prep_minutes ?? 0, finish_minutes: r.finish_minutes ?? 0, hands_off_minutes: r.hands_off_minutes ?? 0,
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
   };
-  const { id } = must(await db.from('recipes').upsert(row, { onConflict: 'household_id,slug' }).select('id').single(), `Saving ${r.slug}`);
+  // Status is only set for new recipes, so anything you've archived or changed in the app stays that way.
+  const existing = must(await db.from('recipes').select('id').eq('household_id', householdId).eq('slug', r.slug).maybeSingle(), `Finding ${r.slug}`);
+  const { status, ...update } = row;
+  const { id } = existing
+    ? must(await db.from('recipes').update(update).eq('id', existing.id).select('id').single(), `Updating ${r.slug}`)
+    : must(await db.from('recipes').insert({ ...update, status }).select('id').single(), `Adding ${r.slug}`);
 
-  const old = must(await db.from('recipe_steps').select('phase, title, image_path').eq('recipe_id', id).not('image_path', 'is', null), `Reading ${r.slug} photos`);
-  const photo = new Map(old.map((s) => [`${s.phase}|${s.title}`, s.image_path]));
-
-  must(await db.from('recipe_ingredients').delete().eq('recipe_id', id), `Clearing ${r.slug} ingredients`);
-  must(await db.from('recipe_steps').delete().eq('recipe_id', id), `Clearing ${r.slug} steps`);
-
-  if (r.ingredients.length) {
-    must(await db.from('recipe_ingredients').insert(r.ingredients.map((g, i) => ({
-      recipe_id: id, position: i + 1, group_name: g.group ?? null, name: g.name, qty: g.qty ?? null,
-      unit: g.unit ?? '', note: g.note ?? null, qty_approx: !!g.approx,
-    }))), `Saving ${r.slug} ingredients`);
-  }
   const position = { prep_8pm: 0, finish: 0, reheat: 0 };
-  const stepRows = r.steps.map((s) => {
-    const image = photo.get(`${s.phase}|${s.title}`) ?? null;
-    if (image) keptPhotos++;
-    return {
-      recipe_id: id, phase: s.phase, position: ++position[s.phase], at_minute: s.at ?? null, title: s.title, body: s.body,
-      machine: s.machine ?? null, settings: s.settings ?? null, timer_minutes: s.timer ?? null, image_path: image,
-    };
-  });
-  if (stepRows.length) must(await db.from('recipe_steps').insert(stepRows), `Saving ${r.slug} steps`);
+  const stepRows = r.steps.map((s) => ({
+    phase: s.phase, position: ++position[s.phase], at_minute: s.at ?? null, title: s.title, body: s.body,
+    machine: s.machine ?? null, settings: s.settings ?? null, timer_minutes: s.timer ?? null,
+  }));
+  const ingredientRows = r.ingredients.map((g, i) => ({
+    position: i + 1, group_name: g.group ?? null, name: g.name, qty: g.qty ?? null,
+    unit: g.unit ?? '', note: g.note ?? null, qty_approx: !!g.approx,
+  }));
+  // One database call: either everything is replaced or nothing changes. Matching step photos are kept.
+  keptPhotos += must(await db.rpc('replace_recipe_contents', { p_recipe_id: id, p_ingredients: ingredientRows, p_steps: stepRows }),
+    `Saving ${r.slug} ingredients and steps`);
   steps += stepRows.length;
 }
 
