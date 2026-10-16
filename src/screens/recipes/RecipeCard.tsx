@@ -11,6 +11,7 @@ import { formatPortions } from '../settings/Household';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
+import RecipeMenu from './RecipeMenu';
 
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
@@ -148,12 +149,12 @@ export default function RecipeCard() {
     <article className="grid gap-4 py-4">
       <div className="flex items-center justify-between gap-3 print:hidden">
         <Link to="/recipes" className="text-sm font-semibold text-muted no-underline">← Recipes</Link>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void newPhoto()} disabled={photoBusy}
-            className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold disabled:opacity-60">
-            {photoBusy ? 'Making photo…' : 'New photo ✨'}
-          </button>
-          <button type="button" onClick={() => window.print()} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Print</button>
+        <div className="flex items-center gap-2">
+          {photoBusy && <span className="text-sm font-semibold text-muted">Making photo…</span>}
+          <RecipeMenu items={[
+            { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
+            { label: 'Print', onSelect: () => window.print() },
+          ]} />
           {finish.length > 0 && (
             <Link to={`/recipes/${recipe.id}/cook`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
           )}

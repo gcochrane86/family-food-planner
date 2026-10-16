@@ -57,9 +57,30 @@ test('a recipe without a photo shows a placeholder, not a broken image', async (
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
 });
 
+async function fromSettings(item: string) {
+  await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
+  await userEvent.click(screen.getByRole('menuitem', { name: item }));
+}
+
+test('new photo and print are tucked into the recipe settings menu', async () => {
+  const print = vi.spyOn(window, 'print').mockImplementation(() => {});
+  open('r-honey');
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(screen.queryByRole('button', { name: /New .*photo/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Print' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Recipe settings' }));
+  expect(screen.getByRole('menu')).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  await fromSettings('Print');
+  expect(print).toHaveBeenCalled();
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  print.mockRestore();
+});
+
 test('"New photo" generates a hero image and shows it', async () => {
   open('r-honey');
-  await userEvent.click(await screen.findByRole('button', { name: 'New photo ✨' }));
+  await fromSettings('New main photo ✨');
   expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
   expect(await screen.findByRole('img', { name: HONEY.title })).toHaveAttribute('src', 'https://img.test/h1/hero/r-honey-1.jpg');
 });
@@ -67,7 +88,7 @@ test('"New photo" generates a hero image and shows it', async () => {
 test('a failed photo generation says so and keeps the placeholder', async () => {
   h.repo.generateHero.mockRejectedValueOnce(new Error("Google couldn't make the image: quota"));
   open('r-honey');
-  await userEvent.click(await screen.findByRole('button', { name: 'New photo ✨' }));
+  await fromSettings('New main photo ✨');
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make a photo: Google couldn't make the image: quota");
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
 });
