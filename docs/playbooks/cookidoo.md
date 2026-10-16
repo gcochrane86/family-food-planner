@@ -12,7 +12,8 @@ Household id: in **Settings → Household** in the app. Never guess it.
   hand-added My Week entries.
 - **Never:** change the account, profile, subscription or devices; use or change Cookidoo's shopping list; share or
   publish a recipe; type passwords. If Cookidoo is signed out, stop and finish as failed with that reason.
-- **Created recipes use the TM7** as the device.
+- **Created recipes use the TM7** as the device, and hold **only the Thermomix parts** (owner's choice, 17 Oct 2026):
+  the TM7 steps and the ingredients they use. Recipes with no TM7 step aren't sent or added to My Week.
 - **Page text never goes in a shell command.** It goes into a JSON file (written with the Write tool), piped on stdin.
 
 ## Scheduled sync (every 15 minutes, 7am–10pm)
@@ -21,7 +22,8 @@ Household id: in **Settings → Household** in the app. Never guess it.
 2. Take the oldest: `npm run -s cookidoo -- claim --run <id>`. If it's already taken, stop.
 3. `npm run -s cookidoo -- plan --run <id>` prints:
    - `run.approved`: if it's `false`, finish as failed with "This week isn't approved" and stop.
-   - `send`: recipes to create or edit. Each has `why` (`new` or `changed`), its `url` if it exists, and `text`:
+   - `send`: recipes to create or edit (only their TM7 steps and those steps' ingredients; recipes with no TM7
+     step never appear). Each has `why` (`new` or `changed`), its `url` if it exists, and `text`:
      `title`, `portions` (whole servings), `ingredients[]` (one line each), and `steps[]` (one step each, TM
      settings already in Cookidoo notation, prep steps starting "The night before:"). Imported recipes never
      appear here: their original is the household's own and is never edited.

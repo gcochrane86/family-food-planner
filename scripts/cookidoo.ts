@@ -7,7 +7,7 @@
 //   npx tsx scripts/cookidoo.ts record-day --run <id> < d.json            {"date","recipeId"|null}
 //   npx tsx scripts/cookidoo.ts finish < f.json                           {"run","status":"done"|"failed","summary"}
 //   npx tsx scripts/cookidoo.ts record-own --household <id> < o.json      {"slug","url"} an imported recipe's original
-import { cookidooRecipe, finishStatus, myWeekChanges, portionsToSend, textHash, whyToSend } from '../src/lib/cookidoo';
+import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, textHash, whyToSend } from '../src/lib/cookidoo';
 import type { MealSlot, RecipeDetail } from '../src/lib/types';
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { parseCookidooFinish, parseRecordDay, parseRecordOwn, parseRecordRecipe } from './cookidooInput';
@@ -76,9 +76,11 @@ async function loadRun(id: string) {
 
 async function plan() {
   const { run, week, slots } = await loadRun(arg('run') ?? fail('--run is required'));
-  const cooked = slots.filter((s) => s.mode === 'cook' && s.recipe_id);
+  const planned = slots.filter((s) => s.mode === 'cook' && s.recipe_id);
+  const byId = await loadRecipes([...new Set([...planned.map((s) => s.recipe_id!), ...slots.map((s) => s.cookidoo_recipe_id).filter((x): x is string => !!x)])]);
+  // Only recipes with Thermomix steps go to Cookidoo (and My Week); the rest stay in the app only.
+  const cooked = planned.filter((s) => { const r = byId.get(s.recipe_id!); return !!r && (hasTm7Steps(r) || !!r.cookidoo_own_url); });
   const ids = [...new Set(cooked.map((s) => s.recipe_id!))];
-  const byId = await loadRecipes([...new Set([...ids, ...slots.map((s) => s.cookidoo_recipe_id).filter((x): x is string => !!x)])]);
   const send = [];
   for (const id of ids) {
     const r = byId.get(id)!;

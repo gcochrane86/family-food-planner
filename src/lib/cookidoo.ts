@@ -6,13 +6,25 @@ const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 
 
 export interface CookidooText { title: string; portions: number; ingredients: string[]; steps: string[] }
 
+/** Only the Thermomix parts of a recipe go to Cookidoo (the owner's choice, 17 Oct 2026). */
+export function hasTm7Steps(recipe: Pick<RecipeDetail, 'steps'>): boolean {
+  return recipe.steps.some((s) => s.machine === 'tm7');
+}
+
+const words = (t: string) => t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
+
+/** The TM7 steps, in cooking order, and only the ingredients named (in **bold**) in them, scaled to the portions. */
 export function cookidooRecipe(recipe: RecipeDetail, portions: number): CookidooText {
   const factor = scaleFactor(portions, recipe.base_portions);
-  const ingredients = recipe.ingredients.map((i) => {
+  const tm7 = recipe.steps.filter((s) => s.machine === 'tm7');
+  const named = tm7.flatMap((s) => [...s.body.matchAll(/\*\*(.+?)\*\*/g)].map((m) => words(m[1]))).filter((w) => w.length);
+  // An ingredient is used when every word of a bolded name appears in it, e.g. "rice" in "basmati rice".
+  const used = recipe.ingredients.filter((i) => named.some((n) => n.every((w) => words(i.name).some((x) => x === w || x === `${w}s` || `${x}s` === w))));
+  const ingredients = used.map((i) => {
     const qty = formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx);
     return [qty, i.name].filter(Boolean).join(' ') + (i.note ? `, ${i.note}` : '');
   });
-  const steps = [...recipe.steps]
+  const steps = [...tm7]
     .sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position)
     .map((s) => {
       const body = s.body.replace(/\*\*/g, '');

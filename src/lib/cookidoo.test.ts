@@ -1,22 +1,23 @@
 import { HONEY, NEXT_WEEK } from '../test/fixtures';
-import { cookidooRecipe, finishStatus, myWeekChanges, portionsToSend, textHash, whyToSend } from './cookidoo';
+import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, textHash, whyToSend } from './cookidoo';
 import { formatQty } from './recipes';
 
-test('ingredients are scaled and written as Cookidoo lines, with notes after a comma', () => {
+test('only the TM7 steps are sent, with just the ingredients they use, scaled', () => {
   const c = cookidooRecipe(HONEY, 3);
   expect(c.title).toBe(HONEY.title);
   expect(c.portions).toBe(3);
-  expect(c.ingredients[0]).toBe(`${formatQty(600, 'g')} chicken breast or thigh, 10mm batons`);
-  expect(c.ingredients[1]).toBe(`${formatQty(200, 'g')} basmati rice`);
+  expect(c.steps).toEqual(['The night before: Chop the garlic and reduce. 12 min/Varoma/speed 2', 'Rinse the rice and start. 20 min/100°C/speed 4']);
+  expect(c.ingredients).toEqual([`${formatQty(200, 'g')} basmati rice`]);
 });
 
-test('steps come in cooking order: prep first, TM settings in Cookidoo notation, no bold markers', () => {
-  const c = cookidooRecipe(HONEY, 6);
-  expect(c.steps[0]).toBe('The night before: Chop the garlic and reduce. 12 min/Varoma/speed 2');
-  expect(c.steps[1]).toBe('Rinse the rice and start. 20 min/100°C/speed 4');
-  expect(c.steps[2]).toBe('Toss with the warm sauce.');
-  const hy = cookidooRecipe({ ...HONEY, steps: [{ ...HONEY.steps[2], machine: 'hy24', settings: '190°C · air fry · 12 min' }] }, 6);
-  expect(hy.steps[0]).toMatch(/\(.*: 190°C · air fry · 12 min\)$/);
+test('notes stay after a comma on the ingredients that are sent', () => {
+  const r = { ...HONEY, steps: [{ ...HONEY.steps[1], body: 'Toss the **chicken** with the **rice**.' }] };
+  expect(cookidooRecipe(r, 3).ingredients[0]).toBe(`${formatQty(600, 'g')} chicken breast or thigh, 10mm batons`);
+});
+
+test('a recipe with no TM7 steps is not for Cookidoo', () => {
+  expect(hasTm7Steps(HONEY)).toBe(true);
+  expect(hasTm7Steps({ ...HONEY, steps: HONEY.steps.map((s) => ({ ...s, machine: 'hob' as const })) })).toBe(false);
 });
 
 test('my week: a swapped dinner removes the old entry and adds the new', () => {
