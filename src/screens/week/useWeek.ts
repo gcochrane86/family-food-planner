@@ -129,7 +129,7 @@ export function useWeek() {
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     slots: current?.slots ?? [],
     officeDays: input?.officeDays ?? [],
-    alternatives: (date: string) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input) : []),
+    alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     out: (date: string) => change((p) => applyOut(p, date)),
     leftovers: (date: string) => change((p) => applyLeftovers(p, date)),

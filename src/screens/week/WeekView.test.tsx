@@ -37,18 +37,63 @@ test('a draft week shows the review banner and can be approved', async () => {
   expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
 });
 
-test('swap offers 3 alternatives and saves the choice as locked', async () => {
-  render(<WeekView />, { wrapper: MemoryRouter });
-  await openDay('Tue');
-  const tue = day(/Tuesday/);
-  await user().click(within(tue).getByRole('button', { name: 'Swap' }));
-  const options = within(tue).getAllByRole('button', { name: /^Use / });
-  expect(options).toHaveLength(3);
-  await user().click(options[0]);
-  const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
-  const dinner = saved.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!;
-  expect(dinner.locked).toBe(true);
-  expect(dinner.recipe_id).not.toBe('r-salmon');
+describe('swipe to swap', () => {
+  async function openSwap() {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Swap' }));
+    return screen.getByRole('dialog', { name: "Swap Tuesday's dinner" });
+  }
+  const top = (stack: HTMLElement) => within(stack).getAllByRole('group', { name: /^Suggestion/ }).at(-1)!;
+
+  test('✓ chooses the top card and saves it as locked', async () => {
+    const stack = await openSwap();
+    expect(within(stack).getByText(/^1 of \d/)).toBeInTheDocument();
+    const title = within(top(stack)).getByRole('heading').textContent;
+    await user().click(within(stack).getByRole('button', { name: 'Choose' }));
+    const dinner = h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!;
+    expect(dinner.locked).toBe(true);
+    expect(dinner.recipe_id).not.toBe('r-salmon');
+    expect(screen.queryByRole('dialog', { name: /Swap/ })).not.toBeInTheDocument();
+    expect(within(day(/Tuesday/)).getAllByText(title!).length).toBeGreaterThan(0);
+  });
+
+  test('✕ skips to the next card', async () => {
+    const stack = await openSwap();
+    const first = within(top(stack)).getByRole('heading').textContent;
+    await user().click(within(stack).getByRole('button', { name: 'Skip' }));
+    expect(within(stack).getByText(/^2 of \d/)).toBeInTheDocument();
+    expect(within(top(stack)).getByRole('heading').textContent).not.toBe(first);
+    expect(h.repo.saveSlots).not.toHaveBeenCalled();
+  });
+
+  test('a sideways swipe right chooses; a mostly-vertical drag does nothing', async () => {
+    const stack = await openSwap();
+    fireEvent.touchStart(top(stack), { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(top(stack), { changedTouches: [{ clientX: 140, clientY: 400 }] });
+    await act(async () => { vi.advanceTimersByTime(50); });
+    expect(h.repo.saveSlots).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: /Swap/ })).toBeInTheDocument();
+    fireEvent.touchStart(top(stack), { touches: [{ clientX: 100, clientY: 100 }] });
+    fireEvent.touchEnd(top(stack), { changedTouches: [{ clientX: 280, clientY: 110 }] });
+    await vi.waitFor(() => expect(h.repo.saveSlots).toHaveBeenCalled());
+  });
+
+  test('after the last card, browse all recipes and pick one', async () => {
+    const stack = await openSwap();
+    while (within(stack).queryByRole('button', { name: 'Skip' })) await user().click(within(stack).getByRole('button', { name: 'Skip' }));
+    await user().click(within(stack).getByRole('button', { name: 'Browse all recipes' }));
+    await user().type(within(stack).getByRole('searchbox', { name: 'Search recipes' }), 'tacos');
+    await user().click(within(stack).getByRole('button', { name: TACOS.title }));
+    const dinner = h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!;
+    expect(dinner.recipe_id).toBe('r-tacos');
+  });
+
+  test('Escape closes the stack', async () => {
+    await openSwap();
+    await user().keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: /Swap/ })).not.toBeInTheDocument();
+  });
 });
 
 test('out tonight on the cook-once dinner sends the next lunch back to its routine', async () => {

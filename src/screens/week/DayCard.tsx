@@ -43,7 +43,6 @@ function Stepper({ label, value, less, more, onLess, onMore, disabled }: {
 
 /** A day's meals as photos, with the occasional changes in "More options" (spec §6). */
 export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: string; w: WeekState; hideTitle?: boolean; onSwap?: () => void }) {
-  const [swapping, setSwapping] = useState(false);
   const slot = (kind: MealSlot['slot'], d = date) => w.slots.find((s) => s.date === d && s.slot === kind);
   const recipe = (id: string | null | undefined): Recipe | undefined => (id ? w.recipes.get(id) : undefined);
   const breakfast = slot('breakfast');
@@ -52,7 +51,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const dinnerRecipe = recipe(dinner?.recipe_id);
   const lastNight = slot('dinner', addDays(date, -1));
   const lastNightRecipe = lastNight?.mode === 'cook' ? recipe(lastNight.recipe_id) : undefined;
-  const swap = onSwap ?? (() => setSwapping((s) => !s));
+  const swap = onSwap ?? (() => {});
 
   const breakfastName = breakfast?.routine_choice ?? breakfast?.reason ?? 'Eggs & porridge';
   const lunchChoice = lunch?.mode === 'routine' && lastNightRecipe?.reheats_well;
@@ -164,17 +163,6 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
                 <button type="button" onClick={swap} className="rounded-xl border border-line bg-surface px-3.5 py-2 font-semibold">Swap</button>
               </div>
             </>
-          )}
-          {swapping && (
-            <div className="grid gap-1.5 bg-surface-2 p-2.5">
-              {w.alternatives(date).map((a) => (
-                <button key={a.recipeId} type="button" onClick={() => { w.swap(date, a.recipeId); setSwapping(false); }}
-                  className="rounded-lg bg-surface px-3 py-2 text-left">
-                  <span className="block font-semibold">Use {recipe(a.recipeId)?.title ?? 'this'}</span>
-                  <span className="block text-[12.5px] text-muted">{a.reason}</span>
-                </button>
-              ))}
-            </div>
           )}
         </section>
       )}
