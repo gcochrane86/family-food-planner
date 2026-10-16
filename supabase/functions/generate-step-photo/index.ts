@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { recipeId, stepId, replace } = await req.json().catch(() => ({}));
+  const { recipeId, stepId, replace, asked } = await req.json().catch(() => ({}));
   if (typeof recipeId !== 'string' || typeof stepId !== 'string') return reply(400, { error: 'recipeId and stepId are required' });
 
   const { data: recipe, error: recipeError } = await db.from('recipes')
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
   const index = steps.findIndex((s) => s.id === stepId);
   if (index < 0) return reply(404, { error: 'That step is not in this recipe.' });
 
-  const refusal = stepPhotoRefusal(recipe, steps[index], replace === true);
+  const refusal = stepPhotoRefusal(recipe, steps[index], replace === true, asked === true);
   if (refusal) return reply(409, { error: refusal });
 
   const { data: hero, error: heroError } = await db.storage.from('recipe-images').download(recipe.hero_image_path!);

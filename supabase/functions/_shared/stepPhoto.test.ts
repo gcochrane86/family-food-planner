@@ -52,3 +52,12 @@ test('the photo is only saved if the step is still free (or still generated, for
   expect(stepPhotoWriteGuard(false)).toEqual({ column: 'image_path', equals: null });
   expect(stepPhotoWriteGuard(true)).toEqual({ column: 'image_source', equals: 'generated' });
 });
+
+test('a photo you ask for from the menu does not need a 👍, but your own photos and the main photo rules still hold', () => {
+  const unrated = { rating: null, hero_image_path: 'h.jpg' };
+  const empty = { image_path: null, image_source: null };
+  expect(stepPhotoRefusal(unrated, empty, false, true)).toBeNull();
+  expect(stepPhotoRefusal({ rating: 'down', hero_image_path: 'h.jpg' }, empty, false, true)).toBeNull();
+  expect(stepPhotoRefusal({ ...unrated, hero_image_path: null }, empty, false, true)).toBe('Make the main photo first.');
+  expect(stepPhotoRefusal(unrated, { image_path: 'a.jpg', image_source: 'own' }, true, true)).toBe('This step has your own photo.');
+});

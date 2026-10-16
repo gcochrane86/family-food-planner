@@ -39,13 +39,17 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
   ].filter(Boolean).join(' ');
 }
 
-/** Why a step photo can't be made, or null when it can. Guards cost and never replaces your own photo. */
+/**
+ * Why a step photo can't be made, or null when it can. Guards cost and never replaces your own photo.
+ * `asked` is a photo you chose from the recipe's ⚙︎ menu (after seeing the cost), which doesn't need a 👍.
+ */
 export function stepPhotoRefusal(
   recipe: { rating: string | null; hero_image_path: string | null },
   step: { image_path: string | null; image_source: string | null },
   replace: boolean,
+  asked = false,
 ): string | null {
-  if (recipe.rating !== 'up') return 'Only liked recipes get step photos.';
+  if (recipe.rating !== 'up' && !asked) return 'Only liked recipes get step photos.';
   if (!recipe.hero_image_path) return 'Make the main photo first.';
   if (step.image_path && step.image_source !== 'generated') return 'This step has your own photo.';
   if (step.image_path && !replace) return 'This step already has a photo.';

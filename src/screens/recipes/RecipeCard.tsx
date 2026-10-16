@@ -16,6 +16,12 @@ import RecipeMenu from './RecipeMenu';
 const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
+/** A rough cost for n AI photos: about 3p each with Google's image model. */
+export function photoCost(n: number): string {
+  const pence = n * 3;
+  return pence < 100 ? `${pence}p` : `£${(pence / 100).toFixed(2)}`;
+}
+
 function Steps({ steps, label, pill, timeline }: { steps: RecipeStep[]; label: string; pill: string; timeline?: boolean }) {
   if (!steps.length) return null;
   const id = label.replace(/\W+/g, '-').toLowerCase();
@@ -67,17 +73,23 @@ export default function RecipeCard() {
   } : d);
 
   // A liked recipe gets a photo for every step: start, join or carry on that run whenever the recipe is open.
+  const [confirmAdd, setConfirmAdd] = useState(false);
+
+  function runStepPhotos(r: { id: string; steps: RecipeStep[] }, asked: boolean) {
+    void makeStepPhotos(r.id, r.steps, (done, total, stepId, path) => {
+      setStepProgress({ done, total });
+      if (stepId && path) setStepPhoto(stepId, path);
+    }, { asked }).then((result) => {
+      setStepProgress(null);
+      if (result.error) setPhotoError(`Couldn't make step photos: ${result.error}`);
+    });
+  }
+
   const liked = data?.recipe?.rating === 'up' ? data.recipe : null;
   useEffect(() => {
     if (!liked || started.current === liked.id || !liked.steps.some((s) => s.id && !s.image_path)) return;
     started.current = liked.id;
-    void makeStepPhotos(liked.id, liked.steps, (done, total, stepId, path) => {
-      setStepProgress({ done, total });
-      if (stepId && path) setStepPhoto(stepId, path);
-    }).then((result) => {
-      setStepProgress(null);
-      if (result.error) setPhotoError(`Couldn't make step photos: ${result.error}`);
-    });
+    runStepPhotos(liked, false);
   }, [liked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Remakes every AI step photo, one at a time; photos you took yourself are left alone. Stops at the first failure. */
@@ -88,7 +100,7 @@ export default function RecipeCard() {
     setStepProgress({ done: 0, total: generated.length });
     for (const [n, step] of generated.entries()) {
       try {
-        setStepPhoto(step.id!, await repo.generateStepPhoto(data.recipe.id, step.id!, true));
+        setStepPhoto(step.id!, await repo.generateStepPhoto(data.recipe.id, step.id!, true, true));
         setStepProgress({ done: n + 1, total: generated.length });
       } catch (e) {
         setPhotoError(`Couldn't make step photos: ${e instanceof Error ? e.message : String(e)}`);
@@ -143,6 +155,7 @@ export default function RecipeCard() {
   const prep = recipe.steps.filter((s) => s.phase === 'prep_8pm');
   const finish = recipe.steps.filter((s) => s.phase === 'finish');
   const settings = recipe.steps.filter((s) => s.machine && s.settings);
+  const missingPhotos = recipe.steps.filter((s) => s.id && !s.image_path).length;
   const tabLabel = (n: number) => (n === household ? `Household · ${formatPortions(n)}` : n === 9 ? '9 · big batch' : `${n} portions`);
 
   return (
@@ -153,6 +166,8 @@ export default function RecipeCard() {
           {photoBusy && <span className="text-sm font-semibold text-muted">Making photo…</span>}
           <RecipeMenu items={[
             { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
+            ...(missingPhotos > 0
+              ? [{ label: 'Add step photos ✨', onSelect: () => setConfirmAdd(true), disabled: stepProgress !== null }] : []),
             ...(recipe.steps.some((s) => s.image_source === 'generated')
               ? [{ label: 'New step photos ✨', onSelect: () => void newStepPhotos(), disabled: stepProgress !== null }] : []),
             { label: 'Print', onSelect: () => window.print() },
@@ -164,6 +179,16 @@ export default function RecipeCard() {
       </div>
 
       {photoError && <ErrorBanner message={photoError} />}
+      {confirmAdd && (
+        <div role="group" aria-label="Add step photos" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
+          <p className="m-0 font-semibold">Make {missingPhotos} step photo{missingPhotos === 1 ? '' : 's'}? About {photoCost(missingPhotos)}.</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setConfirmAdd(false)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Cancel</button>
+            <button type="button" onClick={() => { setConfirmAdd(false); setPhotoError(null); started.current = recipe.id; runStepPhotos(recipe, true); }}
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Make photos</button>
+          </div>
+        </div>
+      )}
       <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>

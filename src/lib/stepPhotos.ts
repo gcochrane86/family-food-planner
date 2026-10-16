@@ -8,7 +8,8 @@ interface Run { promise: Promise<{ made: number; error: string | null }>; listen
 
 const running = new Map<string, Run>();
 
-export function makeStepPhotos(recipeId: string, steps: { id?: string; image_path: string | null }[], onProgress: Progress) {
+/** `asked`: chosen from the recipe's ⚙︎ menu after seeing the cost, so the recipe needn't be 👍. */
+export function makeStepPhotos(recipeId: string, steps: { id?: string; image_path: string | null }[], onProgress: Progress, { asked = false } = {}) {
   const existing = running.get(recipeId);
   if (existing) {
     existing.listeners.add(onProgress);
@@ -23,7 +24,7 @@ export function makeStepPhotos(recipeId: string, steps: { id?: string; image_pat
     tell(0, todo.length);
     for (const step of todo) {
       try {
-        const path = await repo.generateStepPhoto(recipeId, step.id);
+        const path = await repo.generateStepPhoto(recipeId, step.id, false, asked);
         made += 1;
         tell(made, todo.length, step.id, path);
       } catch (e) {

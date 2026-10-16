@@ -42,3 +42,8 @@ test('each new photo is reported with its step and path', async () => {
   await makeStepPhotos('r1', steps(null), (_d, _t, stepId, path) => seen.push([stepId, path]));
   expect(seen).toEqual([[undefined, undefined], ['s1', 'r1/s1.jpg']]);
 });
+
+test('photos asked for from the menu are sent as asked', async () => {
+  await makeStepPhotos('r9', steps(null), () => {}, { asked: true });
+  expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's1', false, true);
+});

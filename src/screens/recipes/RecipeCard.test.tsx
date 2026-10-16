@@ -126,7 +126,34 @@ test('new step photos come from the settings menu and leave your own photos alon
   expect(screen.queryByRole('button', { name: /Redo photo/ })).not.toBeInTheDocument();
   await fromSettings('New step photos ✨');
   await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(1));
-  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true);
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true, true);
+});
+
+test('add step photos asks first with a rough cost, then makes them without needing a 👍', async () => {
+  open('r-honey');
+  await fromSettings('Add step photos ✨');
+  expect(screen.getByText('Make 3 step photos? About 9p.')).toBeInTheDocument();
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
+  for (const st of HONEY.steps) expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, st.id, false, true);
+  expect(h.repo.rateRecipe).not.toHaveBeenCalled();
+});
+
+test('cancelling add step photos makes nothing', async () => {
+  open('r-honey');
+  await fromSettings('Add step photos ✨');
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByText(/Make 3 step photos/)).not.toBeInTheDocument();
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+});
+
+test('no add option when every step already has a photo', async () => {
+  const steps = HONEY.steps.map((s, i) => ({ ...s, image_path: `p${i}.jpg`, image_source: 'own' as const }));
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, steps });
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
+  expect(screen.queryByRole('menuitem', { name: 'Add step photos ✨' })).not.toBeInTheDocument();
 });
 
 test('no step photo option when a recipe has no AI step photos', async () => {

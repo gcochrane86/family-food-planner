@@ -240,8 +240,8 @@ export const repo = {
   },
 
   /** Asks the generate-step-photo Edge Function for one step's photo. Returns the new image path. */
-  async generateStepPhoto(recipeId: string, stepId: string, replace = false): Promise<string> {
-    const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace } });
+  async generateStepPhoto(recipeId: string, stepId: string, replace = false, asked = false): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace, asked } });
     if (error) {
       const context = (error as { context?: Response }).context;
       const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
