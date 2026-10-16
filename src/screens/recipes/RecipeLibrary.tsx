@@ -21,7 +21,32 @@ const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hello
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
-  const { data, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId]);
+  const { data, setData, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId]);
+  const [photos, setPhotos] = useState<'idle' | 'confirm' | 'running' | 'done'>('idle');
+  const [progress, setProgress] = useState(0);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const missing = (data ?? []).filter((r) => !r.hero_image_path);
+
+  /** Makes photos one at a time and stops at the first failure, so a problem can't run up a bill. */
+  async function makePhotos() {
+    const todo = missing;
+    setPhotos('running');
+    setPhotoError(null);
+    let made = 0;
+    for (const r of todo) {
+      setProgress(made);
+      try {
+        const path = await repo.generateHero(r.id);
+        made++;
+        setData((list) => (list ?? []).map((x) => (x.id === r.id ? { ...x, hero_image_path: path, hero_image_source: 'generated' } : x)));
+      } catch (e) {
+        setPhotoError(`Stopped after ${made} of ${todo.length}: ${e instanceof Error ? e.message : String(e)}`);
+        setPhotos('idle');
+        return;
+      }
+    }
+    setPhotos('done');
+  }
   const [filters, setFilters] = useState<string[]>([]);
 
   const toggle = (label: string) =>
@@ -43,6 +68,28 @@ export default function RecipeLibrary() {
         })}
       </div>
       {error && <ErrorBanner message={error} onRetry={reload} />}
+      {photoError && <ErrorBanner message={photoError} />}
+      {photos === 'done' && missing.length === 0 && <p className="text-sm font-semibold text-accent">All recipes have photos.</p>}
+      {missing.length > 0 && photos !== 'done' && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 text-sm">
+          <span>
+            {photos === 'running'
+              ? `Making photos… ${progress + 1} of ${missing.length + progress}`
+              : `${missing.length} recipe${missing.length === 1 ? ' has' : 's have'} no photo yet (about £${(missing.length * 0.034 * 0.79).toFixed(2)}).`}
+          </span>
+          {photos === 'idle' && (
+            <button type="button" onClick={() => setPhotos('confirm')} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Make photos</button>
+          )}
+          {photos === 'confirm' && (
+            <span className="flex gap-2">
+              <button type="button" onClick={() => void makePhotos()} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">
+                Make {missing.length} photo{missing.length === 1 ? '' : 's'}
+              </button>
+              <button type="button" onClick={() => setPhotos('idle')} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Cancel</button>
+            </span>
+          )}
+        </div>
+      )}
       {loading && !error && <p className="text-muted">Loading…</p>}
       {!loading && !error && data?.length === 0 && (
         <div className="rounded-2xl border border-dashed border-line p-8 text-center">

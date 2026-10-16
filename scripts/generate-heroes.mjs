@@ -1,6 +1,7 @@
 // Generates hero photos for recipes that don't have one yet, one at a time, via the generate-hero Edge Function.
 //   npm run heroes -- --household <household-id>          (shows how many and the rough cost)
-//   npm run heroes -- --household <household-id> --yes    (makes them)
+//   npm run heroes -- --household <household-id> --limit 1 --yes   (try one first)
+//   npm run heroes -- --household <household-id> --yes    (makes them; stops at the first failure)
 import { createClient } from '@supabase/supabase-js';
 import { loadEnv } from './env.mjs';
 
@@ -36,9 +37,10 @@ for (const r of todo) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    // Stop rather than keep paying for attempts that may fail the same way.
     console.error(`✗ ${r.title}: ${body.error ?? `HTTP ${res.status}`}`);
-    if (res.status === 500 && /GOOGLE_AI_API_KEY/.test(body.error ?? '')) break;
-    continue;
+    console.error(`Stopped. ${todo.length - made} left to do; fix the problem and run again.`);
+    break;
   }
   made++;
   console.log(`✓ ${r.title}`);

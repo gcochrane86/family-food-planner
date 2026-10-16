@@ -36,6 +36,27 @@ test('the TM7 filter keeps only recipes that use it', async () => {
   expect(screen.queryByRole('link', { name: /Aubergine Tacos/ })).not.toBeInTheDocument();
 });
 
+test('missing photos are offered with the count and cost, and only made after confirming', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  expect(await screen.findByText(/2 recipes have no photo yet/)).toHaveTextContent('about £0.05');
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  expect(h.repo.generateHero).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole('button', { name: 'Make 2 photos' }));
+  expect(h.repo.generateHero).toHaveBeenCalledTimes(2);
+  expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
+  expect(h.repo.generateHero).toHaveBeenCalledWith('r-doner');
+  expect(await screen.findByText('All recipes have photos.')).toBeInTheDocument();
+});
+
+test('making photos stops at the first failure and says why', async () => {
+  h.repo.generateHero.mockRejectedValueOnce(new Error('Google quota reached'));
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await userEvent.click(await screen.findByRole('button', { name: 'Make photos' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Make 2 photos' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Stopped after 0 of 2: Google quota reached');
+  expect(h.repo.generateHero).toHaveBeenCalledTimes(1);
+});
+
 test('an empty library says so', async () => {
   h.repo.listRecipes.mockResolvedValueOnce([]);
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
