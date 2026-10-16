@@ -115,6 +115,18 @@ export function useWeek() {
       const d = dinner(date);
       if (d && !d.locked) void commit(current!.slots.map((s) => (s === d ? { ...s, locked: true } : s)), [{ ...d, locked: true }]);
     },
+    cooked: (date: string) => {
+      const d = dinner(date);
+      if (!d) return;
+      const updated = { ...d, cooked_at: new Date().toISOString() };
+      void commit(current!.slots.map((s) => (s === d ? updated : s)), [updated]);
+    },
+    verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => {
+      const d = dinner(date);
+      if (!d) return;
+      const updated = { ...d, portions_verdict: v };
+      void commit(current!.slots.map((s) => (s === d ? updated : s)), [updated]);
+    },
     breakfast: (date: string, choice: string) => {
       const b = current?.slots.find((s) => s.date === date && s.slot === 'breakfast');
       if (!b) return;

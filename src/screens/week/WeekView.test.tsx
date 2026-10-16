@@ -106,3 +106,18 @@ test('on Saturday an unapproved week reminds you of the deadline', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   expect(await screen.findByText(/Approve by 2pm today for Sunday's delivery/)).toBeInTheDocument();
 });
+
+test('marking a dinner cooked asks how the portions were and saves the answer', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  const tue = () => day(/Tuesday/);
+  await user().click(within(tue()).getByRole('button', { name: 'Mark cooked' }));
+  let saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved[0]).toMatchObject({ date: '2026-10-20', slot: 'dinner' });
+  expect(saved[0].cooked_at).toBeTruthy();
+  expect(within(tue()).getByText('How were the portions?')).toBeInTheDocument();
+  await user().click(within(tue()).getByRole('button', { name: 'About right' }));
+  saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved[0]).toMatchObject({ slot: 'dinner', portions_verdict: 'right' });
+  expect(within(tue()).getByText('✓ Cooked · portions about right')).toBeInTheDocument();
+});

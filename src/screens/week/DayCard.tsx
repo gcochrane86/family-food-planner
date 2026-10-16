@@ -6,6 +6,7 @@ import { addDays, type WeekState } from './useWeek';
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const POOL = ['Eggs', 'Porridge', 'Baked oats'];
+const VERDICTS = [['not_enough', 'Not enough'], ['right', 'About right'], ['leftovers', 'Leftovers']] as const;
 const btn = 'rounded-lg border border-line bg-surface px-2.5 py-1 text-[13px] font-semibold';
 
 export function dayLabel(date: string): string {
@@ -94,6 +95,25 @@ export default function DayCard({ date, w }: { date: string; w: WeekState }) {
               </span>
             )}
           </div>
+
+          {dinner.mode === 'cook' && !dinner.cooked_at && (
+            <button type="button" className={`${btn} justify-self-start`} onClick={() => w.cooked(date)}>Mark cooked</button>
+          )}
+          {dinner.mode === 'cook' && dinner.cooked_at && !dinner.portions_verdict && (
+            <div className="grid gap-1.5">
+              <p className="m-0 text-sm font-semibold">How were the portions?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {VERDICTS.map(([v, label]) => (
+                  <button key={v} type="button" className={btn} onClick={() => w.verdict(date, v)}>{label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {dinner.mode === 'cook' && dinner.cooked_at && dinner.portions_verdict && (
+            <p className="m-0 text-sm font-semibold text-accent">
+              ✓ Cooked · portions {VERDICTS.find(([v]) => v === dinner.portions_verdict)![1].toLowerCase()}
+            </p>
+          )}
 
           {swapping && (
             <div className="grid gap-1.5 rounded-xl bg-surface-2 p-2.5">
