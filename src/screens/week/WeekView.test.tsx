@@ -84,13 +84,13 @@ test('shows a tile per day with breakfast, lunch and dinner', async () => {
   const mon = await tile('Monday 19');
   expect(within(mon).getByText(HONEY.title)).toBeInTheDocument();
   expect(within(mon).getByText('Packed lunch')).toBeInTheDocument();
-  expect(within(mon).getByText('Office')).toBeInTheDocument();
+  for (const tag of ['Office', 'Prep tonight', 'Cook once ×2']) expect(within(mon).queryByText(tag)).not.toBeInTheDocument();
 });
 
-test('the week tile shows the balance', async () => {
+test('the week tile shows no balance chips', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
-  expect(await screen.findByText('2 chicken')).toBeInTheDocument();
-  expect(screen.getByText('1 fish')).toBeInTheDocument();
+  await screen.findByRole('button', { name: 'Approve week' });
+  expect(screen.queryByText('2 chicken')).not.toBeInTheDocument();
 });
 
 test('tapping a day opens it with its options, and changes show on its tile', async () => {
@@ -158,7 +158,6 @@ test('the night before an overnight-oats morning, the 8pm prep says so', async (
     ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'breakfast' && s.date === '2026-10-21' ? { ...s, reason: 'Overnight oats' } : s)) }
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
-  expect(within(await tile('Tuesday 20')).getByText('Prep tonight')).toBeInTheDocument();
   await openDay('Tue');
   expect(within(day(/Tuesday/)).getByRole('group', { name: 'Prep tonight' })).toHaveTextContent('Overnight oats for Wednesday');
 });

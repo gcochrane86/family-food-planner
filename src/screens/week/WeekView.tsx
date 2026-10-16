@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import ErrorBanner from '../../components/ErrorBanner';
-import { daySummary, proteinBalance } from '../../lib/weekSummary';
+import { daySummary } from '../../lib/weekSummary';
 import DaySheet from './DaySheet';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
@@ -12,7 +12,6 @@ export default function WeekView() {
   const tiles = useRef(new Map<string, HTMLButtonElement | null>());
   const dates = Array.from({ length: w.week?.days ?? 7 }, (_, i) => addDays(w.weekStart, i));
   const { weekday, hour, date: today } = w.starts.london;
-  const balance = useMemo(() => proteinBalance(w.slots, w.recipes), [w.slots, w.recipes]);
 
   const close = useCallback(() => {
     setOpen((d) => {
@@ -53,7 +52,7 @@ export default function WeekView() {
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
-          <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14} balance={balance}
+          <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14}
             onApprove={() => void w.approve()} cookidoo={w.cookidoo} onRetry={() => void w.retryCookidoo()} />
         </div>
       )}

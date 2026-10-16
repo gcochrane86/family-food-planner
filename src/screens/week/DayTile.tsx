@@ -1,11 +1,7 @@
 import { forwardRef } from 'react';
-import type { DayChip, DaySummary } from '../../lib/weekSummary';
+import type { DaySummary } from '../../lib/weekSummary';
 import { dayLabel } from './DayCard';
 
-const CHIP: Record<DayChip, string> = {
-  office: 'bg-evening-soft text-evening', prep: 'bg-evening-soft text-evening', twice: 'bg-accent-soft text-accent',
-  guests: 'bg-yolk-soft text-yolk', out: 'bg-warn-soft text-warn', cooked: 'bg-accent-soft text-accent',
-};
 const row = 'grid grid-cols-[10px_minmax(0,1fr)] items-start gap-2 text-[13.5px] leading-snug md:grid-cols-[12px_minmax(0,1fr)] md:gap-3 md:text-lg';
 const dot = 'mt-[0.32em] h-2.5 w-2.5 rounded-full md:h-3 md:w-3';
 const text = 'min-w-0 break-words';
@@ -27,13 +23,6 @@ const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummar
           <i className={`${dot} ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
           <span className={`dinner ${text}`}>{summary.dinner}</span>
         </span>
-        {summary.chips.length > 0 && (
-          <span className="flex flex-wrap gap-1">
-            {summary.chips.map((c) => (
-              <span key={c.kind} className={`rounded-full px-2 py-0.5 text-[11px] font-bold tracking-[0.02em] md:px-2.5 md:py-1 md:text-[13px] ${CHIP[c.kind]}`}>{c.label}</span>
-            ))}
-          </span>
-        )}
       </button>
     );
   },

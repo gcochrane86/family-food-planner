@@ -21,8 +21,14 @@ test('lunch shows its reason, packed, leftovers or home lunch', () => {
 
 test('home lunch suggestions are shortened for the tile', () => {
   const lunch = (reason: string) => daySummary('2026-10-21', edit('2026-10-21', 'lunch', { reason }), recipes, []).lunch;
-  expect(lunch('Leftover Healthy Trinity Chicken Chow Mein, or a chicken sandwich')).toBe('Leftovers or a sandwich');
+  expect(lunch('Leftover Healthy Trinity Chicken Chow Mein, or a chicken sandwich')).toBe('Leftovers');
   expect(lunch('Chicken sandwich on sourdough')).toBe('Chicken sandwich');
+});
+
+test('a lunch with a choice shows what was picked, leftovers by default', () => {
+  const slots = edit('2026-10-21', 'lunch', { reason: 'Leftover Soy & Ginger Beef, or a chicken sandwich', routine_choice: 'Chicken sandwich' });
+  expect(daySummary('2026-10-21', slots, recipes, []).lunch).toBe('Chicken sandwich');
+  expect(daySummary('2026-10-21', edit('2026-10-21', 'lunch', { reason: 'Leftover Soy & Ginger Beef, or a chicken sandwich', routine_choice: 'Leftovers' }), recipes, []).lunch).toBe('Leftovers');
 });
 
 test('dinner shows the recipe, out tonight or leftovers night', () => {
