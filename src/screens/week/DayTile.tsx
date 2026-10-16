@@ -8,7 +8,7 @@ const CHIP: Record<DayChip, string> = {
 };
 const row = 'grid grid-cols-[10px_minmax(0,1fr)] items-start gap-2 text-[13.5px] leading-snug md:grid-cols-[12px_minmax(0,1fr)] md:gap-3 md:text-lg';
 const dot = 'mt-[0.32em] h-2.5 w-2.5 rounded-full md:h-3 md:w-3';
-const text = 'line-clamp-2 break-words';
+const text = 'min-w-0 break-words';
 
 /** One day on the week grid: breakfast, lunch and dinner at a glance. Tap to open the day. */
 const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummary; today: boolean; onOpen: () => void }>(

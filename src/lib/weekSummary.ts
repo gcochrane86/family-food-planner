@@ -27,7 +27,10 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const d = find('dinner');
   const tomorrow = find('dinner', nextDay(date));
 
-  const lunch = l?.reason
+  // Tiles are small: the day sheet keeps the full suggestion.
+  const short = (r: string | null | undefined) =>
+    r && /, or a chicken sandwich$/.test(r) ? 'Leftovers or a sandwich' : r === 'Chicken sandwich on sourdough' ? 'Chicken sandwich' : r;
+  const lunch = short(l?.reason)
     ?? (l?.mode === 'packed' ? 'Packed lunch'
       : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}`
         : 'Home lunch');

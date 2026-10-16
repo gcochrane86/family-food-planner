@@ -19,6 +19,12 @@ test('lunch shows its reason, packed, leftovers or home lunch', () => {
   expect(daySummary('2026-10-21', edit('2026-10-21', 'lunch', { reason: null }), recipes, []).lunch).toBe('Home lunch');
 });
 
+test('home lunch suggestions are shortened for the tile', () => {
+  const lunch = (reason: string) => daySummary('2026-10-21', edit('2026-10-21', 'lunch', { reason }), recipes, []).lunch;
+  expect(lunch('Leftover Healthy Trinity Chicken Chow Mein, or a chicken sandwich')).toBe('Leftovers or a sandwich');
+  expect(lunch('Chicken sandwich on sourdough')).toBe('Chicken sandwich');
+});
+
 test('dinner shows the recipe, out tonight or leftovers night', () => {
   expect(daySummary('2026-10-20', NEXT_WEEK.slots, recipes, [])).toMatchObject({ dinner: 'Varoma Salmon', dinnerOut: false });
   expect(daySummary('2026-10-20', edit('2026-10-20', 'dinner', { mode: 'out' }), recipes, [])).toMatchObject({ dinner: 'Out tonight', dinnerOut: true });
