@@ -374,3 +374,11 @@ test("a stranger can't request a sync for another household's week", async () =>
   await as(STRANGER, `select request_cookidoo_sync('${wid}')`).catch(() => {});
   expect(await runs(OWNER, wid)).toEqual([]);
 });
+
+test('a step keeps its photo description when the recipe is re-seeded', async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, image_path, image_source, photo_hint)
+    values ('${rid}', 'finish', 1, 'Simmer', 'old', 'x.jpg', 'generated', 'Chickpeas bubbling in sauce')`);
+  await one(OWNER, `select replace_recipe_contents('${rid}', '[]', '${JSON.stringify([{ phase: 'finish', position: 1, title: 'Simmer', body: 'new' }])}')`);
+  expect(await as(OWNER, 'select photo_hint from recipe_steps')).toEqual([{ photo_hint: 'Chickpeas bubbling in sauce' }]);
+});
