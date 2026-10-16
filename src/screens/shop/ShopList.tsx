@@ -10,6 +10,9 @@ import { weekStarts } from '../week/useWeek';
 
 type Delivery = 'sun' | 'tue';
 
+/** A tick belongs to an item at a quantity: if the amount changes (guests, swaps), the line needs buying again. */
+const tickKey = (item: ShopItem) => (item.qty === null ? item.key : `${item.key}@${Math.round(item.qty * 100) / 100}`);
+
 export default function ShopList() {
   const { householdId } = useAuth();
   const hid = householdId!;
@@ -30,16 +33,19 @@ export default function ShopList() {
   const [ticked, setTicked] = useState<Map<string, boolean>>(new Map());
   const [banner, setBanner] = useState<string | null>(null);
 
-  const isTicked = (d: Delivery, key: string) => ticked.get(`${d}:${key}`) ?? data?.ticks.get(`${d}:${key}`) ?? false;
+  const isTicked = (d: Delivery, item: ShopItem) => {
+    const id = `${d}:${tickKey(item)}`;
+    return ticked.get(id) ?? data?.ticks.get(id) ?? false;
+  };
 
   async function toggle(d: Delivery, item: ShopItem) {
     if (!data?.chosen?.week) return;
-    const id = `${d}:${item.key}`;
-    const value = !isTicked(d, item.key);
+    const id = `${d}:${tickKey(item)}`;
+    const value = !isTicked(d, item);
     setTicked((m) => new Map(m).set(id, value));
     setBanner(null);
     try {
-      await repo.setTick(data.chosen.week.id, d, item.key, value);
+      await repo.setTick(data.chosen.week.id, d, tickKey(item), value);
     } catch {
       setTicked((m) => new Map(m).set(id, !value));
       setBanner(SAVE_ERROR);
@@ -47,7 +53,7 @@ export default function ShopList() {
   }
 
   function Section({ d, title, items }: { d: Delivery; title: string; items: ShopItem[] }) {
-    const left = items.filter((i) => !isTicked(d, i.key)).length;
+    const left = items.filter((i) => !isTicked(d, i)).length;
     return (
       <section aria-label={title} className="grid gap-2">
         <div className="flex items-baseline justify-between">
@@ -57,7 +63,7 @@ export default function ShopList() {
         {items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
           <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
             {items.map((item) => {
-              const done = isTicked(d, item.key);
+              const done = isTicked(d, item);
               const amount = formatQty(item.qty, item.unit, item.approx);
               return (
                 <li key={item.key}>

@@ -39,11 +39,23 @@ test('ticking an item saves it', async () => {
   h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
   render(<ShopList />, { wrapper: MemoryRouter });
   await user().click(await screen.findByRole('checkbox', { name: /chicken breast or thigh/ }));
-  expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'chicken breast or thigh|g', true);
+  expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'chicken breast or thigh|g@1200', true);
   expect(screen.getByRole('checkbox', { name: /chicken breast or thigh/ })).toBeChecked();
 });
 
 test('a draft week asks you to approve it first', async () => {
   render(<ShopList />, { wrapper: MemoryRouter });
   expect(await screen.findByText("Approve next week's menu to make the list.")).toBeInTheDocument();
+});
+
+test('a ticked item un-ticks itself when its quantity changes, so nothing is under-bought', async () => {
+  h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+  // Ticked earlier when the list said 1kg; it now says 1.2kg (e.g. after guests were added).
+  h.repo.getTicks.mockResolvedValue([
+    { delivery: 'sun', item_key: 'chicken breast or thigh|g@1000', ticked: true },
+    { delivery: 'tue', item_key: 'lamb mince|g@500', ticked: true },
+  ]);
+  render(<ShopList />, { wrapper: MemoryRouter });
+  expect(await screen.findByRole('checkbox', { name: /chicken breast or thigh/ })).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: /lamb mince/ })).toBeChecked();
 });
