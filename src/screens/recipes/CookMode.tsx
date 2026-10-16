@@ -121,7 +121,7 @@ export default function CookMode() {
     try {
       const blob = await resizeImage(file);
       const path = await repo.uploadStepPhoto(householdId!, step.id, blob);
-      setData({ ...recipe, steps: recipe.steps.map((s) => (s.id === step.id ? { ...s, image_path: path } : s)) });
+      setData({ ...recipe, steps: recipe.steps.map((s) => (s.id === step.id ? { ...s, image_path: path, image_source: 'own' as const } : s)) });
     } catch {
       setPhotoError("Couldn't save the photo. Check your connection and try again.");
     } finally {
@@ -144,7 +144,7 @@ export default function CookMode() {
       </div>
 
       {timers.length > 0 && (
-        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap gap-2">
+        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap gap-2 md:max-w-6xl">
           {timers.map((t) => (
             <span key={t.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm ${t.done ? 'bg-lcd-ink text-[#0A0E0B]' : 'bg-white/10 text-white'}`}>
               <span className="font-semibold">{t.label}</span>
@@ -156,11 +156,12 @@ export default function CookMode() {
       )}
       <div role="status" className="sr-only">{timers.filter((t) => t.done).map((t) => `${t.label}: done`).join('. ')}</div>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
         {!step ? (
           <p className="text-xl">No {phase === 'prep_8pm' ? '8pm prep' : 'dinner'} steps for this recipe.</p>
         ) : (
           <>
+            <div className="flex flex-col gap-5">
             <p className="font-mono text-sm text-lcd-ink">
               {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}
             </p>
@@ -184,18 +185,26 @@ export default function CookMode() {
                 </button>
               );
             })() : null}
-            {step.image_path && <img src={repo.heroUrl(step.image_path)} alt="Your photo of this step" className="max-h-64 self-start rounded-2xl object-cover" />}
+            </div>
+            <div className="flex flex-col gap-3">
+              {(() => {
+                const path = step.image_path ?? recipe.hero_image_path;
+                if (!path) return null;
+                const alt = !step.image_path ? recipe.title : step.image_source === 'generated' ? 'Photo of this step' : 'Your photo of this step';
+                return <img src={repo.heroUrl(path)} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
+              })()}
             {photoError && <ErrorBanner message={photoError} />}
             <label className="self-start cursor-pointer rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">
               {saving ? 'Saving photo…' : step.image_path ? 'Replace photo' : 'Add photo'}
               <input type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Add photo" disabled={saving}
                 onChange={(e) => { void addPhoto(e.target.files?.[0]); e.target.value = ''; }} />
             </label>
+            </div>
           </>
         )}
       </div>
 
-      <div className="mx-auto flex w-full max-w-3xl justify-between gap-3">
+      <div className="mx-auto flex w-full max-w-3xl justify-between gap-3 md:max-w-6xl">
         <button type="button" disabled={index === 0} onClick={() => { setIndex((i) => i - 1); setPhotoError(null); }}
           className="rounded-xl bg-white/10 px-6 py-3.5 text-base font-semibold text-white disabled:opacity-35">Back</button>
         <button type="button" onClick={() => { if (last) close(); else { setIndex((i) => i + 1); setPhotoError(null); } }}

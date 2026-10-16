@@ -6,20 +6,20 @@ const LABEL: [keyof Balance, string][] = [['chicken', 'chicken'], ['fish', 'fish
 export default function WeekTile({ approved, saturdayMorning, balance, onApprove }:
   { approved: boolean; saturdayMorning: boolean; balance: Balance; onApprove: () => void }) {
   return (
-    <div className={`grid content-between gap-2 rounded-[22px] p-3.5 ${approved ? 'bg-accent-soft' : 'bg-accent text-accent-ink'}`}>
+    <div className={`grid content-between gap-2 rounded-[22px] p-3.5 md:min-h-[230px] md:gap-3 md:rounded-[26px] md:p-5 ${approved ? 'bg-accent-soft' : 'bg-accent text-accent-ink'}`}>
       <div className="grid gap-1">
-        <h2 className="text-[17px] font-bold">
+        <h2 className="text-[17px] font-bold md:text-2xl">
           {approved ? '✓ Approved' : saturdayMorning ? "Approve by 2pm today for Sunday's delivery" : "Next week's menu is ready"}
         </h2>
-        {!approved && !saturdayMorning && <p className="m-0 text-[13px] opacity-90">Approve by Saturday 2pm for the Sunday delivery.</p>}
+        {!approved && !saturdayMorning && <p className="m-0 text-[13px] opacity-90 md:text-base">Approve by Saturday 2pm for the Sunday delivery.</p>}
       </div>
       <div className="flex flex-wrap gap-1">
         {LABEL.filter(([k]) => balance[k] > 0).map(([k, label]) => (
-          <span key={k} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${approved ? 'bg-surface' : 'bg-white/20'}`}>{balance[k]} {label}</span>
+          <span key={k} className={`rounded-full px-2 py-0.5 text-[11px] font-bold md:px-2.5 md:py-1 md:text-[13px] ${approved ? 'bg-surface' : 'bg-white/20'}`}>{balance[k]} {label}</span>
         ))}
       </div>
       {!approved && (
-        <button type="button" onClick={onApprove} className="rounded-xl bg-accent-ink px-3 py-2.5 font-bold text-accent">Approve week</button>
+        <button type="button" onClick={onApprove} className="rounded-xl bg-accent-ink px-3 py-2.5 font-bold text-accent md:py-3.5 md:text-lg">Approve week</button>
       )}
     </div>
   );

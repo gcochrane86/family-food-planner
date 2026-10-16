@@ -48,7 +48,7 @@ export default function WeekView() {
       )}
 
       {w.week && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
           {dates.map((d) => (
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />

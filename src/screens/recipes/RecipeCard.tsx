@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions } from '../../lib/household';
-import { formatQty, groupIngredients, machineLabel, pantryLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
+import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import type { Machine, RecipeStep } from '../../lib/types';
@@ -27,25 +27,31 @@ function Steps({ steps, label, pill, timeline, redo, redoing }: {
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${pill}`}>{timeline ? 'Phase 2' : 'Phase 1'}</span>
         <h2 id={id} className="text-xl font-bold">{label}</h2>
       </div>
-      <ol className="divide-y divide-line border-t border-line">
+      <ol className="grid gap-3">
         {steps.map((s, i) => (
-          <li key={s.id ?? i} className="grid grid-cols-[44px_minmax(0,1fr)] gap-3 py-3">
-            <span className="font-display text-2xl font-bold leading-none text-muted">
-              {i + 1}
-              {timeline && s.at_minute !== null && <small className="mt-1 block font-mono text-[11px] font-medium">{s.at_minute} min</small>}
-            </span>
-            <div className="grid gap-1.5">
-              <h3 className="text-base font-bold">{s.title}</h3>
+          <li key={s.id ?? i} className={`grid gap-3 rounded-2xl border border-line bg-surface p-4 md:gap-5 md:p-5 ${s.image_path ? 'sm:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]' : ''}`}>
+            <div className="grid content-start gap-2">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface-2 font-display text-lg font-bold">{i + 1}</span>
+                <div>
+                  <h3 className="text-lg font-bold leading-tight">{s.title}</h3>
+                  {timeline && s.at_minute !== null && <small className="font-mono text-[11px] font-medium text-muted">at {s.at_minute} min</small>}
+                </div>
+              </div>
               {s.machine && <div><MachineBadge machine={s.machine} settings={s.settings} /></div>}
-              <p className="m-0"><StepText text={s.body} /></p>
-              {s.image_path && <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="mt-1 max-h-60 rounded-xl object-cover" />}
-              {s.image_path && s.image_source === 'generated' && (
-                <button type="button" onClick={() => redo(s)} disabled={redoing !== null}
-                  className="justify-self-start text-[13px] font-semibold text-muted underline disabled:opacity-60 print:hidden">
-                  {redoing === s.id ? 'Making photo…' : 'Redo photo'}
-                </button>
-              )}
+              <p className="m-0 text-[15.5px] leading-relaxed md:text-[17px]"><StepText text={s.body} /></p>
             </div>
+            {s.image_path && (
+              <div className="grid content-start gap-1.5">
+                <img src={repo.heroUrl(s.image_path)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
+                {s.image_source === 'generated' && (
+                  <button type="button" onClick={() => redo(s)} disabled={redoing !== null}
+                    className="justify-self-start text-[13px] font-semibold text-muted underline disabled:opacity-60 print:hidden">
+                    {redoing === s.id ? 'Making photo…' : 'Redo photo'}
+                  </button>
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ol>
@@ -57,8 +63,8 @@ export default function RecipeCard() {
   const { id = '' } = useParams();
   const { householdId } = useAuth();
   const { data, setData, error, loading, reload } = useAsync(async () => {
-    const [recipe, members, staples] = await Promise.all([repo.getRecipe(id), repo.listMembers(householdId!), repo.listStaples(householdId!)]);
-    return { recipe, members, staples };
+    const [recipe, members] = await Promise.all([repo.getRecipe(id), repo.listMembers(householdId!)]);
+    return { recipe, members };
   }, [id, householdId]);
   const [portions, setPortions] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -124,7 +130,7 @@ export default function RecipeCard() {
 
   if (error) return <div className="py-6"><ErrorBanner message={error} onRetry={reload} /></div>;
   if (loading || !data) return <p className="py-6 text-muted">Loading…</p>;
-  const { recipe, members, staples } = data;
+  const { recipe, members } = data;
   if (!recipe) {
     return (
       <section className="py-6">
@@ -192,7 +198,7 @@ export default function RecipeCard() {
         <div className="rounded-2xl border border-line bg-surface p-3"><dd className="m-0 font-display text-2xl font-bold">{recipe.hands_off_minutes} min</dd><dt className="text-xs text-muted">of that, hands-off</dt></div>
       </dl>
 
-      <div className="grid items-start gap-6 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <div className="grid items-start gap-6 md:grid-cols-[minmax(0,0.62fr)_minmax(0,1.38fr)] md:gap-8">
         <div>
           <h2 className="text-xl font-bold">Ingredients</h2>
           <div role="tablist" aria-label="Portions" className="mt-2 flex w-max max-w-full flex-wrap gap-1 rounded-xl bg-surface-2 p-1 print:hidden">
@@ -208,16 +214,12 @@ export default function RecipeCard() {
             <div key={g.group}>
               <h3 className="mb-1 mt-4 text-xs font-bold uppercase tracking-[0.06em] text-muted">{g.group}</h3>
               <ul>
-                {g.items.map((item, i) => {
-                  const label = pantryLabel(item.name, staples);
-                  return (
-                    <li key={item.id ?? i} className="grid grid-cols-[76px_minmax(0,1fr)_auto] items-baseline gap-2 border-b border-line py-1.5">
-                      <span className="font-bold tabular-nums">{formatQty(item.qty === null ? null : item.qty * factor, item.unit, item.qty_approx)}</span>
-                      <span><span>{item.name}</span>{item.note && <span className="text-[12.5px] text-muted"> · {item.note}</span>}</span>
-                      <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${label === 'In pantry' ? 'bg-surface-2 text-muted' : 'bg-accent-soft text-accent'}`}>{label}</span>
-                    </li>
-                  );
-                })}
+                {g.items.map((item, i) => (
+                  <li key={item.id ?? i} className="grid grid-cols-[76px_minmax(0,1fr)] items-baseline gap-2 border-b border-line py-1.5 md:py-2">
+                    <span className="font-bold tabular-nums">{formatQty(item.qty === null ? null : item.qty * factor, item.unit, item.qty_approx)}</span>
+                    <span><span>{item.name}</span>{item.note && <span className="text-[12.5px] text-muted"> · {item.note}</span>}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           ))}

@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
+import { HONEY } from '../../test/fixtures';
 import CookMode from './CookMode';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -109,4 +110,13 @@ test('a failed photo upload says so and keeps the step as it was', async () => {
   await userEvent.upload(screen.getByLabelText('Add photo'), new File(['img'], 'step.jpg', { type: 'image/jpeg' }));
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save the photo");
   expect(screen.queryByRole('img', { name: 'Your photo of this step' })).not.toBeInTheDocument();
+});
+
+test('a step without its own photo shows the main photo; a generated photo is labelled as such', async () => {
+  const steps = HONEY.steps.map((s) => (s.id === 's-sauce' ? { ...s, image_path: 'h1/steps/gen.jpg', image_source: 'generated' as const } : s));
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', steps });
+  open();
+  expect(await screen.findByRole('img', { name: HONEY.title })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('tab', { name: '8pm prep' }));
+  expect(screen.getByRole('img', { name: 'Photo of this step' })).toBeInTheDocument();
 });

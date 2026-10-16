@@ -28,11 +28,11 @@ test('quantities start scaled to the household and rescale with the tabs', async
   expect(screen.getByRole('tab', { name: 'Household · 3.0' })).toHaveAttribute('aria-selected', 'false');
 });
 
-test('ingredients say whether they are in the pantry', async () => {
-  h.repo.listStaples.mockResolvedValueOnce([{ id: 'p', ingredient_id: 'i', name: 'Basmati rice', status: 'have' }]);
+test('ingredients have no pantry or to-buy labels', async () => {
   open('r-honey');
-  expect((await screen.findByText('basmati rice')).closest('li')).toHaveTextContent('In pantry');
-  expect(screen.getByText('chicken breast or thigh').closest('li')).toHaveTextContent('To buy');
+  const chicken = await screen.findByText('chicken breast or thigh');
+  expect(chicken.closest('li')).not.toHaveTextContent(/In pantry|To buy/);
+  expect(screen.queryByText('To buy')).not.toBeInTheDocument();
 });
 
 test('both phases, machine badges and bold ingredients are shown', async () => {
