@@ -80,6 +80,8 @@ describe("Ready for Sainsbury's", () => {
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     expect(within(sunday).getByText(/Basket filled/)).toBeInTheDocument();
     expect(within(sunday).getByText('24 items added; swaps: none')).toBeInTheDocument();
+    expect(within(sunday).getByRole('button', { name: 'Fill again (tops up only)' })).toBeInTheDocument();
+    expect(within(sunday).queryByRole('button', { name: "Ready for Sainsbury's" })).not.toBeInTheDocument();
   });
 
   test('an item with a saved Sainsbury’s product shows it', async () => {

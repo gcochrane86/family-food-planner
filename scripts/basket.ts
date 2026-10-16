@@ -1,12 +1,14 @@
 // Helper for filling the Sainsbury's basket (see docs/playbooks/sainsburys-basket.md). Runs on the owner's Mac
 // with the service key from .env. It never touches Sainsbury's itself: Claude does that in Chrome.
 //   npx tsx scripts/basket.ts list   --household <id> --delivery sun|tue
-//   npx tsx scripts/basket.ts record --household <id> --key "<item key>" --name "<product>" --url <url> --size 500 --unit g [--price 1.75] [--pin]
-//   npx tsx scripts/basket.ts finish --run <run id> --status done|failed --summary "<what happened>"
+//   npx tsx scripts/basket.ts record --household <id> < product.json   {"key","name","url","size","unit","price","pin"?}
+//   npx tsx scripts/basket.ts finish < finish.json                      {"run","status":"done"|"failed","summary"}
+// record and finish read JSON on stdin so text copied from web pages never goes through a shell command line.
 import { createClient } from '@supabase/supabase-js';
 import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
+import { parseFinish, parseProduct } from './basketInput';
 import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
@@ -77,18 +79,22 @@ async function list() {
   console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery, deliveryDate }, items }, null, 2));
 }
 
+async function stdin(): Promise<string> {
+  if (process.stdin.isTTY) fail('Pipe the JSON in, e.g. npm run -s basket -- record --household <id> < product.json');
+  let data = '';
+  for await (const chunk of process.stdin) data += chunk;
+  return data;
+}
+function read<T>(parser: (text: string) => T, text: string): T {
+  try { return parser(text); } catch (e) { return fail((e as Error).message); }
+}
+
 async function record() {
   const householdId = arg('household') ?? fail('--household is required');
+  const p = read(parseProduct, await stdin());
   const row = {
-    household_id: householdId,
-    item_key: arg('key') ?? fail('--key is required'),
-    product_name: arg('name') ?? fail('--name is required'),
-    product_url: arg('url') ?? null,
-    pack_size: arg('size') ? Number(arg('size')) : null,
-    pack_unit: arg('unit') ?? '',
-    price: arg('price') ? Number(arg('price')) : null,
-    pinned: rest.includes('--pin'),
-    updated_at: new Date().toISOString(),
+    household_id: householdId, item_key: p.key, product_name: p.name, product_url: p.url,
+    pack_size: p.size, pack_unit: p.unit, price: p.price, pinned: p.pin, updated_at: new Date().toISOString(),
   };
   const existing = must<{ pinned: boolean } | null>(
     await db.from('products').select('pinned').eq('household_id', householdId).eq('item_key', row.item_key).maybeSingle(), 'Reading product');
@@ -98,11 +104,9 @@ async function record() {
 }
 
 async function finish() {
-  const id = arg('run') ?? fail('--run is required');
-  const status = arg('status') ?? fail('--status done|failed is required');
-  if (!['done', 'failed'].includes(status)) fail('--status must be done or failed');
-  must(await db.from('basket_runs').update({ status, summary: arg('summary') ?? null, finished_at: new Date().toISOString() }).eq('id', id), 'Closing the run');
-  console.log(`Run ${id} marked ${status}.`);
+  const f = read(parseFinish, await stdin());
+  must(await db.from('basket_runs').update({ status: f.status, summary: f.summary, finished_at: new Date().toISOString() }).eq('id', f.run), 'Closing the run');
+  console.log(`Run ${f.run} marked ${f.status}.`);
 }
 
 const commands: Record<string, () => Promise<void>> = { list, record, finish };

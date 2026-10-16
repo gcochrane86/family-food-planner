@@ -103,7 +103,7 @@ function RunStatus({ run, onReady }: { run: BasketRun | null; onReady: () => voi
         {run?.status === 'failed' && <><b className="text-warn">Basket not finished.</b> <span>{run.summary}</span></>}
         {!run && 'When the list looks right:'}
       </span>
-      <button type="button" onClick={onReady} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Ready for Sainsbury's</button>
+      <button type="button" onClick={onReady} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">{run?.status === 'done' || run?.status === 'failed' ? 'Fill again (tops up only)' : "Ready for Sainsbury's"}</button>
     </div>
   );
 }
