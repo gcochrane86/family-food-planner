@@ -78,5 +78,28 @@ Household id: in **Settings → Household** in the app. Never guess it.
   `https://cookidoo.co.uk/planning/en-GB/my-week?date=YYYY-MM-DD`.
 - A recipe page's text gives the ingredients and the "Preparation" steps. The creator line shows the account email,
   so leave it out of anything recorded.
-- (Fill in during the first sync: how Create recipe and the My Week add/remove controls work, and how much guided
-  cooking the TM7 gives for a created recipe.)
+- **Find buttons by name** (the find tool or the accessibility tree), never by screen position: the window size
+  changes, and a fixed click once landed on one of the household's own recipe cards.
+- **Create a recipe** (learned in the first sync, 16 Oct 2026):
+  1. On Created recipes, the floating green **+** at the bottom right opens a small menu: **Create recipe** /
+     Import recipe. Choose Create recipe.
+  2. Type the title in "Give your recipe a title" and press Enter. The editor opens at
+     `/created-recipes/en-GB/<id>/edit`. That `<id>` is the recipe's URL to record.
+  3. **Servings:** the third unlabelled button beside the title opens "Additional information" (tabs Prep. time /
+     Total time / Serving size). Set the number, then Confirm.
+  4. **Device:** the **Edit** button under Devices & Accessories shows TM7 / TM6 / TM5 tiles, with TM6 selected by
+     default. Tap TM7 on and TM6 off, then Confirm. Check the saved page says TM7.
+  5. **Ingredients:** open `.../edit/ingredients-and-preparation-steps?active=ingredients`. Each ingredient is a
+     line. Type one, press Enter for the next, and **wait about a second after each Enter** before typing:
+     typing fast loses lines. Read the lines back before moving on, and fix any that are wrong.
+  6. **Steps:** "Add first step", then the same one-line-per-step typing with pauses.
+  7. The green **Confirm** at the top right saves the lists. Then the green **Done** saves the recipe. Open the
+     recipe page and check the ingredient count, steps, TM7 and portions.
+- **My Week:** on a recipe's page, the ⋮ menu has **Add to My Week**. It also has "Add to shopping list", "Edit"
+  and "Delete": never use those from here. Add to My Week opens a month calendar with today outlined. Click the
+  day (a real click: a scripted click doesn't register), check only that day is filled green, then **Save**.
+  The My Week page shows 5 days at a time, so check later days with `?date=`.
+- Removing an entry from My Week: use the ⋮ on that entry's card in My Week for that day, and only remove the entry
+  whose title matches the one to remove. (Not needed yet as of the first sync.)
+- **TM7 guided cooking:** a created recipe's steps are plain text. Cookidoo didn't turn "13 min/100°C/speed 3"
+  into guided settings, so the TM7 shows the text and you set the machine by hand.
