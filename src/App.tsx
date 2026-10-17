@@ -2,11 +2,11 @@ import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthProvider';
 import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
-import Placeholder from './screens/Placeholder';
 import CookMode from './screens/recipes/CookMode';
 import WeekView from './screens/week/WeekView';
 import ShopList from './screens/shop/ShopList';
 import RecipeEditor from './screens/recipes/RecipeEditor';
+import Pantry from './screens/pantry/Pantry';
 import PlanningRules from './screens/settings/PlanningRules';
 import RecipeCard from './screens/recipes/RecipeCard';
 import RecipeLibrary from './screens/recipes/RecipeLibrary';
@@ -46,7 +46,7 @@ export function AppRoutes() {
       <Route path="/recipes/:id" element={<RecipeCard />} />
       <Route path="/recipes/:id/cook" element={<CookMode />} />
       <Route path="/recipes/:id/edit" element={<RecipeEditor />} />
-      <Route path="/pantry" element={<Placeholder title="Pantry" phase={3} />} />
+      <Route path="/pantry" element={<Pantry />} />
       <Route path="/shop" element={<ShopList />} />
       <Route path="/settings">
         <Route index element={<SettingsHome />} />

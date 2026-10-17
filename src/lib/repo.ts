@@ -3,7 +3,7 @@ import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
 import { slugify } from './mealPhotos';
 import type {
-  BasketRun, Equipment, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
+  BasketRun, Equipment, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
@@ -273,6 +273,39 @@ export const repo = {
       household_id: householdId, slug, title: name, kind: 'component', source: 'own_doc', base_portions: 2, tags: [tag],
       status: 'active', toddler_ok: true, finish_minutes: 10,
     }).select('*').single()));
+  },
+
+  /** What's in the freezer (and cooked things in the fridge), soonest use-by first. */
+  async listPrepared(householdId: string): Promise<PreparedItem[]> {
+    return must(await db().from('prepared_items').select('*').eq('household_id', householdId).gt('portions', 0).order('use_by', { ascending: true, nullsFirst: false }));
+  },
+  async addPrepared(householdId: string, item: Omit<PreparedItem, 'id' | 'household_id'>): Promise<PreparedItem> {
+    return must(await db().from('prepared_items').insert({ household_id: householdId, ...item }).select().single());
+  },
+  /** Sets how many portions are left; 0 removes it. */
+  async setPreparedPortions(id: string, portions: number): Promise<void> {
+    if (portions <= 0) must(await db().from('prepared_items').delete().eq('id', id));
+    else must(await db().from('prepared_items').update({ portions }).eq('id', id));
+  },
+  /** The fridge and cupboard: staples (have / low / out) and things you've added. */
+  async listPantry(householdId: string): Promise<PantryEntry[]> {
+    type Row = { id: string; staple_status: StapleStatus | null; qty: number | null; unit: string | null; location: string; ingredients: { name: string } | { name: string }[] };
+    const rows = must<Row[]>(await db().from('pantry_items').select('id, staple_status, qty, unit, location, ingredients(name)')
+      .eq('household_id', householdId).neq('location', 'freezer'));
+    const nameOf = (i: Row['ingredients']) => (Array.isArray(i) ? i[0]?.name : i?.name) ?? '';
+    return rows.map((r) => ({
+      id: r.id, name: nameOf(r.ingredients), location: r.location === 'fridge' ? 'fridge' as const : 'cupboard' as const,
+      qty: r.qty === null ? null : Number(r.qty), unit: r.unit, staple: r.staple_status,
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  },
+  async addPantryItem(householdId: string, name: string, location: 'fridge' | 'cupboard', qty: number | null = null, unit: string | null = null): Promise<PantryEntry> {
+    const ing = must<{ id: string; name: string }>(
+      await db().from('ingredients').upsert({ household_id: householdId, name: name.trim() }, { onConflict: 'household_id,name' }).select('id, name').single());
+    const row = must<{ id: string }>(await db().from('pantry_items').insert({ household_id: householdId, ingredient_id: ing.id, qty, unit, location }).select('id').single());
+    return { id: row.id, name: ing.name, location, qty, unit, staple: null };
+  },
+  async removePantryItem(id: string): Promise<void> {
+    must(await db().from('pantry_items').delete().eq('id', id));
   },
 
   /** Whether a dinner reheats well (and so also makes the next day's lunch). */

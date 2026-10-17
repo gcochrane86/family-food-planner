@@ -1,4 +1,4 @@
-import type { Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep } from '../lib/types';
+import type { PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -45,6 +45,12 @@ export function fakeRepo() {
     setQuickDone: vi.fn(async () => {}),
     clearQuickDone: vi.fn(async () => {}),
     addMealRecipe: vi.fn(async (householdId: string, name: string, tag: 'Breakfast' | 'Lunch'): Promise<Recipe> => ({ ...TACOS, id: `r-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, household_id: householdId, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title: name, kind: 'component', tags: [tag], hero_image_path: null, hero_image_source: null })),
+    listPrepared: vi.fn(async (): Promise<PreparedItem[]> => []),
+    addPrepared: vi.fn(async (householdId: string, item: Omit<PreparedItem, 'id' | 'household_id'>): Promise<PreparedItem> => ({ id: 'p-new', household_id: householdId, ...item })),
+    setPreparedPortions: vi.fn(async (_id: string, _portions: number) => {}),
+    listPantry: vi.fn(async (): Promise<PantryEntry[]> => []),
+    addPantryItem: vi.fn(async (_householdId: string, name: string, location: 'fridge' | 'cupboard', qty?: number | null, unit?: string | null): Promise<PantryEntry> => ({ id: 'e-new', name, location, qty: qty ?? null, unit: unit ?? null, staple: null })),
+    removePantryItem: vi.fn(async (_id: string) => {}),
     setReheatsWell: vi.fn(async (_recipeId: string, _value: boolean) => {}),
     saveRecipe: vi.fn(async (_original: RecipeDetail, _fields: RecipeEdit, _ingredients: RecipeIngredient[], _steps: RecipeStep[]) => {}),
     getRework: vi.fn(async (): Promise<RecipeRework | null> => null),

@@ -292,3 +292,13 @@ export interface PreparedItem {
   made_on: string;
   use_by: string | null;
 }
+
+/** A fridge or cupboard entry: a staple (have / low / out) or something you added, with an amount. */
+export interface PantryEntry {
+  id: string; // pantry_items.id
+  name: string;
+  location: 'fridge' | 'cupboard';
+  qty: number | null;
+  unit: string | null;
+  staple: StapleStatus | null;
+}
