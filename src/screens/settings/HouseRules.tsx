@@ -43,7 +43,7 @@ export default function HouseRules() {
   }
 
   return (
-    <Page title="House rules" intro="Applied to every recipe and shopping list, e.g. wraps are homemade, yoghurt is always Greek."
+    <Page title="Meal rules" intro="What every recipe follows: made from scratch, no ultra-processed food, and which kit does what. Claude follows these when it writes, imports or reworks a recipe, and when it shops."
       loading={loading} error={error} onRetry={reload}>
       {banner && <ErrorBanner message={banner} />}
       <ul className={`${card} divide-y divide-line`}>

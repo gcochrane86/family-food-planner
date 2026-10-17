@@ -36,7 +36,7 @@ export default function PlanningRules() {
   ];
 
   const checks: { live: boolean; title: string; text: ReactNode }[] = [
-    { live: true, title: 'House rules', text: 'From scratch, no sausages and the rest of your house rules. Recipes are written to follow them.' },
+    { live: true, title: 'Meal rules', text: 'From scratch, no UPFs, sauces in the TM7 and the rest of your Meal rules (in Settings). Every recipe is written to follow them.' },
     { live: true, title: 'Protein balance', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie, never the same protein two nights running.` },
     { live: true, title: 'Weeknight time', text: `Monday to Friday dinners take ${minutes} minutes or less (${Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.` },
     { live: true, title: 'No repeats', text: "Nothing from the last two weeks and nothing twice in a week (if there's no other option, the dinner says why). Recipes you've rated 👎 or archived are left out." },
@@ -45,7 +45,7 @@ export default function PlanningRules() {
   ];
 
   return (
-    <Page title="Planning rules" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it does it." loading={loading} error={error} onRetry={reload}>
+    <Page title="Planner" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it does it. What goes into each recipe is in Meal rules." loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
           <section aria-label="How the week is built" className="grid gap-2">
