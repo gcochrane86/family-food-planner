@@ -39,6 +39,12 @@
   - brisket at 80°C for 10 hours, held in its juices
   - gravy from a browned base with the wine reduced first, finished with redcurrant jelly, soy, salt and butter
   - Yorkshires in a 4mm layer of smoking fat
+- **The owner's workflow (18 Oct 2026):**
+  - **Prep at breakfast:** a morning window, starting at 08:45 by default and adjustable in the builder, for all the prep that can be done ahead.
+  - **Then out.**
+  - **About an hour, at most 95 minutes, of hands-on work before serving.**
+  - **In between:** only hands-off kit, like the brisket holding in the APO or a joint roasting.
+  - The scheduler puts every make-ahead step in the morning window. It warns when a combination needs hands-on work between morning and service, or more than 95 minutes of service countdown.
 - **Temperatures that can share a cavity:** within 10°C of each other, and at most 2 trays per cavity at once.
 - **Photos:** each step shows its part's step photo, or the part's main photo. Making missing photos is offered with a cost (about 3p each), never automatic.
 

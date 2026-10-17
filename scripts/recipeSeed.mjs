@@ -47,6 +47,17 @@ export function validateRecipeSeed(file) {
       if (s?.settings != null && typeof s.settings !== 'string') problems.push(`${at}.steps[${j}].settings must be text`);
       if (s?.timer != null && (!Number.isInteger(s.timer) || s.timer <= 0)) problems.push(`${at}.steps[${j}].timer must be whole minutes`);
     });
+    if (r?.roast != null) {
+      const KITS = ['oven', 'grill', 'warm', 'apo', 'tm7', 'hob', 'hy24', 'counter'];
+      const ro = r.roast;
+      if (!['main', 'side'].includes(ro?.part)) problems.push(`${at}.roast.part must be main or side`);
+      (Array.isArray(ro?.steps) ? ro.steps : (problems.push(`${at}.roast.steps must be a list`), [])).forEach((st, j) => {
+        if (!isText(st?.title)) problems.push(`${at}.roast.steps[${j}].title missing`);
+        if (!isNum(st?.before) || st.before < 0) problems.push(`${at}.roast.steps[${j}].before must be minutes before serving`);
+        if (!isNum(st?.minutes) || st.minutes < 0) problems.push(`${at}.roast.steps[${j}].minutes must be minutes`);
+        if (!KITS.includes(st?.kit)) problems.push(`${at}.roast.steps[${j}].kit must be one of ${KITS.join(', ')}`);
+      });
+    }
     if (r?.batch != null) {
       const b = r.batch;
       if (!isText(b?.name)) problems.push(`${at}.batch.name missing`);
@@ -70,6 +81,7 @@ export function recipeRow(householdId, r) {
     prep_minutes: r.prep_minutes ?? 0, finish_minutes: r.finish_minutes ?? 0, hands_off_minutes: r.hands_off_minutes ?? 0,
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
     batch: r.batch ?? null,
+    roast: r.roast ?? null,
   };
 }
 
@@ -89,7 +101,7 @@ export function contentRows(r) {
 
 const SEED_FIELDS = ['slug', 'title', 'subtitle', 'kind', 'component_role', 'source', 'base_portions', 'reheats_well', 'freezes_well',
   'toddler_ok', 'toddler_note', 'protein', 'salt_per_portion_g', 'prep_minutes', 'finish_minutes', 'hands_off_minutes', 'tags', 'equipment',
-  'reheat', 'status', 'batch'];
+  'reheat', 'status', 'batch', 'roast'];
 const num = (v) => (v === null || v === undefined ? v : Number(v));
 
 /** A saved recipe (row + ingredients + steps) in the seed format, e.g. for Claude to rework it. */

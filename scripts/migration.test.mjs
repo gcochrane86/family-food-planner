@@ -498,3 +498,11 @@ test("0012: a stranger can't start fresh for another household or see its reques
   expect(await as(STRANGER, 'select * from fresh_starts')).toHaveLength(0);
   expect(await as(OWNER, 'select * from plan_weeks')).toHaveLength(0);
 });
+
+test('0013: recipes and dinners can carry a roast description', async () => {
+  const { rid, wid } = await cookidooWeek(OWNER);
+  await as(OWNER, `update recipes set roast = '{"part":"side","mains":["beef"],"steps":[]}' where id = '${rid}'`);
+  expect(await one(OWNER, `select roast->>'part' from recipes where id = '${rid}'`)).toBe('side');
+  await as(OWNER, `update meal_slots set roast = '{"main":"beef","sides":["roasties"],"people":15,"serve":"13:30"}' where plan_week_id = '${wid}' and slot = 'dinner'`);
+  expect(await one(OWNER, `select roast->>'serve' from meal_slots where plan_week_id = '${wid}' and slot = 'dinner'`)).toBe('13:30');
+});

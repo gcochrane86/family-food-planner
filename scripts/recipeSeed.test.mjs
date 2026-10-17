@@ -127,3 +127,15 @@ test('a batch must name one of the recipe\'s ingredient groups, and travels thro
   const { ingredients, steps } = contentRows(r);
   expect(seedFromDetail({ ...recipeRow('h1', r), ingredients, steps }).batch).toEqual(r.batch);
 });
+
+test('a roast description is checked and travels through the row helpers', () => {
+  const s = clone();
+  const r = s.recipes[0];
+  r.roast = { part: 'side', mains: ['beef'], steps: [{ title: 'In', before: 40, minutes: 40, kit: 'toaster' }] };
+  expect(validateRecipeSeed(s).some((p) => p.includes('roast'))).toBe(true);
+  r.roast.steps[0].kit = 'oven';
+  expect(validateRecipeSeed(s)).toEqual([]);
+  expect(recipeRow('h1', r).roast).toEqual(r.roast);
+  const { ingredients, steps } = contentRows(r);
+  expect(seedFromDetail({ ...recipeRow('h1', r), ingredients, steps }).roast).toEqual(r.roast);
+});

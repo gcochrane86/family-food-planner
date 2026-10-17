@@ -138,6 +138,8 @@ export interface Recipe {
   source_url?: string | null;
   /** The make-ahead part that freezes well, if any (src/lib/batch.ts). */
   batch?: RecipeBatch | null;
+  /** A roast part's description (src/lib/roastModel.ts), for the roast builder. */
+  roast?: unknown;
 }
 
 export interface RecipeDetail extends Recipe {
@@ -178,6 +180,8 @@ export interface MealSlot {
   cookidoo_recipe_id?: string | null;
   /** make a batch / made it / use a frozen portion / checked it's in the freezer */
   batch?: BatchPlan | null;
+  /** A dinner planned as a roast: { main, sides, people, serve }. */
+  roast?: unknown;
 }
 
 // Shopping (Phase 4) -------------------------------------------------------------
