@@ -158,6 +158,14 @@ The planner fills each home lunch in this order:
 
 The kitchen list is stored as data (§4 `equipment`). It decides which recipes are possible and which machine each step uses.
 
+### Shopping model and the flavour pantry (17 Oct 2026)
+The two weekly Sainsbury's shops buy **fresh meat and vegetables** (plus any staple marked *out* that a recipe needs). Flavour comes from a from-scratch pantry, in the spirit of Ethan Chlebowski's Cook Well:
+- **Cupboard:** grains, tins, oils, vinegars, umami, nuts and whole spices.
+- **Fridge:** dairy, pickles and one homemade sauce on the go.
+- **Freezer:** batch pastes, stock paste, cooked beans and meat, plain frozen veg and fruit.
+
+Recipes are reworked over time to draw on this list.
+
 ### Pantry staples (from your list)
 Cumin, coriander seeds, garlic granules, soy sauce, olive oil, apple cider vinegar, eggs, tinned tomatoes, tomato purée, red wine vinegar, red wine, white wine, beef stock, chicken stock, balsamic vinegar, dates, sea salt, Dijon mustard, onion powder, paprika, turmeric, chilli flakes, basmati rice, chickpeas, black beans.
 
