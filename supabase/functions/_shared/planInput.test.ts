@@ -93,3 +93,8 @@ test('the planner never picks a roast part or a hosting recipe by itself', () =>
   expect(i.recipes.map((r) => r.id)).not.toContain('h');
   expect(i.recipes.map((r) => r.id)).not.toContain('r');
 });
+
+test('day rules reach the planner', () => {
+  expect(buildPlannerInput({ ...rows, settings: { day_rules: [{ weekday: 3, protein: 'fish', note: 'Fishmonger' }] } }).dayRules).toEqual([{ weekday: 3, protein: 'fish', note: 'Fishmonger' }]);
+  expect(buildPlannerInput(rows).dayRules).toEqual([]);
+});

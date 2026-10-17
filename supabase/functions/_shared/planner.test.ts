@@ -254,3 +254,12 @@ describe('the freezer', () => {
     expect(used).toBe(40);
   });
 });
+
+test('a day rule: fish on Thursday every week, and the reason says why', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const p = proposeWeek(input({ seed, dayRules: [{ weekday: 3, protein: 'fish', note: 'Fishmonger in town' }] }));
+    const thu = dinnerOn(p, '2026-10-22');
+    expect({ seed, protein: proteinOf(thu.recipeId) }).toEqual({ seed, protein: 'fish' });
+    expect(thu.reason).toContain('Fishmonger in town');
+  }
+});

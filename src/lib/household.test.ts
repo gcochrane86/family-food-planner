@@ -48,6 +48,8 @@ describe('validateSettings', () => {
       adventure: 1,
       breakfasts: ['Overnight oats', 'Baked oats', 'Eggs & porridge'],
       lunches: ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Tuna poke bowl', 'Mexican beef poke bowl', 'Chicken poke bowl', 'Salmon poke bowl'],
+      day_rules: [],
+      other_shops: [],
     });
   });
   test('ignores values of the wrong type', () => {
@@ -61,4 +63,22 @@ test('breakfast and lunch lists: kept tidy, with the defaults when missing or em
   expect(s.lunches).toEqual(['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Tuna poke bowl', 'Mexican beef poke bowl', 'Chicken poke bowl', 'Salmon poke bowl']);
   expect(validateSettings({}).breakfasts).toEqual(['Overnight oats', 'Baked oats', 'Eggs & porridge']);
   expect(validateSettings({ lunches: Array.from({ length: 30 }, (_, i) => `L${i}`) }).lunches).toHaveLength(20);
+});
+
+test('your requirements: day rules and other shops are kept tidy', () => {
+  const s = validateSettings({
+    day_rules: [{ weekday: 3, protein: 'fish', note: 'Fishmonger in town' }, { weekday: 9, protein: 'fish' }, { weekday: 1, protein: 'pudding' }],
+    other_shops: [
+      { name: 'Fishmonger', buys: ['salmon', ' Cod '], day: 3, sometimes: false },
+      { name: 'Farm shop', buys: ['eggs', 'milk'], sometimes: true, weeks: ['2026-10-19', 'nope'] },
+      { name: '', buys: ['x'] },
+    ],
+  });
+  expect(s.day_rules).toEqual([{ weekday: 3, protein: 'fish', note: 'Fishmonger in town' }]);
+  expect(s.other_shops).toEqual([
+    { name: 'Fishmonger', buys: ['salmon', 'cod'], day: 3, sometimes: false, weeks: [] },
+    { name: 'Farm shop', buys: ['eggs', 'milk'], day: null, sometimes: true, weeks: ['2026-10-19'] },
+  ]);
+  expect(validateSettings({}).day_rules).toEqual([]);
+  expect(validateSettings({}).other_shops).toEqual([]);
 });

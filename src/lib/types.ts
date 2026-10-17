@@ -35,7 +35,16 @@ export interface Settings {
   /** Your breakfast and home-lunch options, in the order the day sheet shows them. */
   breakfasts: string[];
   lunches: string[];
+  /** Your requirements: a protein on a given day (fish on Thursday: the fishmonger's in town). */
+  day_rules: DayRule[];
+  /** Your requirements: things bought somewhere other than Sainsbury's. */
+  other_shops: OtherShop[];
 }
+
+export interface DayRule { weekday: number; protein: Protein; note: string | null }
+/** Another shop: what it's for (ingredient words), its day (only that day's dinners) or any day, and whether it's
+ *  only some weeks (then `weeks` lists the weeks you're going). */
+export interface OtherShop { name: string; buys: string[]; day: number | null; sometimes: boolean; weeks: string[] }
 
 export type RuleKind = 'substitute' | 'prefer' | 'avoid';
 

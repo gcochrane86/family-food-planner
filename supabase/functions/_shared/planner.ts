@@ -28,6 +28,7 @@ export interface PlannerInput {
   seed: number;
   breakfasts?: string[];      // your breakfast options; the built-in rotation when missing
   frozen?: { recipeId: string; portions: number }[]; // batch portions in the freezer, in date
+  dayRules?: { weekday: number; protein: Protein; note?: string | null }[]; // e.g. fish on Thursday
 }
 
 export interface ProposedSlot {
@@ -128,7 +129,9 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const frozenLeft = new Map((input.frozen ?? []).map((f) => [f.recipeId, f.portions]));
   const recent = new Set(input.recentRecipeIds);
 
+  // Your day rules (fish on Thursday) fix those nights' protein before the rest is balanced around them.
   const fixed = new Map<number, Protein | null>();
+  for (const rule of input.dayRules ?? []) { const k = nights.indexOf(rule.weekday); if (k >= 0) fixed.set(k, rule.protein); }
   const plannedProtein = proteinSequence(input, nights, rnd, fixed);
 
   function chosenProtein(k: number): Protein | null {
@@ -205,6 +208,8 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
     else if (i >= 5) reason = `${what}: a weekend cook (${r.finishMinutes} min)`;
     else reason = `${what} · ${r.finishMinutes} min`;
+    const dayRule = (input.dayRules ?? []).find((d) => d.weekday === i && d.protein === r.protein);
+    if (dayRule?.note) reason += ` · ${dayRule.note}`;
     if (r.reheatsWell && i + 1 < input.days) reason += ` · makes ${DAY[i + 1]}'s lunch`;
     if (c.notes.length) reason += ` · ${c.notes.join(' · ')}`;
     const frozen = (frozenLeft.get(r.id) ?? 0) > 0;

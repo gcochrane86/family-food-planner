@@ -8,7 +8,7 @@ interface Rows {
   frozen?: { recipe_id: string | null; portions: number }[]; // in-date freezer portions
   weekStart: string;
   householdId: string;
-  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance>; breakfasts?: unknown[] } | null;
+  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance>; breakfasts?: unknown[]; day_rules?: { weekday: number; protein: Protein; note?: string | null }[] } | null;
   members: { id: string; kind: string; portion_weight: number | string }[];
   pattern: { member_id: string; weekday: number; office: boolean }[];
   recipes: {
@@ -56,6 +56,7 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
     seed: weekSeed(rows.householdId, rows.weekStart),
     ...(Array.isArray(s.breakfasts) && s.breakfasts.length ? { breakfasts: s.breakfasts.filter((b: unknown): b is string => typeof b === 'string') } : {}),
     ...(rows.frozen ? { frozen: frozenTotals(rows.frozen) } : {}),
+    dayRules: Array.isArray(s.day_rules) ? s.day_rules.filter((d: { weekday?: unknown; protein?: unknown }) => Number.isInteger(d?.weekday) && typeof d?.protein === 'string') : [],
   };
 }
 

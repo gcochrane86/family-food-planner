@@ -1,5 +1,5 @@
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
-import type { DeliverySlot, Member, Settings, StapleStatus } from './types';
+import type { DeliverySlot, Member, Settings, StapleStatus, DayRule, OtherShop } from './types';
 
 const WEIGHT_ERROR = 'Enter a number between 0.1 and 3';
 
@@ -36,6 +36,8 @@ export const DEFAULT_SETTINGS: Settings = {
   adventure: 1,
   breakfasts: DEFAULT_BREAKFASTS,
   lunches: HOME_LUNCHES,
+  day_rules: [],
+  other_shops: [],
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -60,6 +62,31 @@ function mealList(v: unknown, fallback: string[]): string[] {
   return out.length ? out.slice(0, 20) : fallback;
 }
 
+const PROTEINS = ['chicken', 'fish', 'red_meat', 'veggie', 'egg', 'other'];
+const day = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 6 ? v : null);
+
+function dayRules(v: unknown): DayRule[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x) => {
+    const r = (x ?? {}) as Record<string, unknown>;
+    const weekday = day(r.weekday);
+    if (weekday === null || !PROTEINS.includes(r.protein as string)) return [];
+    return [{ weekday, protein: r.protein as DayRule['protein'], note: typeof r.note === 'string' && r.note.trim() ? r.note.trim().slice(0, 80) : null }];
+  }).slice(0, 7);
+}
+
+function otherShops(v: unknown): OtherShop[] {
+  if (!Array.isArray(v)) return [];
+  return v.flatMap((x) => {
+    const r = (x ?? {}) as Record<string, unknown>;
+    const name = typeof r.name === 'string' ? r.name.trim().slice(0, 40) : '';
+    const buys = Array.isArray(r.buys) ? r.buys.filter((b): b is string => typeof b === 'string' && !!b.trim()).map((b) => b.trim().toLowerCase().slice(0, 40)) : [];
+    if (!name || !buys.length) return [];
+    const weeks = Array.isArray(r.weeks) ? r.weeks.filter((w): w is string => typeof w === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(w)).slice(-12) : [];
+    return [{ name, buys: buys.slice(0, 50), day: day(r.day), sometimes: r.sometimes === true, weeks }];
+  }).slice(0, 6);
+}
+
 export function validateSettings(raw: unknown): Settings {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const d = DEFAULT_SETTINGS;
@@ -76,5 +103,7 @@ export function validateSettings(raw: unknown): Settings {
     adventure: num(r.adventure) !== undefined ? Math.min(7, Math.max(0, Math.round(r.adventure as number))) : d.adventure,
     breakfasts: mealList(r.breakfasts, d.breakfasts),
     lunches: mealList(r.lunches, d.lunches),
+    day_rules: dayRules(r.day_rules),
+    other_shops: otherShops(r.other_shops),
   };
 }
