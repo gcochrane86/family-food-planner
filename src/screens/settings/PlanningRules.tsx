@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
+import { DEFAULT_BALANCE } from '../../../supabase/functions/_shared/planInput.ts';
 import { Badge, card, Page } from './ui';
 import { useAsync } from './useAsync';
 
@@ -10,12 +11,13 @@ const OFFICE_MAX = 20; // the planner's limit on office days (supabase/functions
 export default function PlanningRules() {
   const { householdId } = useAuth();
   const { data, error, loading, reload } = useAsync(() => repo.getSettings(householdId!), [householdId]);
+  const b = DEFAULT_BALANCE;
   const minutes = data?.weekday_dinner_max_min ?? 30;
   const adventure = data?.adventure ?? 1;
 
   const steps: { live: boolean; title: string; text: ReactNode }[] = [
     { live: true, title: 'Set breakfasts and lunches', text: 'Office days get a packed lunch and overnight oats; your other breakfasts take turns. Home lunches come from your lunch list.' },
-    { live: true, title: 'Plan the protein order', text: 'Spread the protein balance from your Meal specifications across the week, never the same protein two nights running.' },
+    { live: true, title: 'Plan the protein order', text: `Spread ${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie across the week, never the same protein two nights running.` },
     { live: true, title: 'Fill every night one at a time', text: "Each night, Sunday included, gets a dinner for your household's portions that passes the checks below. Among equally good dinners it picks at random, so weeks vary." },
     { live: false, title: 'Check the pack size', text: "For each dinner's fresh ingredients, look at the pack Sainsbury's sells and note what's left over: a recipe needing 100g of spinach comes from a 200g bag, so 100g is spare." },
     { live: false, title: 'Step forward with the leftovers', text: 'The next night prefers a dinner that uses what is spare, but only among dinners that keep the flavour variety. Then check its packs, and on to the next night.' },
@@ -25,14 +27,16 @@ export default function PlanningRules() {
   ];
 
   const checks: { live: boolean; title: string; text: ReactNode }[] = [
-    { live: true, title: 'Meal specifications', text: 'The protein and flavour balance, toddler salt, and how meals are made (from scratch, no UPFs, sauces in the TM7…). See Meal specifications in Settings.' },
+    { live: true, title: 'Meal specifications', text: 'Every dinner meets them: protein, veg, carb and a sauce from scratch, toddler salt, no UPFs, sauces in the TM7… (Settings → Meal specifications).' },
+    { live: true, title: 'Protein balance', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie dinners a week, never the same protein two nights running.` },
     { live: true, title: 'Weeknight time', text: `Monday to Friday dinners take ${minutes} minutes or less (${Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.` },
+    { live: false, title: 'Flavour variety', text: 'No two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
     { live: true, title: 'No repeats', text: "Nothing from the last two weeks and nothing twice in a week (if there's no other option, the dinner says why). Recipes you've rated 👎 or archived are left out." },
     { live: false, title: 'Use up leftovers', text: 'Prefer dinners that use what earlier dinners leave in the pack, but never at the expense of the checks above.' },
   ];
 
   return (
-    <Page title="Planner specifications" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it optimises the week. What a good week of meals looks like is in Meal specifications." loading={loading} error={error} onRetry={reload}>
+    <Page title="Planner specifications" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it balances and optimises the week. What each single meal should be is in Meal specifications." loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
           <section aria-label="How the week is built" className="grid gap-2">

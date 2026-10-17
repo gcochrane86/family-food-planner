@@ -3,17 +3,15 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import type { RuleKind } from '../../lib/types';
-import { DEFAULT_BALANCE } from '../../../supabase/functions/_shared/planInput.ts';
-import { Badge, card, input, Page, primary } from './ui';
+import { card, input, Page, primary } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
 
 const KIND_LABEL: Record<RuleKind, string> = { substitute: 'Swap', prefer: 'Prefer', avoid: 'Avoid' };
 
-const b = DEFAULT_BALANCE;
-const BALANCE = [
-  { live: true, title: 'Protein', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie dinners a week, never the same protein two nights running.` },
-  { live: true, title: 'Toddler salt', text: "About 0.5g or less in the toddler's portion of a main meal; season the adult plates at the table." },
-  { live: false, title: 'Flavour variety', text: 'No two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
+const MEAL = [
+  { title: 'On the plate', text: 'A protein, vegetables, a simple carb and a sauce made from scratch.' },
+  { title: 'Toddler salt', text: "About 0.5g or less in the toddler's portion; season the adult plates at the table." },
+  { title: 'Time', text: 'About 30 minutes on the night, with anything longer done the night before.' },
 ];
 
 export default function HouseRules() {
@@ -51,19 +49,17 @@ export default function HouseRules() {
   }
 
   return (
-    <Page title="Meal specifications" intro="What a good week of meals looks like: the balance across the week, and how every recipe is made. The planner follows the balance; Claude follows all of it when it writes, imports or reworks a recipe."
+    <Page title="Meal specifications" intro="What every single meal should be. Claude follows these when it writes, imports or reworks a recipe. How meals are balanced across the week is in Planner specifications."
       loading={loading} error={error} onRetry={reload}>
       {banner && <ErrorBanner message={banner} />}
-      <section aria-label="Balance across the week" className="grid gap-2">
-        <h2 className="text-lg font-bold">Balance across the week</h2>
+      <section aria-label="What makes a meal" className="grid gap-2">
+        <h2 className="text-lg font-bold">What makes a meal</h2>
         <ul className={`${card} m-0 grid list-none gap-3 p-4 text-[15px] leading-snug`}>
-          {BALANCE.map((r) => (
-            <li key={r.title} className={r.live ? '' : 'text-muted'}><Badge live={r.live} /><b className="text-ink">{r.title}:</b> {r.text}</li>
-          ))}
+          {MEAL.map((r) => <li key={r.title}><b>{r.title}:</b> {r.text}</li>)}
         </ul>
       </section>
-      <section aria-label="How meals are made" className="grid gap-2">
-      <h2 className="text-lg font-bold">How meals are made</h2>
+      <section aria-label="How it is made" className="grid gap-2">
+      <h2 className="text-lg font-bold">How it's made</h2>
       <ul className={`${card} divide-y divide-line`}>
         {data?.length === 0 && <li className="p-4 text-muted">No rules yet.</li>}
         {data?.map((r) => (

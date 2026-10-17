@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
 import HouseRules from './HouseRules';
@@ -15,15 +15,15 @@ beforeEach(() => {
   ] as never);
 });
 
-test('Meal specifications: the balance across the week, then how meals are made', async () => {
+test('Meal specifications describe one meal: what it is made of, then how it is made', async () => {
   render(<HouseRules />, { wrapper: MemoryRouter });
   expect(await screen.findByRole('heading', { level: 1, name: 'Meal specifications' })).toBeInTheDocument();
-  const balance = screen.getByRole('region', { name: 'Balance across the week' });
-  expect(balance).toHaveTextContent(/2 chicken, 1 fish, 1 red meat and 1 veggie/);
-  expect(balance).toHaveTextContent(/0\.5g/);
-  const variety = within(balance).getAllByRole('listitem').find((li) => /Flavour variety/.test(li.textContent ?? ''))!;
-  expect(variety).toHaveTextContent(/^Coming/);
-  const made = screen.getByRole('region', { name: 'How meals are made' });
+  const meal = screen.getByRole('region', { name: 'What makes a meal' });
+  expect(meal).toHaveTextContent(/a protein, vegetables, a simple carb and a sauce made from scratch/i);
+  expect(meal).toHaveTextContent(/0\.5g/);
+  expect(meal).toHaveTextContent(/30 minutes on the night/);
+  expect(screen.queryByText(/2 chicken|Flavour variety|a week/)).not.toBeInTheDocument();
+  const made = screen.getByRole('region', { name: 'How it is made' });
   expect(made).toHaveTextContent('Ultra-processed ingredients');
   expect(made).toHaveTextContent('Sauces in the TM7');
 });

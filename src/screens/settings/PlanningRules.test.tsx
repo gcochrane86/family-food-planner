@@ -36,8 +36,11 @@ test('every choice passes these checks, in this order of priority, starting with
   render(<PlanningRules />, { wrapper: MemoryRouter });
   const checks = within(await screen.findByRole('region', { name: 'Checks, in order of priority' })).getAllByRole('listitem').map((li) => li.textContent);
   expect(checks[0]).toMatch(/Meal specifications/);
-  expect(checks[1]).toMatch(/25 minutes or less \(20 on office days\)/);
-  expect(checks.join(' ')).not.toMatch(/2 chicken/);
+  expect(checks[1]).toMatch(/Protein balance: 2 chicken, 1 fish, 1 red meat and 1 veggie/);
+  expect(checks.join(' ')).toMatch(/25 minutes or less \(20 on office days\)/);
+  const variety = checks.findIndex((c) => /Flavour variety/.test(c ?? ''));
+  expect(checks[variety]).toMatch(/^Coming/);
+  expect(variety).toBeLessThan(checks.findIndex((c) => /Use up leftovers/.test(c ?? '')));
   expect(checks.at(-1)).toMatch(/Use up leftovers/);
 });
 
