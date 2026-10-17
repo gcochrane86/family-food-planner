@@ -68,7 +68,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
 
       {lunch && (
         <div className="grid gap-2">
-          <Label tone="text-teal">{lunchChoice ? 'Lunch · pick one' : 'Lunch'}</Label>
+          <Label tone="text-lunch">{lunchChoice ? 'Lunch · pick one' : 'Lunch'}</Label>
           {lunchChoice ? (
             <MealOptions label="Lunch" options={lunchOptions} picked={picked}
               onPick={(v) => w.lunch(date, v)} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />

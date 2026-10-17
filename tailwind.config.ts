@@ -2,7 +2,7 @@ import type { Config } from 'tailwindcss';
 
 const v = (name: string) => `var(--${name})`;
 const names = ['bg', 'surface', 'surface-2', 'ink', 'muted', 'line', 'accent', 'accent-ink', 'accent-soft',
-  'yolk', 'yolk-soft', 'teal', 'teal-soft', 'evening', 'evening-soft', 'warn', 'warn-soft', 'lcd', 'lcd-ink'];
+  'yolk', 'yolk-soft', 'teal', 'teal-soft', 'lunch', 'evening', 'evening-soft', 'warn', 'warn-soft', 'lcd', 'lcd-ink'];
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],

@@ -18,7 +18,7 @@ const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummar
           <span className="font-display text-2xl font-extrabold leading-none md:text-4xl">{dateNum}</span>
         </span>
         <span className={row}><i className={`${dot} bg-yolk`} /><span className={text}>{summary.breakfast}</span></span>
-        <span className={row}><i className={`${dot} bg-teal`} /><span className={text}>{summary.lunch}</span></span>
+        <span className={row}><i className={`${dot} bg-lunch`} /><span className={text}>{summary.lunch}</span></span>
         <span className={row}>
           <i className={`${dot} ${summary.dinnerOut ? 'border-2 border-muted' : 'bg-accent'}`} />
           <span className={`dinner ${text}`}>{summary.dinner}</span>

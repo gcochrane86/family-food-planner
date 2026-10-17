@@ -99,3 +99,10 @@ test('coming back to Recipes shows the list at once while it refreshes', async (
   expect(screen.getByRole('link', { name: /Miso Glazed Aubergine Tacos/ })).toBeInTheDocument();
   expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
 });
+
+test('recipe cards show just the photo, title and times', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  const card = await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
+  expect(card).not.toHaveTextContent(/Your recipe|written by Claude|HelloFresh|From your Cookidoo|From the web|draft|Toddler OK/i);
+  expect(card).toHaveTextContent(/min dinner/);
+});

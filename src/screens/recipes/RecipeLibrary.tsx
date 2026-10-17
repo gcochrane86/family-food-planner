@@ -18,8 +18,6 @@ const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
   { label: 'Components', test: (r) => r.kind === 'component' },
 ];
 
-const SOURCE: Record<Recipe['source'], string> = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo', web: 'From the web, converted' };
-
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
   const { data, setData, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId], { keep: `ffp.recipes.${householdId}` });
@@ -113,14 +111,10 @@ export default function RecipeLibrary() {
             <Link to={`/recipes/${r.id}`} className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface no-underline">
               <HeroImage recipe={r} className="aspect-[4/3] w-full" />
               <span className="grid gap-1 p-3">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
-                  {SOURCE[r.source]}{r.status === 'draft' ? ' · draft' : ''}
-                </span>
                 <span className="font-display text-[17px] font-semibold leading-tight">{r.title}</span>
                 <span className="flex flex-wrap gap-x-3 text-[12.5px] text-muted">
                   <span><b className="text-ink">{r.finish_minutes}</b> min dinner</span>
                   {r.prep_minutes > 0 && <span><b className="text-ink">{r.prep_minutes}</b> min prep</span>}
-                  {r.toddler_ok && <span>Toddler OK</span>}
                 </span>
               </span>
             </Link>

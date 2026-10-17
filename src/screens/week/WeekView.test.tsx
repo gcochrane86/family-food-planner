@@ -554,3 +554,9 @@ describe('breakfast and lunch options', () => {
     expect(within(lunchRow).getByRole('button', { name: 'Add a lunch' })).toBeInTheDocument();
   });
 });
+
+test('a day tile marks breakfast, lunch and dinner with three different colours', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  const dots = [...(await tile('Tuesday 20')).querySelectorAll('i')].map((d) => d.className.match(/\bbg-(\S+)/)?.[1]);
+  expect(dots).toEqual(['yolk', 'lunch', 'accent']);
+});
