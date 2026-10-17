@@ -21,11 +21,11 @@ export default function PlanningRules() {
     { live: true, title: 'Plan the protein order', text: `Spread ${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie across the week, never the same protein two nights running.` },
     { live: true, title: 'Fill every night one at a time', text: "Each night, Sunday included, gets a dinner for your household's portions that passes the checks below. Among equally good dinners it picks at random, so weeks vary." },
     { live: true, title: 'Leftover lunches', text: "When a dinner reheats well, it also makes the next day's lunch: packed on an office day, the default pick at home. The shop buys enough for both, and picking another lunch takes the extra off. Salads, risottos and the like don't. Tap Reheats well on a recipe to change it." },
-    { live: false, title: 'Check the pack size', text: "For each dinner's fresh ingredients, look at the pack Sainsbury's sells and note what's left over: a recipe needing 100g of spinach comes from a 200g bag, so 100g is spare." },
-    { live: false, title: 'Step forward with the leftovers', text: 'The next night prefers a dinner that uses what is spare, but only among dinners that keep the flavour variety. Then check its packs, and on to the next night.' },
-    { live: false, title: 'Use the freezer', text: "Batch portions you've confirmed are in the freezer are used before buying the same thing again." },
-    { live: false, title: 'Fill gaps with new recipes', text: `When nothing in your library uses a leftover well, or just for something new, Claude writes a recipe: up to ${adventure} a week, as drafts until you've cooked and rated them.` },
-    { live: false, title: 'Explain it', text: "Tap Approve to see why each dinner was chosen, which packs are shared between dinners, what's left over and the week's flavour spread." },
+    { live: true, title: 'Check the pack size', text: "Claude: for each dinner's fresh ingredients, look at the pack Sainsbury's sells and note what's left over: a recipe needing 100g of spinach comes from a 200g bag, so 100g is spare." },
+    { live: true, title: 'Step forward with the leftovers', text: 'Claude: the next night prefers a dinner that uses what is spare, but only among dinners that keep the flavour variety. Then check its packs, and on to the next night.' },
+    { live: true, title: 'Use the freezer', text: "Batch portions you've confirmed are in the freezer are used before buying the same thing again." },
+    { live: true, title: 'Fill gaps with new recipes', text: `Claude: when nothing in your library uses a leftover well, or just for something new, Claude writes a recipe, up to ${adventure} a week. Rate it 👎 after cooking and it won't come back.` },
+    { live: true, title: 'Explain it', text: "Claude: each dinner says why it was chosen, and a note under the week covers the shared packs, what's left over and the flavour spread." },
   ];
 
   const checks: { live: boolean; title: string; text: ReactNode }[] = [
@@ -33,13 +33,13 @@ export default function PlanningRules() {
     { live: true, title: 'Your day rules', text: 'Days with a set dinner (Your requirements, above) are fixed first; the rest of the week is balanced around them.' },
     { live: true, title: 'Protein balance', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie dinners a week, never the same protein two nights running.` },
     { live: true, title: 'Weeknight time', text: `Monday to Friday dinners take ${minutes} minutes or less (${Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.` },
-    { live: false, title: 'Flavour variety', text: 'No two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
+    { live: true, title: 'Flavour variety', text: 'Claude: no two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
     { live: true, title: 'No repeats', text: "Nothing from the last two weeks and nothing twice in a week (if there's no other option, the dinner says why). Recipes you've rated 👎 or archived are left out." },
-    { live: false, title: 'Use up leftovers', text: 'Prefer dinners that use what earlier dinners leave in the pack, but never at the expense of the checks above.' },
+    { live: true, title: 'Use up leftovers', text: 'Claude: prefer dinners that use what earlier dinners leave in the pack, but never at the expense of the checks above.' },
   ];
 
   return (
-    <Page title="Planner specifications" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it balances and optimises the week. What each single meal should be is in Meal specifications." loading={loading} error={error} onRetry={reload}>
+    <Page title="Planner specifications" intro="Every Friday evening Claude plans next week (or tap Plan with Claude on the Week tab). Steps marked Claude are the ones only Claude does; Quick menu, the built-in planner, does the rest straight away. What each single meal should be is in Meal specifications." loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
           <Requirements householdId={householdId!} settings={data} onSaved={setData} />

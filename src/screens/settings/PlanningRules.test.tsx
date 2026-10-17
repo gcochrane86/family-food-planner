@@ -27,12 +27,13 @@ test('lays out how the week is built, one dinner at a time, each step marked now
   expect(lunches).toHaveTextContent(/^Now/);
   expect(lunches).toHaveTextContent(/reheats well.*next day's lunch/);
   const packs = list.find((s) => /pack size/.test(s.textContent ?? ''))!;
-  expect(packs).toHaveTextContent(/^Coming/);
+  expect(packs).toHaveTextContent(/^Now/);
+  expect(packs).toHaveTextContent(/Claude/);
   expect(packs).toHaveTextContent(/200g bag/);
   const next = list.find((s) => /leftover/i.test(s.textContent ?? '') && /variety/i.test(s.textContent ?? ''))!;
-  expect(next).toHaveTextContent(/^Coming/);
+  expect(next).toHaveTextContent(/^Now/);
   const newRecipes = list.find((s) => /new recipe/i.test(s.textContent ?? ''))!;
-  expect(newRecipes).toHaveTextContent(/^Coming/);
+  expect(newRecipes).toHaveTextContent(/^Now/);
   expect(newRecipes).toHaveTextContent(/up to 2 a week/);
 });
 
@@ -44,7 +45,7 @@ test('every choice passes these checks, in this order of priority, starting with
   expect(checks[2]).toMatch(/Protein balance: 2 chicken, 1 fish, 1 red meat and 1 veggie/);
   expect(checks.join(' ')).toMatch(/25 minutes or less \(20 on office days\)/);
   const variety = checks.findIndex((c) => /Flavour variety/.test(c ?? ''));
-  expect(checks[variety]).toMatch(/^Coming/);
+  expect(checks[variety]).toMatch(/^Now/);
   expect(variety).toBeLessThan(checks.findIndex((c) => /Use up leftovers/.test(c ?? '')));
   expect(checks.at(-1)).toMatch(/Use up leftovers/);
 });

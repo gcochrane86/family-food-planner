@@ -300,7 +300,9 @@ Tiles show breakfast, lunch and dinner only, with no tags. The night-before prep
 ### Weekly proposal (Friday 7pm) and review
 *Replaces the earlier "What do you fancy this week?" screen (decided 16 Oct 2026).*
 
-**Every Friday at 7pm, a menu for next week is proposed automatically.**
+**Claude plans the week (decided 17 Oct 2026).** **Plan with Claude** on the Week tab (with an optional note, "out Wednesday, use up the lamb") leaves a request that the scheduled task `week-plan` on the owner's Mac picks up within 15 minutes; on Fridays from 6pm it plans next week by itself. Claude chooses the dinners from the Planner and Meal specifications, recipes, freezer, pantry and pack sizes, and may write up to the week's allowed new recipes; the built-in planner fills breakfasts and lunches around them. Claude's summary shows under the week, and each dinner says why. A draft can be **Replan with Claude** (it replaces the draft, after a warning); an approved week never is. **Quick menu** runs the built-in planner straight away (`docs/playbooks/week-plan.md`, `npm run week`).
+
+**Every Friday at 7pm, the built-in planner proposes a menu for next week if it still has none** (the backup when the Mac is off).
 - **Runs on Supabase's scheduler** (`pg_cron` calling a `propose-week` Edge Function), so it happens even if no device is on. It uses the planner logic below; no AI call is needed for the basic proposal.
 - **Covers next Mon–Sun**, or Mon–Fri when the plan length setting is 5 days.
 - **Balance rules** (editable in Settings → Planning):
