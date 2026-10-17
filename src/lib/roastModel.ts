@@ -11,7 +11,7 @@ export interface RoastStep {
   kit: RoastKit;
   temp?: number;    // °C, for oven / apo / hy24
   fan?: boolean;
-  trays?: number;   // oven space it takes (1 shelf = 1 tray)
+  trays?: number;   // oven shelves it takes per 8 people (0.5 = half a shelf)
   when: RoastWhen;
 }
 export interface RoastPart { part: 'main' | 'side'; mains: RoastMain[]; steps: RoastStep[] }
@@ -31,7 +31,7 @@ function parseStep(raw: unknown): RoastStep | null {
   const minutes = num(s.minutes);
   if (typeof s.title !== 'string' || !s.title.trim() || before === undefined || before < 0 || minutes === undefined || minutes < 0) return null;
   if (!KITS.includes(s.kit as RoastKit)) return null;
-  const step: RoastStep = { title: s.title, before, minutes, kit: s.kit as RoastKit, trays: Math.max(1, Math.round(num(s.trays) ?? 1)), when: (['night', 'morning', 'service'] as const).includes(s.when as RoastWhen) ? s.when as RoastWhen : defaultWhen(before) };
+  const step: RoastStep = { title: s.title, before, minutes, kit: s.kit as RoastKit, trays: Math.max(0.25, num(s.trays) ?? 1), when: (['night', 'morning', 'service'] as const).includes(s.when as RoastWhen) ? s.when as RoastWhen : defaultWhen(before) };
   const temp = num(s.temp);
   if (temp !== undefined) step.temp = temp;
   if (typeof s.fan === 'boolean') step.fan = s.fan;
