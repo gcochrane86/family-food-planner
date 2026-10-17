@@ -37,7 +37,7 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
      List the machines used in `equipment`.
    - **Prep ahead.** Steps that can be done the night before (sauces, marinades, chopping) go in phase `prep_8pm`,
      the rest in `finish`. Add a `reheat` phase or `reheat` note when it reheats well.
-   - **Meal rules** (Settings → Meal rules; `houseRules` in `context`). Apply the substitutions, preferences and avoids, including which kit does what (from-scratch, no ultra-processed
+   - **Meal rules** (Settings → Meal specifications; `houseRules` in `context`). Apply the substitutions, preferences and avoids, including which kit does what (from-scratch, no ultra-processed
      shortcuts).
    - **Toddler.** `toddler_ok: true` only if it suits a toddler as written. Otherwise add a `toddler_note` (e.g. "take a
      portion out before the chilli"). Estimate `salt_per_portion_g`, aiming for about 0.5g in the toddler's portion:

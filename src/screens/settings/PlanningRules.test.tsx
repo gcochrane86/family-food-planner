@@ -32,16 +32,16 @@ test('lays out how the week is built, one dinner at a time, each step marked now
   expect(newRecipes).toHaveTextContent(/up to 2 a week/);
 });
 
-test('every choice passes these checks, in this order of priority', async () => {
+test('every choice passes these checks, in this order of priority, starting with the meal specifications', async () => {
   render(<PlanningRules />, { wrapper: MemoryRouter });
   const checks = within(await screen.findByRole('region', { name: 'Checks, in order of priority' })).getAllByRole('listitem').map((li) => li.textContent);
-  expect(checks[0]).toMatch(/Meal rules/);
-  expect(checks[1]).toMatch(/2 chicken, 1 fish, 1 red meat and 1 veggie/);
-  expect(checks.join(' ')).toMatch(/25 minutes or less \(20 on office days\)/);
-  expect(checks.findIndex((c) => /Flavour variety/.test(c ?? ''))).toBeLessThan(checks.findIndex((c) => /Use up leftovers/.test(c ?? '')));
+  expect(checks[0]).toMatch(/Meal specifications/);
+  expect(checks[1]).toMatch(/25 minutes or less \(20 on office days\)/);
+  expect(checks.join(' ')).not.toMatch(/2 chicken/);
+  expect(checks.at(-1)).toMatch(/Use up leftovers/);
 });
 
-test('the page is called Planner', async () => {
+test('the page is called Planner specifications', async () => {
   render(<PlanningRules />, { wrapper: MemoryRouter });
-  expect(await screen.findByRole('heading', { level: 1, name: 'Planner' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { level: 1, name: 'Planner specifications' })).toBeInTheDocument();
 });

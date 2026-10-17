@@ -36,3 +36,12 @@ export async function copyText(text: string): Promise<boolean> {
     return false;
   }
 }
+
+/** "Now" for a rule that's working today, "Coming" for one that's planned. */
+export function Badge({ live }: { live: boolean }) {
+  return (
+    <span className={`mr-2 inline-block rounded-full px-2 py-0.5 align-[1px] text-[11px] font-bold uppercase tracking-[0.06em] ${live ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}>
+      {live ? 'Now' : 'Coming'}
+    </span>
+  );
+}
