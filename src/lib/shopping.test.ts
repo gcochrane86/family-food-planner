@@ -144,3 +144,29 @@ describe('a staple that is also a weekly basic (eggs)', () => {
     expect(list.sun.find((i) => i.name === 'eggs')!.forMeals).toContain('Cupboard: running low');
   });
 });
+
+describe('leftover lunches', () => {
+  const reheats = { ...stew, id: 'stew', reheats_well: true };
+  const map = new Map([['stew', reheats], ['curry', curry]]);
+  const lunch = (date: string, over: Partial<MealSlot> = {}): MealSlot => ({
+    date, slot: 'lunch', recipe_id: null, mode: 'routine', portions: null, guests: 0, locked: false, reason: null, source_date: null,
+    routine_choice: null, cooked_at: null, portions_verdict: null, ...over,
+  });
+  const beef = (slots: MealSlot[]) => buildShoppingList(slots, map, [], 2).sun.find((i) => i.name === 'beef')!.qty;
+
+  test("a dinner that reheats well also buys the next day's lunch when leftovers are the pick", () => {
+    expect(beef([dinner('2026-10-20', 'stew', 3), lunch('2026-10-21')])).toBe(900); // 600 × (3 + 3) / 4
+    expect(beef([dinner('2026-10-20', 'stew', 3), lunch('2026-10-21', { routine_choice: 'Leftovers' })])).toBe(900);
+  });
+
+  test('picking another lunch, or a dinner that does not reheat, buys just the dinner', () => {
+    expect(beef([dinner('2026-10-20', 'stew', 3), lunch('2026-10-21', { routine_choice: 'Egg sandwich' })])).toBe(450);
+    const salad = buildShoppingList([dinner('2026-10-20', 'curry', 3), lunch('2026-10-21')], map, [], 2).sun.find((i) => i.name === 'onions')!.qty;
+    expect(salad).toBe(1); // 2 × 3/6
+  });
+
+  test("an office day's packed leftovers count too, and guests aren't doubled", () => {
+    expect(beef([dinner('2026-10-20', 'stew', 5.5, 'cook', 2), lunch('2026-10-21', { mode: 'packed', recipe_id: 'stew', source_date: '2026-10-20' })])).toBe(1275); // 600 × (5.5 + 3) / 4
+    expect(beef([dinner('2026-10-20', 'stew', 3), lunch('2026-10-21', { mode: 'packed' })])).toBe(450);
+  });
+});

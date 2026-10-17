@@ -211,3 +211,27 @@ test('the rules hold across 200 different weeks', () => {
     }
   }
 });
+
+test("a dinner that reheats well makes the next day's lunch: packed on office days, the default pick at home", () => {
+  const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  let checked = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const i = input({ seed, officeDays: [0, 2] });
+    const p = proposeWeek(i);
+    for (const d of dinners(p).filter((x) => x.mode === 'cook' && x.date < '2026-10-25')) {
+      const next = addDays(d.date, 1);
+      const idx = Math.round((Date.parse(next) - Date.parse(i.weekStart)) / 86_400_000);
+      const lunch = p.find((s) => s.slot === 'lunch' && s.date === next)!;
+      if (recipe(d.recipeId).reheatsWell) {
+        checked++;
+        expect(d.reason).toContain(`makes ${DAYS[idx]}'s lunch`);
+        if (i.officeDays.includes(idx)) expect(lunch).toMatchObject({ mode: 'packed', recipeId: d.recipeId, sourceDate: d.date });
+        else expect(lunch).toMatchObject({ mode: 'routine', recipeId: null });
+      } else {
+        expect(d.reason).not.toContain("'s lunch");
+        expect(lunch.recipeId).toBeNull();
+      }
+    }
+  }
+  expect(checked).toBeGreaterThan(20);
+});

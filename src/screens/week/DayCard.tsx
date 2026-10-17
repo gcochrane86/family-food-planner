@@ -1,7 +1,7 @@
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
-import { homeLunchChoice, lunchLeftover } from '../../lib/weekSummary';
+import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib/weekSummary';
 import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import type { WeekState } from './useWeek';
@@ -60,6 +60,8 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   // How often each lunch is picked on the other days of this week, so a group card suggests variety.
   const lunchUsage: Record<string, number> = {};
   for (const s of w.slots) if (s.slot === 'lunch' && s.date !== date && s.routine_choice) lunchUsage[s.routine_choice] = (lunchUsage[s.routine_choice] ?? 0) + 1;
+  const lunchExtra = dinner ? leftoverLunchPortions(dinner, w.slots, w.recipes) : 0;
+  const nextDayName = DAY[new Date(`${date}T00:00:00Z`).getUTCDay() % 7];
   const card = 'overflow-hidden rounded-[20px] bg-surface shadow-sm';
 
   return (
@@ -104,7 +106,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
               <span className="grid gap-0.5 px-4 py-2.5">
                 <b className="font-display text-lg leading-tight">{dinnerRecipe.title}</b>
                 <span className="text-sm text-muted">
-                  {formatPortions(dinner.portions ?? 0)} portions{dinner.guests ? ` · ${dinner.guests} guest${dinner.guests === 1 ? '' : 's'}` : ''} · {dinnerRecipe.finish_minutes} min
+                  {formatPortions(dinner.portions ?? 0)} portions{lunchExtra > 0 ? ` + ${formatPortions(lunchExtra)} for ${nextDayName}'s lunch` : ''}{dinner.guests ? ` · ${dinner.guests} guest${dinner.guests === 1 ? '' : 's'}` : ''} · {dinnerRecipe.finish_minutes} min
                 </span>
               </span>
             </Link>

@@ -84,7 +84,7 @@ async function plan() {
   const send = [];
   for (const id of ids) {
     const r = byId.get(id)!;
-    const text = cookidooRecipe(r, portionsToSend(slots, id, r.base_portions));
+    const text = cookidooRecipe(r, portionsToSend(slots, id, r.base_portions, byId));
     const hash = textHash(text);
     const why = whyToSend(r, hash);
     if (!why && r.cookidoo_status === 'outdated') {

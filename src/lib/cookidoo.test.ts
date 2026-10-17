@@ -39,8 +39,15 @@ test('my week: only entries we added can be removed', () => {
 });
 
 test('portionsToSend picks the larger portions when a recipe is planned twice', () => {
-  const slots = NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-21' ? { ...s, recipe_id: 'r-honey', portions: 3 } : s));
-  expect(portionsToSend(slots, 'r-honey', 6)).toBe(6);
+  const slots = NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-21' ? { ...s, recipe_id: 'r-honey', portions: 2 } : s));
+  expect(portionsToSend(slots, 'r-honey', 6)).toBe(3);
+});
+
+test("portionsToSend includes the next day's leftover lunch, so the TM7 makes enough", () => {
+  // Monday's honey chicken (3 portions, reheats well) is Tuesday's lunch too.
+  expect(portionsToSend(NEXT_WEEK.slots, 'r-honey', 6, new Map([['r-honey', HONEY]]))).toBe(6);
+  const sandwich = NEXT_WEEK.slots.map((s) => (s.slot === 'lunch' && s.date === '2026-10-20' ? { ...s, mode: 'routine' as const, recipe_id: null, source_date: null, routine_choice: 'Egg sandwich' } : s));
+  expect(portionsToSend(sandwich, 'r-honey', 6, new Map([['r-honey', HONEY]]))).toBe(3);
 });
 
 test('portions are whole servings, and fall back to the recipe when none are planned', () => {

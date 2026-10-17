@@ -10,6 +10,7 @@
 //   npx tsx scripts/recipes.ts add --import <id> < recipe.json   {"recipe": {seed format}, "summary": "..."}
 //   npx tsx scripts/recipes.ts failed < failed.json              {"import": "<id>", "summary": "why"}
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
+import { MEAL_SPEC } from '../src/lib/mealSpec';
 import { parseImport, parseImportFailed, parseRework, parseReworkFailed } from './importInput';
 // @ts-expect-error plain JS helper
 import { contentRows, recipeRow, seedFromDetail } from './recipeSeed.mjs';
@@ -67,7 +68,7 @@ async function context() {
   const recipes = must<{ slug: string; title: string }[]>(
     await db.from('recipes').select('slug, title').eq('household_id', householdId).order('title'), 'Reading recipes');
   const portions = members.reduce((sum, m) => sum + Number(m.portion_weight), 0);
-  console.log(JSON.stringify({ householdPortions: Math.round(portions * 100) / 100, members, equipment, houseRules: rules, existingRecipes: recipes }, null, 2));
+  console.log(JSON.stringify({ householdPortions: Math.round(portions * 100) / 100, members, equipment, whatMakesAMeal: MEAL_SPEC, houseRules: rules, existingRecipes: recipes }, null, 2));
 }
 
 /** Saves a converted recipe as a new recipe and marks the link done. Never changes an existing recipe. */

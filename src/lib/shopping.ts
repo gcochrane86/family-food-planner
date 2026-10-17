@@ -1,3 +1,4 @@
+import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
 import type { MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
@@ -44,7 +45,8 @@ export function buildShoppingList(
     if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
     const recipe = recipes.get(slot.recipe_id);
     if (!recipe) continue;
-    const factor = (slot.portions ?? recipe.base_portions) / recipe.base_portions;
+    // A dinner that reheats well is cooked bigger when the next day's lunch is its leftovers.
+    const factor = ((slot.portions ?? recipe.base_portions) + leftoverLunchPortions(slot, slots, recipes)) / recipe.base_portions;
     const meal = `${SHORT[weekdayIndex(slot.date)]} ${recipe.title}`;
     for (const ing of recipe.ingredients) {
       if (pantryLabel(ing.name, have) === 'In pantry') continue;

@@ -37,6 +37,18 @@ export function homeLunchChoice(choice: string | null, leftovers: boolean, first
   return leftovers ? 'Leftovers' : first;
 }
 
+/** Portions a dinner adds for the next day's lunch: the household's share again (guests don't come to lunch), when
+ *  the dinner reheats well and that lunch is its leftovers (picked, the default, or packed for an office day). */
+export function leftoverLunchPortions(dinner: MealSlot, slots: MealSlot[], recipes: Map<string, Recipe>): number {
+  if (dinner.slot !== 'dinner' || dinner.mode !== 'cook' || !dinner.recipe_id || !recipes.get(dinner.recipe_id)?.reheats_well) return 0;
+  const next = new Date(`${dinner.date}T00:00:00Z`); next.setUTCDate(next.getUTCDate() + 1);
+  const lunch = slots.find((s) => s.date === next.toISOString().slice(0, 10) && s.slot === 'lunch');
+  const takes = lunch?.mode === 'routine'
+    ? homeLunchChoice(lunch.routine_choice, true) === 'Leftovers'
+    : (lunch?.mode === 'packed' || lunch?.mode === 'reheat') && lunch.source_date === dinner.date;
+  return takes ? Math.max(0, (dinner.portions ?? 0) - dinner.guests * 1.25) : 0;
+}
+
 export function daySummary(date: string, slots: MealSlot[], recipes: Map<string, Recipe>, officeDays: number[]): DaySummary {
   const find = (kind: MealSlot['slot'], d = date) => slots.find((s) => s.date === d && s.slot === kind);
   const title = (id: string | null | undefined) => (id ? recipes.get(id)?.title : undefined);

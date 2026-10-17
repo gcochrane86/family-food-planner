@@ -235,7 +235,7 @@ test('a failed save only undoes its own change, and later changes still save', a
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save that change");
   expect(within(day(/Tuesday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Mon');
-  expect(within(day(/Monday/)).getByText(/^6(\.0)? portions/)).toBeInTheDocument();
+  expect(within(day(/Monday/)).getByText(/^3(\.0)? portions/)).toBeInTheDocument();
   const last = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(last.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')!.mode).toBe('out');
 });
@@ -606,4 +606,10 @@ test('the Poke bowl card suggests the one you have had least this week', async (
   await user().click(within(day(/Thursday/)).getByRole('button', { name: 'Poke bowl' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-22' && s.slot === 'lunch')).toMatchObject({ routine_choice: 'Chicken poke bowl' });
   expect(within(day(/Thursday/)).getByRole('button', { name: 'Chicken poke bowl' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test("a dinner that is also tomorrow's lunch says so in the day", async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Mon');
+  expect(within(day(/Monday/)).getByText(/3(\.0)? portions \+ 3(\.0)? for Tuesday's lunch/)).toBeInTheDocument();
 });

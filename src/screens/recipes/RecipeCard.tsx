@@ -80,6 +80,7 @@ export default function RecipeCard() {
   const [prepAhead, setPrepAhead] = usePrepAhead();
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [tickError, setTickError] = useState<string | null>(null);
   const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
   const started = useRef<string | null>(null);
 
@@ -152,6 +153,16 @@ export default function RecipeCard() {
     }
   }
 
+  /** Flips "reheats well" (which decides leftover lunches), showing it at once and putting it back if the save fails. */
+  async function flipReheats() {
+    if (!data?.recipe) return;
+    const value = !data.recipe.reheats_well;
+    const set = (v: boolean) => setData((d) => d && d.recipe ? { ...d, recipe: { ...d.recipe, reheats_well: v } } : d);
+    setTickError(null);
+    set(value);
+    try { await repo.setReheatsWell(data.recipe.id, value); } catch { set(!value); setTickError("Couldn't save. Check your connection and try again."); }
+  }
+
   if (error) return <div className="py-6"><ErrorBanner message={error} onRetry={reload} /></div>;
   if (loading || !data) return <p className="py-6 text-muted">Loading…</p>;
   const { recipe, members } = data;
@@ -208,6 +219,7 @@ export default function RecipeCard() {
       </div>
 
       {photoError && <ErrorBanner message={photoError} />}
+      {tickError && <ErrorBanner message={tickError} />}
       {photoPanel && (
         <section aria-label={photoPanel === 'add' ? 'Add step photos' : 'New step photos'} className="grid gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
           <p className="m-0 font-semibold">
@@ -259,7 +271,11 @@ export default function RecipeCard() {
             <span key={e} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-muted">{machineLabel(e as Machine)}</span>
           ))}
           {recipe.prep_minutes > 0 && <span className="rounded-full bg-evening-soft px-2.5 py-0.5 text-xs font-semibold text-evening">Make-ahead</span>}
-          {recipe.reheats_well && <span className="rounded-full bg-teal-soft px-2.5 py-0.5 text-xs font-semibold text-teal">Reheats well</span>}
+          <button type="button" role="switch" aria-checked={recipe.reheats_well} aria-label="Reheats well" onClick={() => void flipReheats()}
+            title="Tap to change. Dinners that reheat well also make the next day's lunch."
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${recipe.reheats_well ? 'bg-teal-soft text-teal' : 'border border-dashed border-line text-muted'}`}>
+            {recipe.reheats_well ? '✓ Reheats well' : "Doesn't reheat"}
+          </button>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${recipe.toddler_ok ? 'bg-accent-soft text-accent' : 'bg-yolk-soft text-yolk'}`}>
             {recipe.toddler_ok ? 'Toddler OK' : 'Toddler note'}
           </span>

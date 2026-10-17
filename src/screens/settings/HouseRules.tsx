@@ -3,16 +3,15 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import type { RuleKind } from '../../lib/types';
+import { MEAL_SPEC as MEAL } from '../../lib/mealSpec';
 import { card, input, Page, primary } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
 
-const KIND_LABEL: Record<RuleKind, string> = { substitute: 'Swap', prefer: 'Prefer', avoid: 'Avoid' };
-
-const MEAL = [
-  { title: 'On the plate', text: 'A protein, vegetables, a simple carb and a sauce made from scratch.' },
-  { title: 'Toddler salt', text: "About 0.5g or less in the toddler's portion; season the adult plates at the table." },
-  { title: 'Time', text: 'About 30 minutes on the night, with anything longer done the night before.' },
+/** The rules read best as: what we always do, what we swap, and what we never use. */
+const GROUPS: { kind: RuleKind; title: string }[] = [
+  { kind: 'prefer', title: 'Always' }, { kind: 'substitute', title: 'Swap' }, { kind: 'avoid', title: 'Never' },
 ];
+
 
 export default function HouseRules() {
   const { householdId } = useAuth();
@@ -60,30 +59,38 @@ export default function HouseRules() {
       </section>
       <section aria-label="How it is made" className="grid gap-2">
       <h2 className="text-lg font-bold">How it's made</h2>
-      <ul className={`${card} divide-y divide-line`}>
-        {data?.length === 0 && <li className="p-4 text-muted">No rules yet.</li>}
-        {data?.map((r) => (
-          <li key={r.id} className="grid gap-1 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <p className="min-w-0">
-                <span className="mr-2 rounded-full bg-surface-2 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-muted">{KIND_LABEL[r.kind]}</span>
-                <span className="font-semibold">{r.match}</span>
-                {r.replacement && <> → <span className="font-semibold">{r.replacement}</span></>}
-              </p>
-              <button type="button" className="shrink-0 text-sm text-muted underline" onClick={() => void remove(r.id)}>Remove</button>
-            </div>
-            {r.note && <p className="text-sm text-muted">{r.note}</p>}
-          </li>
-        ))}
-      </ul>
+      {data?.length === 0 && <p className={`${card} p-4 text-muted`}>No rules yet.</p>}
+      {GROUPS.map((g) => {
+        const rules = (data ?? []).filter((r) => r.kind === g.kind).sort((a, b) => a.match.localeCompare(b.match));
+        if (!rules.length) return null;
+        return (
+          <div key={g.kind} className="grid gap-1.5">
+            <h3 id={`rules-${g.kind}`} className="text-sm font-bold uppercase tracking-[0.08em] text-muted">{g.title}</h3>
+            <ul aria-labelledby={`rules-${g.kind}`} className={`${card} m-0 list-none divide-y divide-line p-0`}>
+              {rules.map((r) => (
+                <li key={r.id} className="grid gap-1 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="m-0 min-w-0">
+                      <span className="font-semibold">{r.match}</span>
+                      {r.replacement && <> → <span className="font-semibold">{r.replacement}</span></>}
+                    </p>
+                    <button type="button" className="shrink-0 text-sm text-muted underline" onClick={() => void remove(r.id)}>Remove</button>
+                  </div>
+                  {r.note && <p className="m-0 text-sm text-muted">{r.note}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
       <form className={`${card} grid gap-3 p-4`} onSubmit={(e) => { e.preventDefault(); if (match.trim()) void add(); }}>
         <p className="font-semibold">Add a rule</p>
         <label className="grid gap-1 text-sm font-semibold">
           Type
           <select id="rule-kind" className={input} value={kind} onChange={(e) => setKind(e.target.value as RuleKind)}>
             <option value="substitute">Swap one thing for another</option>
-            <option value="prefer">Prefer</option>
-            <option value="avoid">Avoid</option>
+            <option value="prefer">Always</option>
+            <option value="avoid">Never</option>
           </select>
         </label>
         <label className="grid gap-1 text-sm font-semibold">

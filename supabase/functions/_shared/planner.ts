@@ -178,10 +178,13 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
       reason: breakfast,
     });
 
+    // Last night's dinner, if it reheats well, is the lunch: packed on an office day, the default pick at home.
+    const lastNight = i > 0 ? chosen.get(i - 1)?.recipe ?? null : null;
+    const packedLeftover = office && lastNight?.reheatsWell ? lastNight : null;
     slots.push({
-      date, slot: 'lunch', recipeId: null, mode: office ? 'packed' : 'routine',
-      portions: null, guests: 0, locked: false, sourceDate: null,
-      reason: office ? 'Packed lunch' : homeLunch(i > 0 ? chosen.get(i - 1)?.recipe ?? null : null),
+      date, slot: 'lunch', recipeId: packedLeftover?.id ?? null, mode: office ? 'packed' : 'routine',
+      portions: null, guests: 0, locked: false, sourceDate: packedLeftover ? dates[i - 1] : null,
+      reason: packedLeftover ? `Packed: leftover ${packedLeftover.title}` : office ? 'Packed lunch' : homeLunch(lastNight),
     });
 
     const c = chosen.get(i)!;
@@ -196,6 +199,7 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
     else if (i >= 5) reason = `${what}: a weekend cook (${r.finishMinutes} min)`;
     else reason = `${what} · ${r.finishMinutes} min`;
+    if (r.reheatsWell && i + 1 < input.days) reason += ` · makes ${DAY[i + 1]}'s lunch`;
     if (c.notes.length) reason += ` · ${c.notes.join(' · ')}`;
     slots.push({
       date, slot: 'dinner', recipeId: r.id, mode: 'cook', guests: 0, locked: false, sourceDate: null,

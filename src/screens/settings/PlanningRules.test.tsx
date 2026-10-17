@@ -22,6 +22,9 @@ test('lays out how the week is built, one dinner at a time, each step marked now
   expect(text.join(' ')).not.toMatch(/cook-once|Cook once|leftovers or freezer night/i);
   expect(text[0]).toMatch(/office days/i);
   expect(text.join(' ')).toMatch(/Fill every night one at a time.*Sunday included/);
+  const lunches = list.find((s) => /Leftover lunches/.test(s.textContent ?? ''))!;
+  expect(lunches).toHaveTextContent(/^Now/);
+  expect(lunches).toHaveTextContent(/reheats well.*next day's lunch/);
   const packs = list.find((s) => /pack size/.test(s.textContent ?? ''))!;
   expect(packs).toHaveTextContent(/^Coming/);
   expect(packs).toHaveTextContent(/200g bag/);

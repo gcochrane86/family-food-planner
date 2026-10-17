@@ -1,6 +1,7 @@
 // Turns a recipe into the text Claude types into Cookidoo's Created Recipes, and works out My Week changes (spec §10).
 import { formatQty, machineLabel, scaleFactor } from './recipes';
-import type { MealSlot, RecipeDetail } from './types';
+import type { MealSlot, Recipe, RecipeDetail } from './types';
+import { leftoverLunchPortions } from './weekSummary';
 
 const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
 
@@ -76,8 +77,10 @@ export function myWeekChanges(wanted: Day[], current: { date: string; recipeId: 
  * The servings to write in Cookidoo: whole numbers (Cookidoo has no half servings), rounded up. A recipe planned
  * more than once in a week is sent once, at the larger portions. With no planned portions, the recipe's own.
  */
-export function portionsToSend(slots: MealSlot[], recipeId: string, basePortions: number): number {
-  const most = Math.max(0, ...slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id === recipeId).map((s) => Number(s.portions ?? 0)));
+export function portionsToSend(slots: MealSlot[], recipeId: string, basePortions: number, recipes?: Map<string, Recipe>): number {
+  // With the recipes known, a dinner that's also the next day's lunch is cooked for both.
+  const most = Math.max(0, ...slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id === recipeId)
+    .map((s) => Number(s.portions ?? 0) + (recipes ? leftoverLunchPortions(s, slots, recipes) : 0)));
   return Math.ceil(most > 0 ? most : basePortions);
 }
 

@@ -55,7 +55,7 @@ export const NEXT_WEEK: { week: PlanWeek; slots: MealSlot[] } = {
   slots: [
     slot('2026-10-19', 'breakfast', { reason: 'Overnight oats (made at Sunday 8pm prep)' }),
     slot('2026-10-19', 'lunch', { mode: 'packed', reason: 'Packed lunch' }),
-    slot('2026-10-19', 'dinner', { recipe_id: 'r-honey', mode: 'cook', portions: 6, reason: "Cook once, eat twice: extra portions for Tuesday's lunch" }),
+    slot('2026-10-19', 'dinner', { recipe_id: 'r-honey', mode: 'cook', portions: 3, reason: "Chicken · 30 min · makes Tuesday's lunch" }),
     slot('2026-10-20', 'breakfast'),
     slot('2026-10-20', 'lunch', { recipe_id: 'r-honey', mode: 'reheat', source_date: '2026-10-19', reason: 'Leftover Almond-Crusted Honey Chilli Chicken' }),
     slot('2026-10-20', 'dinner', { recipe_id: 'r-salmon', mode: 'cook', portions: 3, reason: 'Fish · 20 min' }),

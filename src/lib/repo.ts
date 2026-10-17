@@ -275,6 +275,11 @@ export const repo = {
     }).select('*').single()));
   },
 
+  /** Whether a dinner reheats well (and so also makes the next day's lunch). */
+  async setReheatsWell(recipeId: string, value: boolean): Promise<void> {
+    must(await db().from('recipes').update({ reheats_well: value }).eq('id', recipeId));
+  },
+
   /** Saves an edited recipe in one transaction (see recipeSavePayload). Each step keeps its photo. */
   async saveRecipe(original: RecipeDetail, fields: RecipeEdit, ingredients: RecipeIngredient[], steps: RecipeStep[]): Promise<void> {
     const p = recipeSavePayload(original, fields, ingredients, steps);

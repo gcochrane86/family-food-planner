@@ -291,3 +291,21 @@ describe('Rework with Claude', () => {
     expect(failed).toHaveTextContent('Waiting for Claude');
   });
 });
+
+test('the Reheats well tick flips with a tap and is saved', async () => {
+  open('r-honey');
+  const tick = await screen.findByRole('switch', { name: 'Reheats well' });
+  expect(tick).toHaveAttribute('aria-checked', 'true');
+  await userEvent.click(tick);
+  expect(h.repo.setReheatsWell).toHaveBeenCalledWith('r-honey', false);
+  expect(screen.getByRole('switch', { name: 'Reheats well' })).toHaveAttribute('aria-checked', 'false');
+  expect(screen.getByRole('switch', { name: 'Reheats well' })).toHaveTextContent("Doesn't reheat");
+});
+
+test('a failed Reheats well save puts it back and says so', async () => {
+  h.repo.setReheatsWell.mockRejectedValueOnce(new Error('offline'));
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('switch', { name: 'Reheats well' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save");
+  expect(screen.getByRole('switch', { name: 'Reheats well' })).toHaveAttribute('aria-checked', 'true');
+});

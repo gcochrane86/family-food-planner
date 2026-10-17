@@ -32,7 +32,8 @@ test('an approved week gives Sunday and Tuesday lists with what each item is for
   const chicken = within(sunday).getByText(/1.2kg chicken breast or thigh/).closest('label')!;
   expect(chicken).toHaveTextContent('for Mon Almond-Crusted Honey Chilli Chicken');
   const tuesday = screen.getByRole('region', { name: 'Tuesday delivery' });
-  expect(within(tuesday).getByText(/500g lamb mince/)).toBeInTheDocument();
+  // Saturday's doner reheats well, so it's bought for Sunday's leftover lunch too.
+  expect(within(tuesday).getByText(/1kg lamb mince/)).toBeInTheDocument();
 });
 
 test('ticking an item saves it', async () => {
@@ -53,7 +54,7 @@ test('a ticked item un-ticks itself when its quantity changes, so nothing is und
   // Ticked earlier when the list said 1kg; it now says 1.2kg (e.g. after guests were added).
   h.repo.getTicks.mockResolvedValue([
     { delivery: 'sun', item_key: 'chicken breast or thigh|g@1000', ticked: true },
-    { delivery: 'tue', item_key: 'lamb mince|g@500', ticked: true },
+    { delivery: 'tue', item_key: 'lamb mince|g@1000', ticked: true },
   ]);
   render(<ShopList />, { wrapper: MemoryRouter });
   expect(await screen.findByRole('checkbox', { name: /chicken breast or thigh/ })).not.toBeChecked();
