@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { DEFAULT_BALANCE } from '../../../supabase/functions/_shared/planInput.ts';
@@ -6,47 +7,69 @@ import { useAsync } from './useAsync';
 
 const OFFICE_MAX = 20; // the planner's limit on office days (supabase/functions/_shared/planner.ts)
 
-/** What the Friday menu follows, in plain words. Read-only: the numbers come from your settings. */
+function Badge({ live }: { live: boolean }) {
+  return (
+    <span className={`mr-2 inline-block rounded-full px-2 py-0.5 align-[1px] text-[11px] font-bold uppercase tracking-[0.06em] ${live ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}>
+      {live ? 'Now' : 'Coming'}
+    </span>
+  );
+}
+
+/** How the Friday menu is built, step by step, and the checks every choice passes. Steps not built yet say so. */
 export default function PlanningRules() {
   const { householdId } = useAuth();
   const { data, error, loading, reload } = useAsync(() => repo.getSettings(householdId!), [householdId]);
   const b = DEFAULT_BALANCE;
   const minutes = data?.weekday_dinner_max_min ?? 30;
+  const adventure = data?.adventure ?? 1;
 
-  const now = [
-    <><b>Protein balance:</b> {b.chicken} chicken, {b.fish} fish, {b.red_meat} red meat and {b.veggie} veggie dinners, never the same protein two nights running.</>,
-    <><b>Weeknight time:</b> Monday to Friday dinners take {minutes} minutes or less ({Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.</>,
-    <><b>Cook once, eat twice:</b> one 6-portion dinner that reheats well, Monday to Thursday, ideally the night before an office day so the leftovers become the packed lunch.</>,
-    <><b>No repeats:</b> nothing you've had in the last two weeks, and nothing twice in a week. If there's no other option, the dinner says why.</>,
-    <><b>Left out:</b> recipes you've rated 👎 or archived.</>,
-    <><b>Sunday:</b> a leftovers or freezer night.</>,
-    <><b>Breakfast:</b> overnight oats on office days; your other breakfasts take turns.</>,
-    <><b>Lunch:</b> packed on office days; at home, last night's leftovers when that dinner reheats well, otherwise one from your lunch list.</>,
-    <><b>Ties:</b> among dinners that fit equally well, it picks at random, so weeks vary.</>,
+  const steps: { live: boolean; title: string; text: ReactNode }[] = [
+    { live: true, title: 'Set the fixed parts', text: 'Sunday is a leftovers or freezer night. Office days get a packed lunch and overnight oats; your other breakfasts take turns.' },
+    { live: true, title: 'Pick the cook-once dinner', text: 'One 6-portion dinner that reheats well, Monday to Thursday, ideally the night before an office day so the leftovers become the packed lunch.' },
+    { live: true, title: 'Plan the protein order', text: `Spread ${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie across the week, never the same protein two nights running.` },
+    { live: true, title: 'Fill the other nights one at a time', text: 'Each night gets a dinner that passes the checks below. Among equally good dinners it picks at random, so weeks vary.' },
+    { live: false, title: 'Check the pack size', text: "For each dinner's fresh ingredients, look at the pack Sainsbury's sells and note what's left over: a recipe needing 100g of spinach comes from a 200g bag, so 100g is spare." },
+    { live: false, title: 'Step forward with the leftovers', text: 'The next night prefers a dinner that uses what is spare, but only among dinners that keep the flavour variety. Then check its packs, and on to the next night.' },
+    { live: false, title: 'Use the freezer', text: "Batch portions you've confirmed are in the freezer are used before buying the same thing again." },
+    { live: false, title: 'Fill gaps with new recipes', text: `When nothing in your library uses a leftover well, or just for something new, Claude writes a recipe: up to ${adventure} a week, as drafts until you've cooked and rated them.` },
+    { live: false, title: 'Explain it', text: "Tap Approve to see why each dinner was chosen, which packs are shared between dinners, what's left over and the week's flavour spread." },
   ];
-  const next = [
-    <><b>Flavour variety:</b> no two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.</>,
-    <><b>Using up packs:</b> after each dinner, what's left of a pack (the other 100g of a 200g bag of spinach) goes into a later dinner, but never at the expense of variety.</>,
-    <><b>The freezer:</b> dinners use batch portions you've checked are in the freezer.</>,
-    <><b>Claude plans the week:</b> and writes up to your "new recipes per week", explaining each choice when you tap Approve.</>,
+
+  const checks: { live: boolean; title: string; text: ReactNode }[] = [
+    { live: true, title: 'House rules', text: 'From scratch, no sausages and the rest of your house rules. Recipes are written to follow them.' },
+    { live: true, title: 'Protein balance', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie, never the same protein two nights running.` },
+    { live: true, title: 'Weeknight time', text: `Monday to Friday dinners take ${minutes} minutes or less (${Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.` },
+    { live: true, title: 'No repeats', text: "Nothing from the last two weeks and nothing twice in a week (if there's no other option, the dinner says why). Recipes you've rated 👎 or archived are left out." },
+    { live: false, title: 'Flavour variety', text: 'No two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
+    { live: false, title: 'Use up leftovers', text: 'Prefer dinners that use what earlier dinners leave in the pack, but never at the expense of the checks above.' },
   ];
 
   return (
-    <Page title="Planning rules" intro="Every Friday at 7pm the app plans next week from your recipes, following these rules in this order." loading={loading} error={error} onRetry={reload}>
+    <Page title="Planning rules" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it does it." loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
-          <section aria-label="The rules it follows now" className="grid gap-2">
-            <h2 className="text-lg font-bold">The rules it follows now</h2>
-            <ol className={`${card} m-0 grid list-decimal gap-2.5 py-4 pl-9 pr-4 text-[15px] leading-snug`}>
-              {now.map((r, i) => <li key={i}>{r}</li>)}
+          <section aria-label="How the week is built" className="grid gap-2">
+            <h2 className="text-lg font-bold">How the week is built</h2>
+            <ol className={`${card} m-0 grid list-decimal gap-3 py-4 pl-9 pr-4 text-[15px] leading-snug`}>
+              {steps.map((s, i) => (
+                <li key={s.title} aria-label={`Step ${i + 1}: ${s.title}`} className={s.live ? '' : 'text-muted'}>
+                  <Badge live={s.live} /><b className="text-ink">{s.title}</b>
+                  <span className="block">{s.text}</span>
+                </li>
+              ))}
             </ol>
-            <p className="m-0 text-sm text-muted">Change the weeknight time limit in Planning &amp; shopping, and office days in Office days.</p>
           </section>
-          <section aria-label="Coming next" className="grid gap-2">
-            <h2 className="text-lg font-bold">Coming next</h2>
-            <ul className={`${card} m-0 grid list-disc gap-2.5 py-4 pl-9 pr-4 text-[15px] leading-snug text-muted`}>
-              {next.map((r, i) => <li key={i}>{r}</li>)}
-            </ul>
+          <section aria-label="Checks, in order of priority" className="grid gap-2">
+            <h2 className="text-lg font-bold">Checks, in order of priority</h2>
+            <p className="m-0 text-sm text-muted">A later check never overrides an earlier one.</p>
+            <ol className={`${card} m-0 grid list-decimal gap-3 py-4 pl-9 pr-4 text-[15px] leading-snug`}>
+              {checks.map((c) => (
+                <li key={c.title} className={c.live ? '' : 'text-muted'}>
+                  <Badge live={c.live} /><b className="text-ink">{c.title}:</b> {c.text}
+                </li>
+              ))}
+            </ol>
+            <p className="m-0 text-sm text-muted">Change the weeknight time limit and new recipes per week in Planning &amp; shopping, and office days in Office days.</p>
           </section>
         </>
       )}
