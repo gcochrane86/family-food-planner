@@ -441,3 +441,36 @@ test('0010: save_recipe changes the recipe and its contents together, and nothin
   expect(await one(OWNER, `select title from recipes where id = '${rid}'`)).toBe('New name');
   expect(await fails(STRANGER, `select save_recipe('${rid}', '{"title":"x"}', '[]', '[]')`)).toMatch(/recipe_not_found/);
 });
+
+test('0011: freezer items belong to their household and keep portions ≥ 0', async () => {
+  const { hid, rid } = await recipeFor(OWNER);
+  const pid = await one(OWNER, `insert into prepared_items (household_id, recipe_id, name, portions) values ('${hid}', '${rid}', 'Curry paste', 3) returning id`);
+  expect(await one(OWNER, `select location from prepared_items where id = '${pid}'`)).toBe('freezer');
+  expect(await as(STRANGER, 'select * from prepared_items')).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into prepared_items (household_id, name, portions) values ('${hid}', 'x', 1)`)).toMatch(/row-level security/);
+  expect(await fails(OWNER, `update prepared_items set portions = -1 where id = '${pid}'`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `insert into prepared_items (household_id, name, portions) values ('${hid}', '  ', 1)`)).toMatch(/check constraint/);
+  await as(OWNER, `delete from recipes where id = '${rid}'`);
+  expect(await one(OWNER, `select recipe_id from prepared_items where id = '${pid}'`)).toBeNull();
+});
+
+test("0011: a dinner's batch plan only takes the four values", async () => {
+  const { wid } = await weekFor(OWNER);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, batch) values ('${wid}', '2026-10-31', 'dinner', 'cook', 'make')`);
+  expect(await fails(OWNER, `update meal_slots set batch = 'later' where plan_week_id = '${wid}'`)).toMatch(/check constraint/);
+});
+
+test("0011: save_recipe saves a recipe's batch", async () => {
+  const { rid } = await recipeFor(OWNER);
+  const batch = JSON.stringify({ name: 'Curry paste', group: 'The paste', steps: ['Blitz'], makes: 4, freezer_days: 90 });
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"T","batch":${batch}}', '[]', '[]')`);
+  expect(await one(OWNER, `select batch->>'name' from recipes where id = '${rid}'`)).toBe('Curry paste');
+  expect(await one(OWNER, `select title from recipes where id = '${rid}'`)).toBe('T');
+});
+
+test("0011: a Sainsbury's order is recorded once per household", async () => {
+  const { hid } = await recipeFor(OWNER);
+  await as(OWNER, `insert into pantry_orders (household_id, order_ref) values ('${hid}', '123456')`);
+  expect(await fails(OWNER, `insert into pantry_orders (household_id, order_ref) values ('${hid}', '123456')`)).toMatch(/duplicate key/);
+  expect(await as(STRANGER, 'select * from pantry_orders')).toHaveLength(0);
+});
