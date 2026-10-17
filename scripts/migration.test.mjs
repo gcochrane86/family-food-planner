@@ -506,3 +506,63 @@ test('0013: recipes and dinners can carry a roast description', async () => {
   await as(OWNER, `update meal_slots set roast = '{"main":"beef","sides":["roasties"],"people":15,"serve":"13:30"}' where plan_week_id = '${wid}' and slot = 'dinner'`);
   expect(await one(OWNER, `select roast->>'serve' from meal_slots where plan_week_id = '${wid}' and slot = 'dinner'`)).toBe('13:30');
 });
+
+// 0014: Claude plans the week. The Mac (service key, no role) saves; members only ask.
+const svc = async (sql) => { await db.exec('reset role'); return (await db.query(sql)).rows; };
+async function weekRequest(uid, weekStart = '2026-10-26') {
+  const { hid, rid } = await recipeFor(uid);
+  const req = await one(uid, `insert into week_plan_requests (household_id, week_start, note) values ('${hid}', '${weekStart}', 'Busy Wednesday') returning id`);
+  return { hid, rid, req };
+}
+const claudeSlots = (rid) => JSON.stringify([
+  { date: '2026-10-26', slot: 'breakfast', recipe_id: null, mode: 'routine', portions: null, guests: 0, locked: false, reason: 'Baked oats', source_date: null },
+  { date: '2026-10-26', slot: 'dinner', recipe_id: rid, mode: 'cook', portions: 3.5, guests: 0, locked: false, reason: 'Uses the ginger', source_date: null },
+]);
+
+test('0014: one open plan request per week, and strangers see none', async () => {
+  const { hid } = await weekRequest(OWNER);
+  expect(await fails(OWNER, `insert into week_plan_requests (household_id, week_start) values ('${hid}', '2026-10-26')`)).toMatch(/duplicate key/);
+  await svc(`update week_plan_requests set status = 'failed'`);
+  await as(OWNER, `insert into week_plan_requests (household_id, week_start) values ('${hid}', '2026-10-26')`);
+  expect(await as(STRANGER, 'select * from week_plan_requests')).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into week_plan_requests (household_id, week_start) values ('${hid}', '2026-11-02')`)).toMatch(/row-level security/);
+});
+
+test('0014: save_claude_week makes a new week and closes the request', async () => {
+  const { rid, req } = await weekRequest(OWNER);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'A fish-forward week')`);
+  const [w] = await as(OWNER, `select status, planned_by, summary, days from plan_weeks where week_start = '2026-10-26'`);
+  expect(w).toEqual({ status: 'draft', planned_by: 'claude', summary: 'A fish-forward week', days: 7 });
+  expect(await one(OWNER, `select reason from meal_slots where slot = 'dinner'`)).toBe('Uses the ginger');
+  expect(await one(OWNER, `select status from week_plan_requests where id = '${req}'`)).toBe('done');
+});
+
+test('0014: save_claude_week replaces a draft week', async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-26') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-10-27', 'dinner', 'out')`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S')`);
+  expect(await as(OWNER, 'select date from meal_slots')).toHaveLength(2);
+  expect(await one(OWNER, `select planned_by from plan_weeks where id = '${wid}'`)).toBe('claude');
+});
+
+test('0014: save_claude_week never touches an approved week, or saves without a claimed request', async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start, status) values ('${hid}', '2026-10-26', 'approved') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-10-27', 'dinner', 'out')`);
+  expect(await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S')`).then(() => null, (e) => e.message)).toMatch(/not_planning/);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  expect(await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S')`).then(() => null, (e) => e.message)).toMatch(/week_approved/);
+  expect(await as(OWNER, 'select mode from meal_slots')).toEqual([{ mode: 'out' }]);
+});
+
+test("0014: save_claude_week refuses another household's recipe, and members can't call it", async () => {
+  const { req } = await weekRequest(OWNER);
+  const { rid: theirs } = await recipeFor(STRANGER, 'other');
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  expect(await svc(`select save_claude_week('${req}', 7, '${claudeSlots(theirs)}', 'S')`).then(() => null, (e) => e.message)).toMatch(/unknown_recipe/);
+  expect(await as(OWNER, 'select * from plan_weeks')).toHaveLength(0);
+  expect(await fails(OWNER, `select save_claude_week('${req}', 7, '[]', 'S')`)).toMatch(/permission denied/);
+});

@@ -171,6 +171,19 @@ export interface PlanWeek {
   status: 'draft' | 'approved';
   proposed_at: string;
   approved_at: string | null;
+  planned_by?: 'planner' | 'claude';
+  summary?: string | null; // Claude's note on why this week
+}
+
+/** "Plan with Claude": a request the scheduled task on the owner's Mac picks up. */
+export interface WeekPlanRequest {
+  id: string;
+  household_id: string;
+  week_start: string;
+  note: string | null;
+  status: 'requested' | 'planning' | 'done' | 'failed';
+  requested_at: string;
+  summary: string | null;
 }
 
 export interface MealSlot {
