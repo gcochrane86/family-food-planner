@@ -263,3 +263,34 @@ test('a day rule: fish on Thursday every week, and the reason says why', () => {
     expect(thu.reason).toContain('Fishmonger in town');
   }
 });
+
+describe("Claude's dinners", () => {
+  const chosen = [
+    { date: '2026-10-19', recipeId: 'salmon', reason: 'Fish to start the week' },
+    { date: '2026-10-20', recipeId: 'honey-chilli', reason: 'Uses the rest of the ginger' },
+  ];
+  const plan = proposeWeek(input({ chosenDinners: chosen }));
+
+  test('chosen dinners land on their nights with their reasons', () => {
+    expect(dinnerOn(plan, '2026-10-19').recipeId).toBe('salmon');
+    expect(dinnerOn(plan, '2026-10-19').reason).toMatch(/^Fish to start the week/);
+    expect(dinnerOn(plan, '2026-10-20').recipeId).toBe('honey-chilli');
+  });
+
+  test('a chosen dinner that reheats well makes the next lunch', () => {
+    expect(dinnerOn(plan, '2026-10-20').reason).toContain("makes Wednesday's lunch");
+    const lunch = plan.find((s) => s.slot === 'lunch' && s.date === '2026-10-21')!;
+    expect(lunch.reason).toContain('honey-chilli');
+  });
+
+  test('the other nights are still planned, without repeating a chosen dinner', () => {
+    const ids = dinners(plan).map((s) => s.recipeId);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(7);
+  });
+
+  test('an unknown recipe is ignored and that night planned as usual', () => {
+    const p = proposeWeek(input({ chosenDinners: [{ date: '2026-10-22', recipeId: 'nope', reason: 'x' }] }));
+    expect(LIBRARY.some((x) => x.id === dinnerOn(p, '2026-10-22').recipeId)).toBe(true);
+  });
+});

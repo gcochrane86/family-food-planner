@@ -29,6 +29,7 @@ export interface PlannerInput {
   breakfasts?: string[];      // your breakfast options; the built-in rotation when missing
   frozen?: { recipeId: string; portions: number }[]; // batch portions in the freezer, in date
   dayRules?: { weekday: number; protein: Protein; note?: string | null }[]; // e.g. fish on Thursday
+  chosenDinners?: { date: string; recipeId: string; reason: string }[]; // dinners Claude picked; the rest is planned around them
 }
 
 export interface ProposedSlot {
@@ -124,7 +125,7 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const dates = Array.from({ length: input.days }, (_, i) => addDays(input.weekStart, i));
   // Every night gets a dinner (the owner dropped the Sunday leftovers night on 17 Oct 2026).
   const nights = dates.map((_, i) => i);
-  const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[] }>();
+  const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[]; reason?: string }>();
   const used = new Set<string>();
   const frozenLeft = new Map((input.frozen ?? []).map((f) => [f.recipeId, f.portions]));
   const recent = new Set(input.recentRecipeIds);
@@ -132,6 +133,15 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   // Your day rules (fish on Thursday) fix those nights' protein before the rest is balanced around them.
   const fixed = new Map<number, Protein | null>();
   for (const rule of input.dayRules ?? []) { const k = nights.indexOf(rule.weekday); if (k >= 0) fixed.set(k, rule.protein); }
+  // Dinners Claude chose take their nights first (an unknown recipe is ignored, so that night is planned as usual).
+  for (const c of input.chosenDinners ?? []) {
+    const k = nights.indexOf(dayIndex(input.weekStart, c.date));
+    const recipe = input.recipes.find((r) => r.id === c.recipeId);
+    if (k < 0 || !recipe) continue;
+    chosen.set(nights[k], { recipe, notes: [], reason: c.reason });
+    used.add(recipe.id);
+    fixed.set(k, recipe.protein);
+  }
   const plannedProtein = proteinSequence(input, nights, rnd, fixed);
 
   function chosenProtein(k: number): Protein | null {
@@ -205,11 +215,12 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     const r = c.recipe;
     const what = r.protein ? cap(NAME[r.protein]) : 'Dinner';
     let reason: string;
-    if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
+    if (c.reason) reason = c.reason;
+    else if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
     else if (i >= 5) reason = `${what}: a weekend cook (${r.finishMinutes} min)`;
     else reason = `${what} · ${r.finishMinutes} min`;
     const dayRule = (input.dayRules ?? []).find((d) => d.weekday === i && d.protein === r.protein);
-    if (dayRule?.note) reason += ` · ${dayRule.note}`;
+    if (dayRule?.note && !c.reason) reason += ` · ${dayRule.note}`;
     if (r.reheatsWell && i + 1 < input.days) reason += ` · makes ${DAY[i + 1]}'s lunch`;
     if (c.notes.length) reason += ` · ${c.notes.join(' · ')}`;
     const frozen = (frozenLeft.get(r.id) ?? 0) > 0;
