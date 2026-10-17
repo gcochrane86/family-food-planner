@@ -309,3 +309,15 @@ test('a failed Reheats well save puts it back and says so', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save");
   expect(screen.getByRole('switch', { name: 'Reheats well' })).toHaveAttribute('aria-checked', 'true');
 });
+
+test('a batch step carries the batch tip; a batch naming no real step shows none', async () => {
+  const batch = { name: 'Honey chilli sauce', group: 'The meat', steps: ['The bulk sauce'], makes: 4, freezer_days: 90 };
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, batch });
+  const first = open('r-honey');
+  expect(await screen.findByText('Batch tip: make 4× and freeze 3 (keeps about 3 months)')).toBeInTheDocument();
+  first.unmount();
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, batch: { ...batch, steps: ['A step that was renamed'] } });
+  open('r-honey');
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(screen.queryByText(/Batch tip/)).not.toBeInTheDocument();
+});

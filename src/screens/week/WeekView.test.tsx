@@ -613,3 +613,41 @@ test("a dinner that is also tomorrow's lunch says so in the day", async () => {
   await openDay('Mon');
   expect(within(day(/Monday/)).getByText(/3(\.0)? portions \+ 3(\.0)? for Tuesday's lunch/)).toBeInTheDocument();
 });
+
+describe('batch and freeze', () => {
+  const sauce = { name: 'Honey chilli sauce', group: 'The meat', steps: ['The bulk sauce'], makes: 4, freezer_days: 90 };
+  const frozen = (portions: number) => [{ id: 'p1', household_id: 'h1', recipe_id: 'r-honey', name: 'Honey chilli sauce', portions, location: 'freezer' as const, made_on: '2026-10-01', use_by: '2026-12-30' }];
+  beforeEach(() => { h.repo.listRecipes.mockResolvedValue([{ ...HONEY, batch: sauce }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]); });
+
+  test('with nothing frozen, a batch dinner offers to make extra and freeze it', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    const make = within(day(/Monday/)).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' });
+    expect(make).toHaveAttribute('aria-checked', 'false');
+    await user().click(make);
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'make' });
+  });
+
+  test('with portions frozen, it offers to use one', async () => {
+    h.repo.listPrepared.mockResolvedValue(frozen(2));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    await user().click(within(day(/Monday/)).getByRole('switch', { name: 'Use honey chilli sauce from the freezer (2 left)' }));
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'frozen' });
+  });
+
+  test('two dinners of the same recipe and one frozen portion: only the first uses it, the other offers to make', async () => {
+    h.repo.listPrepared.mockResolvedValue(frozen(1));
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+      ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot !== 'dinner' ? s
+        : s.date === '2026-10-19' ? { ...s, batch: 'frozen' as const }
+          : s.date === '2026-10-22' ? { ...s, recipe_id: 'r-honey' } : s)) }
+      : { week: null, slots: [] }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    expect(within(day(/Monday/)).getByRole('switch', { name: /^Use honey chilli sauce from the freezer/ })).toHaveAttribute('aria-checked', 'true');
+    await openDay('Thu');
+    expect(within(day(/Thursday/)).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' })).toBeInTheDocument();
+    expect(within(day(/Thursday/)).queryByRole('switch', { name: /^Use / })).not.toBeInTheDocument();
+  });
+});

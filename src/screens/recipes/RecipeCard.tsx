@@ -7,12 +7,13 @@ import { householdPortions } from '../../lib/household';
 import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { makeStepPhotos } from '../../lib/stepPhotos';
-import type { Machine, RecipeStep } from '../../lib/types';
+import type { Machine, RecipeBatch, RecipeStep } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
+import { parseBatch } from '../../lib/batch';
 import ReworkRecipe from './ReworkRecipe';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 
@@ -30,8 +31,11 @@ export function photoCost(n: number): string {
   return pence < 100 ? `${pence}p` : `£${(pence / 100).toFixed(2)}`;
 }
 
-function Steps({ steps, label, minutes, timeline, markAhead }: {
-  steps: RecipeStep[]; label: string; minutes?: number; timeline?: boolean; markAhead?: boolean;
+/** "keeps about 3 months" / "about 2 weeks". */
+const keeps = (days: number) => (days >= 30 ? `about ${Math.round(days / 30)} month${Math.round(days / 30) === 1 ? '' : 's'}` : `about ${Math.max(1, Math.round(days / 7))} week${Math.round(days / 7) > 1 ? 's' : ''}`);
+
+function Steps({ steps, label, minutes, timeline, markAhead, batch }: {
+  steps: RecipeStep[]; label: string; minutes?: number; timeline?: boolean; markAhead?: boolean; batch?: RecipeBatch | null;
 }) {
   if (!steps.length) return null;
   const id = label.replace(/\W+/g, '-').toLowerCase();
@@ -55,6 +59,11 @@ function Steps({ steps, label, minutes, timeline, markAhead }: {
               </div>
               {s.machine && <div><MachineBadge machine={s.machine} settings={s.settings} /></div>}
               <p className="m-0 text-[15.5px] leading-relaxed md:text-[17px]"><StepText text={s.body} /></p>
+              {batch?.steps.includes(s.title) && (
+                <p className="m-0 rounded-lg bg-evening-soft px-3 py-1.5 text-sm font-semibold text-evening">
+                  Batch tip: make {batch.makes}× and freeze {batch.makes - 1} (keeps {keeps(batch.freezer_days)})
+                </p>
+              )}
             </div>
             {s.image_path && (
               <img src={repo.heroUrl(s.image_path, PHOTO_LARGE)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
@@ -350,11 +359,11 @@ export default function RecipeCard() {
           )}
           {split ? (
             <>
-              <Steps steps={prep} label="The night before" minutes={recipe.prep_minutes} />
-              <Steps steps={finish} label="On the night" minutes={recipe.finish_minutes} timeline />
+              <Steps steps={prep} label="The night before" minutes={recipe.prep_minutes} batch={parseBatch(recipe.batch)} />
+              <Steps steps={finish} label="On the night" minutes={recipe.finish_minutes} timeline batch={parseBatch(recipe.batch)} />
             </>
           ) : (
-            <Steps steps={[...prep, ...finish]} label="Method" markAhead />
+            <Steps steps={[...prep, ...finish]} label="Method" markAhead batch={parseBatch(recipe.batch)} />
           )}
           {settings.length > 0 && (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-4">

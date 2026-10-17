@@ -1,6 +1,8 @@
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
+import { parseBatch } from '../../lib/batch';
+import { switchClasses } from '../../lib/prepAhead';
 import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib/weekSummary';
 import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
@@ -18,6 +20,28 @@ const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
 export function dayLabel(date: string): string {
   const d = new Date(`${date}T00:00:00Z`);
   return `${DAY[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${d.toLocaleString('en-GB', { month: 'long', timeZone: 'UTC' })}`;
+}
+
+/** "Make 4× the curry paste and freeze 3", or "Use curry paste from the freezer (2 left)", for a dinner whose recipe
+ *  has a part that batches and freezes well. */
+function BatchSwitch({ date, recipe, plan, w }: { date: string; recipe: Recipe; plan: MealSlot['batch'] | null; w: WeekState }) {
+  const b = parseBatch(recipe.batch);
+  if (!b) return null;
+  const name = b.name[0].toLowerCase() + b.name.slice(1);
+  if (plan === 'made') return <p className="m-0 text-sm text-muted">✓ {b.makes - 1} portions of {name} went in the freezer.</p>;
+  if (plan === 'frozen_ok') return <p className="m-0 text-sm text-muted">✓ {b.name} from the freezer (checked).</p>;
+  const left = w.freezerFor(recipe.id, date);
+  const useFrozen = plan === 'frozen' || left > 0;
+  const label = useFrozen ? `Use ${name} from the freezer (${left} left)` : `Make ${b.makes}× the ${name} and freeze ${b.makes - 1}`;
+  const on = useFrozen ? plan === 'frozen' : plan === 'make';
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-2.5 text-sm shadow-sm">
+      <span>{label}</span>
+      <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => void w.batch(date, on ? null : useFrozen ? 'frozen' : 'make')} className={switchClasses(on)}>
+        <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+      </button>
+    </div>
+  );
 }
 
 function Label({ children, tone }: { children: string; tone: string }) {
@@ -110,7 +134,9 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
                 </span>
               </span>
             </Link>
-          ) : (
+          ) : null}
+          {dinner.mode === 'cook' && dinnerRecipe && <BatchSwitch date={date} recipe={dinnerRecipe} plan={dinner.batch ?? null} w={w} />}
+          {dinner.mode === 'cook' && dinnerRecipe ? null : (
             <div className={card}>
               <div className="grid aspect-[16/9] place-items-center bg-surface-2 font-display text-lg font-bold text-muted">{dinner.mode === 'out' ? 'Out tonight' : 'Leftovers night'}</div>
               {dinner.reason && <p className="m-0 px-4 py-2.5 text-sm text-muted">{dinner.reason}</p>}

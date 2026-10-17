@@ -2,7 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
-import type { MealSlot, PlanWeek, Recipe } from '../../lib/types';
+import type { BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
+import { availablePortions } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
   alternatives as plannerAlternatives, applyGuests, applyLeftovers, applyOut, applySwap,
@@ -57,8 +58,9 @@ export function useWeek() {
       repo.getWeekPattern(), repo.getSettings(hid), repo.recentDinnerIds(hid, starts.nextWeek),
     ]);
     const run = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getCookidooRun(w.week.id).catch(() => null) : Promise.resolve(null));
-    const [thisCookidoo, nextCookidoo] = await Promise.all([run(thisWeek), run(nextWeek)]);
-    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo };
+    // The freezer, for batch suggestions (an empty freezer if it can't be read, so the week still shows).
+    const [thisCookidoo, nextCookidoo, freezer] = await Promise.all([run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
+    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer };
   }, [hid, starts]);
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
@@ -181,6 +183,19 @@ export function useWeek() {
     lunch: (date: string, choice: string) => update(date, 'lunch', (l) => (l.routine_choice === choice ? null : { ...l, routine_choice: choice })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
+    freezer: data?.freezer ?? [],
+    /** Frozen portions of a recipe's batch not yet promised to another dinner (this one aside). */
+    freezerFor(recipeId: string, date: string): number {
+      if (!data) return 0;
+      // The shown week's newest slots first, so they win over the copy loaded with the page.
+      const others = [...latest.current, ...data.thisWeek.slots, ...data.nextWeek.slots]
+        .filter((s, i, all) => all.findIndex((x) => x.date === s.date && x.slot === s.slot) === i)
+        .filter((s) => !(s.date === date && s.slot === 'dinner'));
+      return availablePortions(recipeId, data.freezer ?? [], others, starts.london.date);
+    },
+    /** Sets (or clears) a dinner's batch plan: make a batch, or use a frozen portion. */
+    batch: (date: string, plan: Extract<BatchPlan, 'make' | 'frozen'> | null) =>
+      update(date, 'dinner', (d) => ((d.batch ?? null) === plan ? null : { ...d, batch: plan })),
     /** Your breakfast and home-lunch options (from household settings). */
     mealOptions,
     /** Adds a breakfast or lunch option, with its own small recipe (and a photo, about 3p, if asked). Resolves to a
