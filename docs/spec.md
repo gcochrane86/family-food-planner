@@ -158,6 +158,8 @@ The planner fills each home lunch in this order:
 
 The kitchen list is stored as data (§4 `equipment`). It decides which recipes are possible and which machine each step uses.
 
+**Changed 17 Oct 2026 (owner's choice):** the Friday menu no longer plans a "cook once, eat twice" dinner or a Sunday leftovers night. Every night gets a dinner at the household's portions; office days still get a packed lunch and overnight oats. Leftovers or freezer nights and extra portions are added by hand in the day sheet.
+
 ### Shopping model and the flavour pantry (17 Oct 2026)
 The two weekly Sainsbury's shops buy **fresh meat and vegetables** (plus any staple marked *out* that a recipe needs). Flavour comes from a from-scratch pantry, in the spirit of Ethan Chlebowski's Cook Well:
 - **Cupboard:** grains, tins, oils, vinegars, umami, nuts and whole spices.

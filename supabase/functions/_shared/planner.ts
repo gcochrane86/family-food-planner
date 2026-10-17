@@ -79,7 +79,6 @@ function timeLimit(input: PlannerInput, i: number): number {
   if (i >= 5) return Infinity;
   return input.officeDays.includes(i) ? Math.min(OFFICE_MAX, input.weekdayMaxMin) : input.weekdayMaxMin;
 }
-const isBig = (r: PlannerRecipe) => r.reheatsWell && r.basePortions >= 6;
 
 /** Order of proteins across the dinner nights: meets the targets, avoids two in a row, and has a recipe for each. */
 function proteinSequence(input: PlannerInput, nights: number[], rnd: () => number, fixed: Map<number, Protein | null>): (Protein | null)[] {
@@ -120,26 +119,13 @@ function proteinSequence(input: PlannerInput, nights: number[], rnd: () => numbe
 export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const rnd = mulberry32(input.seed);
   const dates = Array.from({ length: input.days }, (_, i) => addDays(input.weekStart, i));
-  const sundayIdx = input.days === 7 ? 6 : -1;
-  const nights = dates.map((_, i) => i).filter((i) => i !== sundayIdx);
-  const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[]; big: boolean }>();
+  // Every night gets a dinner (the owner dropped the Sunday leftovers night on 17 Oct 2026).
+  const nights = dates.map((_, i) => i);
+  const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[] }>();
   const used = new Set<string>();
   const recent = new Set(input.recentRecipeIds);
 
-  // One "cook once, eat twice" dinner, Monday to Thursday. The night before an office day comes first,
-  // so the leftovers become that day's packed lunch (spec §3, §7).
-  const beforeOffice = nights.filter((i) => i <= 3 && input.officeDays.includes(i + 1));
-  const others = shuffle(nights.filter((i) => i <= 3 && !input.officeDays.includes(i + 1)), rnd);
-  for (const i of [...beforeOffice, ...others]) {
-    const options = input.recipes.filter((r) => isBig(r) && !recent.has(r.id) && r.finishMinutes <= timeLimit(input, i));
-    if (options.length) {
-      const pick = options[Math.floor(rnd() * options.length)];
-      chosen.set(i, { recipe: pick, notes: [], big: true });
-      used.add(pick.id);
-      break;
-    }
-  }
-  const fixed = new Map([...chosen.entries()].map(([i, c]) => [nights.indexOf(i), c.recipe!.protein]));
+  const fixed = new Map<number, Protein | null>();
   const plannedProtein = proteinSequence(input, nights, rnd, fixed);
 
   function chosenProtein(k: number): Protein | null {
@@ -169,14 +155,13 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
       if (!options.length) continue;
       const pick = options[Math.floor(rnd() * options.length)];
       const note = rule.note(pick);
-      chosen.set(i, { recipe: pick, notes: note ? [note] : [], big: false });
+      chosen.set(i, { recipe: pick, notes: note ? [note] : [] });
       used.add(pick.id);
       return;
     }
-    chosen.set(i, { recipe: null, notes: [], big: false });
+    chosen.set(i, { recipe: null, notes: [] });
   });
 
-  const bigDay = [...chosen.entries()].find(([, c]) => c.big)?.[0];
   const slots: ProposedSlot[] = [];
   let homeBreakfasts = 0;
   const list: string[] = input.breakfasts ?? ['Overnight oats', ...BREAKFAST_TURNS];
@@ -193,19 +178,12 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
       reason: breakfast,
     });
 
-    const fromBig = bigDay !== undefined && bigDay === i - 1 ? chosen.get(bigDay)!.recipe! : null;
     slots.push({
-      date, slot: 'lunch', recipeId: fromBig?.id ?? null, mode: office ? 'packed' : fromBig ? 'reheat' : 'routine',
-      portions: null, guests: 0, locked: false, sourceDate: fromBig ? dates[i - 1] : null,
-      reason: fromBig ? `${office ? 'Packed: leftover' : 'Leftover'} ${fromBig.title}` : office ? 'Packed lunch'
-        : homeLunch(i > 0 ? chosen.get(i - 1)?.recipe ?? null : null),
+      date, slot: 'lunch', recipeId: null, mode: office ? 'packed' : 'routine',
+      portions: null, guests: 0, locked: false, sourceDate: null,
+      reason: office ? 'Packed lunch' : homeLunch(i > 0 ? chosen.get(i - 1)?.recipe ?? null : null),
     });
 
-    if (i === sundayIdx) {
-      slots.push({ date, slot: 'dinner', recipeId: null, mode: 'leftovers', portions: null, guests: 0, locked: false, sourceDate: null,
-        reason: 'Use it up: the shop arrives 7–8pm' });
-      return;
-    }
     const c = chosen.get(i)!;
     if (!c.recipe) {
       slots.push({ date, slot: 'dinner', recipeId: null, mode: 'leftovers', portions: null, guests: 0, locked: false, sourceDate: null,
@@ -215,14 +193,13 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     const r = c.recipe;
     const what = r.protein ? cap(NAME[r.protein]) : 'Dinner';
     let reason: string;
-    if (c.big) reason = `Cook once, eat twice: extra portions for ${DAY[i + 1]}'s lunch`;
-    else if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
+    if (office) reason = `${what}, quick (${r.finishMinutes} min) for an office day`;
     else if (i >= 5) reason = `${what}: a weekend cook (${r.finishMinutes} min)`;
     else reason = `${what} · ${r.finishMinutes} min`;
     if (c.notes.length) reason += ` · ${c.notes.join(' · ')}`;
     slots.push({
       date, slot: 'dinner', recipeId: r.id, mode: 'cook', guests: 0, locked: false, sourceDate: null,
-      portions: c.big ? r.basePortions : input.householdPortions, reason,
+      portions: input.householdPortions, reason,
     });
   });
   return slots;

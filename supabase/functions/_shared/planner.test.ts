@@ -65,18 +65,14 @@ describe('proposeWeek', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  test('one cook-once dinner Mon–Thu feeds the next day’s lunch', () => {
-    const big = cooked.filter((s) => (s.portions ?? 0) >= 6);
-    expect(big).toHaveLength(1);
-    expect(big[0].date >= '2026-10-19' && big[0].date <= '2026-10-22').toBe(true);
-    const lunch = plan.find((s) => s.slot === 'lunch' && s.date === addDays(big[0].date, 1))!;
-    expect(['reheat', 'packed']).toContain(lunch.mode);
-    expect(lunch.sourceDate).toBe(big[0].date);
-    expect(lunch.recipeId).toBe(big[0].recipeId);
+  test('no cook-once dinner: every dinner is planned for the household, and no lunch is planned as leftovers', () => {
+    for (const d of cooked) expect(d.portions).toBe(input().householdPortions);
+    expect(plan.filter((s) => s.slot === 'lunch' && s.recipeId)).toHaveLength(0);
   });
 
-  test('Sunday dinner uses things up because the shop arrives that evening', () => {
-    expect(dinnerOn(plan, '2026-10-25').mode).toBe('leftovers');
+  test('Sunday gets a dinner like any other night (no time limit at the weekend)', () => {
+    expect(dinnerOn(plan, '2026-10-25').mode).toBe('cook');
+    expect(cooked).toHaveLength(7);
   });
 
   test('Monday is an office day: overnight oats and a packed lunch', () => {
@@ -148,7 +144,7 @@ test('an empty library gives leftovers nights with a clear reason', () => {
 
 describe('changing the plan', () => {
   const base = proposeWeek(input());
-  const bigDate = dinners(base).find((s) => (s.portions ?? 0) >= 6)!.date;
+  const bigDate = '2026-10-20';
 
   test('alternatives offers 3 options that are not already in the week, each with a reason', () => {
     const date = '2026-10-20';
@@ -167,8 +163,10 @@ describe('changing the plan', () => {
     expect(dinnerOn(p, '2026-10-21')).toMatchObject({ recipeId: alt.recipeId, mode: 'cook', locked: true });
   });
 
-  test('out tonight on the cook-once dinner sends the next lunch back to its routine', () => {
-    const p = applyOut(base, bigDate);
+  test('out tonight on a dinner whose leftovers were the next lunch sends that lunch back to its routine', () => {
+    const withLeftovers = base.map((s) => (s.slot === 'lunch' && s.date === addDays(bigDate, 1)
+      ? { ...s, mode: 'reheat' as const, recipeId: dinnerOn(base, bigDate).recipeId, sourceDate: bigDate } : s));
+    const p = applyOut(withLeftovers, bigDate);
     expect(dinnerOn(p, bigDate)).toMatchObject({ mode: 'out', recipeId: null });
     const lunch = p.find((s) => s.slot === 'lunch' && s.date === addDays(bigDate, 1))!;
     expect(lunch.sourceDate).toBeNull();
@@ -211,14 +209,5 @@ test('the rules hold across 200 different weeks', () => {
     for (const p of ['chicken', 'fish', 'red_meat', 'veggie'] as const) {
       expect({ seed, p, ok: cooked.filter((s) => proteinOf(s.recipeId) === p).length >= i.balance[p] }).toEqual({ seed, p, ok: true });
     }
-    expect(cooked.filter((s) => (s.portions ?? 0) >= 6).length).toBeLessThanOrEqual(1);
-  }
-});
-
-test('the cook-once dinner goes the night before an office day, so it becomes the packed lunch', () => {
-  for (let seed = 1; seed <= 200; seed++) {
-    const p = proposeWeek(input({ seed, officeDays: [0, 2] }));
-    const wedLunch = p.find((s) => s.slot === 'lunch' && s.date === '2026-10-21')!;
-    expect({ seed, mode: wedLunch.mode, from: wedLunch.sourceDate }).toEqual({ seed, mode: 'packed', from: '2026-10-20' });
   }
 });

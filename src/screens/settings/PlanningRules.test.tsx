@@ -18,9 +18,10 @@ test('lays out how the week is built, one dinner at a time, each step marked now
   render(<PlanningRules />, { wrapper: MemoryRouter });
   const list = await steps();
   const text = list.map((s) => s.textContent);
-  expect(text[0]).toMatch(/^NowSet the fixed parts/);
-  expect(text.join(' ')).toMatch(/Pick the cook-once dinner/);
-  expect(text.join(' ')).toMatch(/Fill the other nights one at a time/);
+  expect(text[0]).toMatch(/^NowSet breakfasts and lunches/);
+  expect(text.join(' ')).not.toMatch(/cook-once|Cook once|leftovers or freezer night/i);
+  expect(text[0]).toMatch(/office days/i);
+  expect(text.join(' ')).toMatch(/Fill every night one at a time.*Sunday included/);
   const packs = list.find((s) => /pack size/.test(s.textContent ?? ''))!;
   expect(packs).toHaveTextContent(/^Coming/);
   expect(packs).toHaveTextContent(/200g bag/);

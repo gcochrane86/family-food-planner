@@ -24,10 +24,9 @@ export default function PlanningRules() {
   const adventure = data?.adventure ?? 1;
 
   const steps: { live: boolean; title: string; text: ReactNode }[] = [
-    { live: true, title: 'Set the fixed parts', text: 'Sunday is a leftovers or freezer night. Office days get a packed lunch and overnight oats; your other breakfasts take turns.' },
-    { live: true, title: 'Pick the cook-once dinner', text: 'One 6-portion dinner that reheats well, Monday to Thursday, ideally the night before an office day so the leftovers become the packed lunch.' },
+    { live: true, title: 'Set breakfasts and lunches', text: 'Office days get a packed lunch and overnight oats; your other breakfasts take turns. Home lunches come from your lunch list.' },
     { live: true, title: 'Plan the protein order', text: `Spread ${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie across the week, never the same protein two nights running.` },
-    { live: true, title: 'Fill the other nights one at a time', text: 'Each night gets a dinner that passes the checks below. Among equally good dinners it picks at random, so weeks vary.' },
+    { live: true, title: 'Fill every night one at a time', text: "Each night, Sunday included, gets a dinner for your household's portions that passes the checks below. Among equally good dinners it picks at random, so weeks vary." },
     { live: false, title: 'Check the pack size', text: "For each dinner's fresh ingredients, look at the pack Sainsbury's sells and note what's left over: a recipe needing 100g of spinach comes from a 200g bag, so 100g is spare." },
     { live: false, title: 'Step forward with the leftovers', text: 'The next night prefers a dinner that uses what is spare, but only among dinners that keep the flavour variety. Then check its packs, and on to the next night.' },
     { live: false, title: 'Use the freezer', text: "Batch portions you've confirmed are in the freezer are used before buying the same thing again." },
