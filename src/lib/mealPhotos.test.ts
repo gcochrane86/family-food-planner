@@ -21,8 +21,8 @@ test('an unknown name, or a routine without its recipe yet, gives nothing', () =
 });
 
 test('home lunches each have a recipe slug, chicken sandwich first', () => {
-  expect(HOME_LUNCHES).toEqual(['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl']);
-  expect(HOME_LUNCHES.map((n) => ROUTINE_SLUGS[n])).toEqual(['chicken-sandwich', 'roast-beef-sandwich', 'egg-sandwich', 'tuna-sweetcorn-sandwich', 'mexican-beef-poke-bowl']);
+  expect(HOME_LUNCHES).toEqual(['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Tuna poke bowl', 'Mexican beef poke bowl', 'Chicken poke bowl', 'Salmon poke bowl']);
+  expect(HOME_LUNCHES.map((n) => ROUTINE_SLUGS[n])).toEqual(['chicken-sandwich', 'roast-beef-sandwich', 'egg-sandwich', 'tuna-sweetcorn-sandwich', 'tuna-poke-bowl', 'mexican-beef-poke-bowl', 'chicken-poke-bowl', 'salmon-poke-bowl']);
 });
 
 test('a breakfast or lunch you added finds its recipe by its name', () => {

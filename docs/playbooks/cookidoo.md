@@ -69,7 +69,7 @@ Household id: in **Settings → Household** in the app. Never guess it.
    - estimate `prep_minutes`, `finish_minutes` and `hands_off_minutes`
    - flag `toddler_ok`, `reheats_well`, `salt_per_portion_g` and food-safety temperatures as for other recipes
      (poultry 75°C core)
-3. Check: `npx vitest run scripts/recipeSeed.test.mjs`. Then load: `npm run seed:recipes -- --household <id>`.
+3. Check: `npx vitest run scripts/recipeSeed.test.mjs`. Then load: `npm run seed:recipes -- --household <id>` (adds new recipes only; `--update` also replaces existing ones from the files, overwriting edits made in the app).
    Then link each imported recipe to its original, so syncs add the original to My Week and never copy or edit it:
    `{"slug": "<slug>", "url": "<its Cookidoo URL>"}` piped into
    `npm run -s cookidoo -- record-own --household <id>`.

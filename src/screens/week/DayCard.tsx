@@ -6,7 +6,12 @@ import type { MealSlot, Recipe } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import type { WeekState } from './useWeek';
 import MealPhoto from './MealPhoto';
-import MealOptions from './MealOptions';
+import MealOptions, { type OptionGroup } from './MealOptions';
+
+const LUNCH_GROUPS: OptionGroup[] = [
+  { label: 'Sandwich', suffix: 'sandwich', addLabel: 'filling' },
+  { label: 'Poke bowl', suffix: 'poke bowl', addLabel: 'poke bowl' },
+];
 
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -52,6 +57,9 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
     ...(lastNightRecipe ? [{ value: 'Leftovers', name: `Leftover ${lastNightRecipe.title}`, recipe: lastNightRecipe as Recipe | undefined, removable: false }] : []),
     ...w.mealOptions.lunch.map((n) => ({ value: n, name: n, recipe: routineRecipe(n, w.recipes), removable: true })),
   ];
+  // How often each lunch is picked on the other days of this week, so a group card suggests variety.
+  const lunchUsage: Record<string, number> = {};
+  for (const s of w.slots) if (s.slot === 'lunch' && s.date !== date && s.routine_choice) lunchUsage[s.routine_choice] = (lunchUsage[s.routine_choice] ?? 0) + 1;
   const card = 'overflow-hidden rounded-[20px] bg-surface shadow-sm';
 
   return (
@@ -70,7 +78,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
         <div className="grid gap-2">
           <Label tone="text-lunch">{lunchChoice ? 'Lunch · pick one' : 'Lunch'}</Label>
           {lunchChoice ? (
-            <MealOptions label="Lunch" groupSandwiches options={lunchOptions} picked={picked}
+            <MealOptions label="Lunch" groups={LUNCH_GROUPS} usage={lunchUsage} options={lunchOptions} picked={picked}
               onPick={(v) => w.lunch(date, v)} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />
           ) : (() => {
             const packed = lunch.mode === 'packed' && !lunch.recipe_id;

@@ -324,20 +324,18 @@ describe('the day pop-up', () => {
     expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Chicken sandwich' });
   });
 
-  test('a home lunch offers every lunch option, chicken sandwich first, and saves the pick', async () => {
+  test('a home lunch offers a Sandwich card and a Poke bowl card, chicken sandwich first, and saves the pick', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
     const thu = () => day(/Thursday/);
     expect(within(thu()).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
-    for (const name of ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl']) {
-      expect(within(thu()).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument();
-    }
-    expect(within(thu()).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
-    await user().click(within(thu()).getByRole('button', { name: /Mexican beef poke bowl/ }));
-    expect(within(thu()).getByRole('button', { name: /Mexican beef poke bowl/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Mexican beef poke bowl' });
+    expect(within(thu()).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(thu()).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(thu()).getByRole('button', { name: 'Poke bowl' }));
+    expect(within(thu()).getByRole('button', { name: 'Poke bowl' })).toHaveAttribute('aria-pressed', 'true');
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Tuna poke bowl' });
     await user().keyboard('{Escape}');
-    expect(within(await tile('Thursday 22')).getByText('Mexican beef poke bowl')).toBeInTheDocument();
+    expect(within(await tile('Thursday 22')).getByText('Tuna poke bowl')).toBeInTheDocument();
   });
 
   test('an office day shows the packed lunch', async () => {
@@ -578,8 +576,10 @@ describe('sandwiches', () => {
     await user().click(within(fillings).getByRole('button', { name: 'Egg sandwich' }));
     expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ slot: 'lunch', routine_choice: 'Egg sandwich' });
     expect(within(row).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
-    await user().click(within(row).getByRole('button', { name: 'Mexican beef poke bowl' }));
+    await user().click(within(row).getByRole('button', { name: 'Poke bowl' }));
     expect(within(row).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+    expect(within(within(row).getByRole('group', { name: 'Poke bowl fillings' })).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Tuna', 'Mexican beef', 'Chicken', 'Salmon', '+ Add a poke bowl']);
   });
 
   test('a new filling is added as a sandwich', async () => {
@@ -592,4 +592,18 @@ describe('sandwiches', () => {
     await user().click(within(form).getByRole('button', { name: 'Add' }));
     expect(h.repo.addMealRecipe).toHaveBeenCalledWith('h1', 'Halloumi sandwich', 'Lunch');
   });
+});
+
+
+test('the Poke bowl card suggests the one you have had least this week', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot !== 'lunch' ? s
+      : s.date === '2026-10-21' ? { ...s, routine_choice: 'Tuna poke bowl' }
+        : s.date === '2026-10-23' ? { ...s, routine_choice: 'Mexican beef poke bowl' } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Thu');
+  await user().click(within(day(/Thursday/)).getByRole('button', { name: 'Poke bowl' }));
+  expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-22' && s.slot === 'lunch')).toMatchObject({ routine_choice: 'Chicken poke bowl' });
+  expect(within(day(/Thursday/)).getByRole('button', { name: 'Chicken poke bowl' })).toHaveAttribute('aria-pressed', 'true');
 });

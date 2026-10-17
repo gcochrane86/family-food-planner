@@ -11,6 +11,7 @@ const arg = (name, fallback) => { const i = args.indexOf(`--${name}`); return i 
 const fail = (msg) => { console.error(msg); process.exit(1); };
 const householdId = arg('household');
 const dir = arg('dir', 'seed/private/recipes');
+const replaceExisting = args.includes('--update');
 if (!householdId) fail('Usage: npm run seed:recipes -- --household <household-id>');
 
 const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
@@ -35,11 +36,14 @@ const household = must(await db.from('households').select('id').eq('id', househo
 if (!household) fail(`No household with ID ${householdId}.`);
 
 let steps = 0;
+let skipped = 0;
+const saved = [];
 let keptPhotos = 0;
 for (const r of recipes) {
   const row = recipeRow(householdId, r);
   // Status is only set for new recipes, so anything you've archived or changed in the app stays that way.
   const existing = must(await db.from('recipes').select('id').eq('household_id', householdId).eq('slug', r.slug).maybeSingle(), `Finding ${r.slug}`);
+  if (existing && !replaceExisting) { skipped++; continue; }
   const { status, ...update } = row;
   const { id } = existing
     ? must(await db.from('recipes').update(update).eq('id', existing.id).select('id').single(), `Updating ${r.slug}`)
@@ -50,7 +54,9 @@ for (const r of recipes) {
   keptPhotos += must(await db.rpc('replace_recipe_contents', { p_recipe_id: id, p_ingredients: ingredientRows, p_steps: stepRows }),
     `Saving ${r.slug} ingredients and steps`);
   steps += stepRows.length;
+  saved.push(r);
 }
 
-console.log(`Seeded ${recipes.length} recipes (${recipes.filter((r) => r.kind === 'meal').length} meals, `
-  + `${recipes.filter((r) => r.kind === 'component').length} components), ${steps} steps, ${keptPhotos} step photos kept.`);
+if (skipped) console.log(`Left ${skipped} existing recipes as they are (use --update to replace them from the files).`);
+console.log(`Seeded ${saved.length} recipes (${saved.filter((r) => r.kind === 'meal').length} meals, `
+  + `${saved.filter((r) => r.kind === 'component').length} components), ${steps} steps, ${keptPhotos} step photos kept.`);

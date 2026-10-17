@@ -5,7 +5,7 @@ import type { Recipe } from './types';
 export const DEFAULT_BREAKFASTS = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
 
 /** What a home lunch can be (besides last night's leftovers), in the order the day sheet offers them. */
-export const HOME_LUNCHES = ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Mexican beef poke bowl'];
+export const HOME_LUNCHES = ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Tuna poke bowl', 'Mexican beef poke bowl', 'Chicken poke bowl', 'Salmon poke bowl'];
 
 export const ROUTINE_SLUGS: Record<string, string> = {
   'Overnight oats': 'overnight-oats',
@@ -16,7 +16,10 @@ export const ROUTINE_SLUGS: Record<string, string> = {
   'Roast beef sandwich': 'roast-beef-sandwich',
   'Egg sandwich': 'egg-sandwich',
   'Tuna & sweetcorn sandwich': 'tuna-sweetcorn-sandwich',
+  'Tuna poke bowl': 'tuna-poke-bowl',
   'Mexican beef poke bowl': 'mexican-beef-poke-bowl',
+  'Chicken poke bowl': 'chicken-poke-bowl',
+  'Salmon poke bowl': 'salmon-poke-bowl',
 };
 
 /** The recipe behind a breakfast or lunch name (e.g. "Baked oats"), if it's in the library. */
