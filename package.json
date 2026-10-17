@@ -13,7 +13,8 @@
     "seed:recipes": "node scripts/seed-recipes.mjs",
     "basket": "tsx scripts/basket.ts",
     "cookidoo": "tsx scripts/cookidoo.ts",
-    "recipes": "tsx scripts/recipes.ts"
+    "recipes": "tsx scripts/recipes.ts",
+    "pantry": "tsx scripts/pantry.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
