@@ -39,7 +39,7 @@ A meal-planning web app for a household of two adults and a toddler. It plans th
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend | React + Vite + Tailwind, a static, installable **PWA** | One codebase for phone and iPad, no App Store, home-screen icon |
+| Frontend | React + Vite + Tailwind, a static, installable **PWA** | One codebase for phone and iPad, no App Store, home-screen icon. On the iPad the screen stays on while the app is open (wake lock, iOS 18.4+); phones only in cook mode |
 | Backend | **Supabase** (Postgres, Auth, Storage, Realtime) | Hosted, shared household login, live sync between devices, photo storage. The app talks to it directly; row-level security protects the data |
 | Server-side code | **Supabase Edge Functions** | The few things that need secrets or a server: the kitchen assistant (Claude API key), image generation (image API key) and in-app PDF import |
 | Hosting | **GitHub Pages**, deployed by a GitHub Actions workflow on every push to `main` | Matches how you already host; free; HTTPS (needed for a PWA) |

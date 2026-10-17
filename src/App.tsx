@@ -20,8 +20,13 @@ import SettingsHome from './screens/settings/SettingsHome';
 import Shopping from './screens/settings/Shopping';
 import Staples from './screens/settings/Staples';
 import WeekPattern from './screens/settings/WeekPattern';
+import { isTablet, useWakeLock } from './lib/wakeLock';
+
+// On the iPad (it stands in the kitchen) the screen stays on while the app is open; phones lock as usual.
+const TABLET = isTablet();
 
 function Shell({ children }: { children: React.ReactNode }) {
+  useWakeLock(TABLET);
   return (
     <div className="mx-auto max-w-5xl pb-28">
       <header

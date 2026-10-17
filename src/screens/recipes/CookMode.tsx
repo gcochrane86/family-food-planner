@@ -12,21 +12,7 @@ import { remaining } from '../../lib/timer';
 import type { Phase, RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
-
-/** Keeps the screen on while cooking, where the browser allows it. */
-function useWakeLock() {
-  useEffect(() => {
-    let lock: { release(): Promise<void> } | null = null;
-    const request = () => {
-      const wl = (navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock;
-      wl?.request('screen').then((l) => { lock = l; }).catch(() => {});
-    };
-    request();
-    const onVisible = () => { if (document.visibilityState === 'visible') request(); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { document.removeEventListener('visibilitychange', onVisible); void lock?.release().catch(() => {}); };
-  }, []);
-}
+import { useWakeLock } from '../../lib/wakeLock';
 
 interface RunningTimer { key: string; label: string; endAt: number; done: boolean }
 
