@@ -1,6 +1,7 @@
 import { getSupabase } from './supabase';
 import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
+import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type {
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
@@ -273,6 +274,18 @@ export const repo = {
       household_id: householdId, slug, title: name, kind: 'component', source: 'own_doc', base_portions: 2, tags: [tag],
       status: 'active', toddler_ok: true, finish_minutes: 10,
     }).select('*').single()));
+  },
+
+  /** Puts a roast on a day's dinner (the week must already be planned): the main part's photo and title, the
+   *  chosen people as portions, and the whole choice for the shopping list. */
+  async addRoast(householdId: string, date: string, choice: RoastChoice, mainRecipeId: string): Promise<void> {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    const { week, slots } = await this.getWeek(householdId, d.toISOString().slice(0, 10));
+    const dinner = slots.find((s) => s.date === date && s.slot === 'dinner');
+    if (!week || !dinner) throw new Error('no_week');
+    await this.saveSlots([{ ...dinner, recipe_id: mainRecipeId, mode: 'cook', portions: choice.people, guests: 0, locked: true,
+      reason: `Sunday roast · ${choice.main} · ${choice.people} people · ${choice.serve}`, roast: choice, batch: null }]);
   },
 
   /** Start fresh: clears the plans and Spar list now and leaves the trolley and My Week for the Mac's tasks. */

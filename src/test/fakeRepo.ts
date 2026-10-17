@@ -45,6 +45,7 @@ export function fakeRepo() {
     setQuickDone: vi.fn(async () => {}),
     clearQuickDone: vi.fn(async () => {}),
     addMealRecipe: vi.fn(async (householdId: string, name: string, tag: 'Breakfast' | 'Lunch'): Promise<Recipe> => ({ ...TACOS, id: `r-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, household_id: householdId, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title: name, kind: 'component', tags: [tag], hero_image_path: null, hero_image_source: null })),
+    addRoast: vi.fn(async (_householdId: string, _date: string, _choice: unknown, _mainRecipeId: string) => {}),
     startFresh: vi.fn(async (_householdId: string): Promise<string> => 'f-new'),
     getFreshStart: vi.fn(async (): Promise<FreshStart | null> => null),
     listPrepared: vi.fn(async (): Promise<PreparedItem[]> => []),

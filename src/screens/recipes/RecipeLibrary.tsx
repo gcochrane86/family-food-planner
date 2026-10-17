@@ -60,7 +60,10 @@ export default function RecipeLibrary() {
   return (
     <section className="grid gap-4 py-4">
       <h1 className="text-3xl font-bold">Recipes</h1>
-      <AddRecipe householdId={householdId!} />
+      <div className="flex flex-wrap items-start gap-2">
+        <AddRecipe householdId={householdId!} />
+        <Link to="/recipes/roast" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold no-underline">Build a roast</Link>
+      </div>
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
         className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
