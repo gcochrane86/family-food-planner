@@ -16,5 +16,6 @@ export function recipeSavePayload(original: Recipe & { steps: RecipeStep[] }, fi
   }));
   // Keep the recipe's equipment (a MEATER or hob it needs without naming it on a step) and add the steps' machines.
   const equipment = [...new Set([...original.equipment, ...steps.map((st) => st.machine).filter((m): m is NonNullable<typeof m> => !!m)])];
-  return { fields: { ...fields, equipment }, ingredients: ingredientRows, steps: stepRows };
+  // The batch isn't edited here, but save_recipe writes it, so it's passed through as it was.
+  return { fields: { ...fields, equipment, batch: original.batch ?? null }, ingredients: ingredientRows, steps: stepRows };
 }

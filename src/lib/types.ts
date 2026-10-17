@@ -136,6 +136,8 @@ export interface Recipe {
   cookidoo_portions?: number | null;
   /** The web page a 'web' recipe was converted from. */
   source_url?: string | null;
+  /** The make-ahead part that freezes well, if any (src/lib/batch.ts). */
+  batch?: RecipeBatch | null;
 }
 
 export interface RecipeDetail extends Recipe {
@@ -174,6 +176,8 @@ export interface MealSlot {
   cooked_at: string | null;
   portions_verdict: 'not_enough' | 'right' | 'leftovers' | null;
   cookidoo_recipe_id?: string | null;
+  /** make a batch / made it / use a frozen portion / checked it's in the freezer */
+  batch?: BatchPlan | null;
 }
 
 // Shopping (Phase 4) -------------------------------------------------------------
@@ -268,4 +272,23 @@ export interface RecipeEdit {
   subtitle: string | null;
   prep_minutes: number;
   finish_minutes: number;
+}
+
+// Pantry (Phase 7) ---------------------------------------------------------------
+
+/** A recipe's make-ahead part that freezes well: its ingredient group and steps, how many to make, how long it keeps. */
+export interface RecipeBatch { name: string; group: string; steps: string[]; makes: number; freezer_days: number }
+
+export type BatchPlan = 'make' | 'made' | 'frozen' | 'frozen_ok';
+
+/** Something cooked and kept: usually batch portions in the freezer. */
+export interface PreparedItem {
+  id: string;
+  household_id: string;
+  recipe_id: string | null;
+  name: string;
+  portions: number;
+  location: 'freezer' | 'fridge';
+  made_on: string;
+  use_by: string | null;
 }

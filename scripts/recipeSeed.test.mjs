@@ -114,3 +114,16 @@ test('seedFromDetail turns a saved recipe back into the seed format, round-tripp
   expect(back).toMatchObject({ slug: r.slug, title: r.title, base_portions: r.base_portions });
   expect(back).not.toHaveProperty('household_id');
 });
+
+test('a batch must name one of the recipe\'s ingredient groups, and travels through the row helpers', () => {
+  const s = clone();
+  const r = s.recipes[0];
+  const group = r.ingredients.find((g) => g.group)?.group ?? (r.ingredients[0].group = 'The sauce');
+  r.batch = { name: 'Sauce', group: 'Nope', steps: [], makes: 4, freezer_days: 90 };
+  expect(validateRecipeSeed(s)).toContain('recipes[0].batch.group must be the name of an ingredient group');
+  r.batch.group = group;
+  expect(validateRecipeSeed(s)).toEqual([]);
+  expect(recipeRow('h1', r).batch).toEqual(r.batch);
+  const { ingredients, steps } = contentRows(r);
+  expect(seedFromDetail({ ...recipeRow('h1', r), ingredients, steps }).batch).toEqual(r.batch);
+});

@@ -47,6 +47,15 @@ export function validateRecipeSeed(file) {
       if (s?.settings != null && typeof s.settings !== 'string') problems.push(`${at}.steps[${j}].settings must be text`);
       if (s?.timer != null && (!Number.isInteger(s.timer) || s.timer <= 0)) problems.push(`${at}.steps[${j}].timer must be whole minutes`);
     });
+    if (r?.batch != null) {
+      const b = r.batch;
+      if (!isText(b?.name)) problems.push(`${at}.batch.name missing`);
+      const groups = new Set((Array.isArray(r?.ingredients) ? r.ingredients : []).map((g) => g?.group).filter(Boolean));
+      if (!groups.has(b?.group)) problems.push(`${at}.batch.group must be the name of an ingredient group`);
+      if (!Array.isArray(b?.steps) || !b.steps.every(isText)) problems.push(`${at}.batch.steps must be a list of step titles`);
+      if (b?.makes != null && (!Number.isInteger(b.makes) || b.makes < 2 || b.makes > 8)) problems.push(`${at}.batch.makes must be 2 to 8`);
+      if (b?.freezer_days != null && (!Number.isInteger(b.freezer_days) || b.freezer_days < 1 || b.freezer_days > 365)) problems.push(`${at}.batch.freezer_days must be 1 to 365`);
+    }
   });
   return problems;
 }
@@ -60,6 +69,7 @@ export function recipeRow(householdId, r) {
     toddler_note: r.toddler_note ?? null, protein: r.protein ?? null, salt_per_portion_g: r.salt_per_portion_g ?? null,
     prep_minutes: r.prep_minutes ?? 0, finish_minutes: r.finish_minutes ?? 0, hands_off_minutes: r.hands_off_minutes ?? 0,
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
+    batch: r.batch ?? null,
   };
 }
 
@@ -79,7 +89,7 @@ export function contentRows(r) {
 
 const SEED_FIELDS = ['slug', 'title', 'subtitle', 'kind', 'component_role', 'source', 'base_portions', 'reheats_well', 'freezes_well',
   'toddler_ok', 'toddler_note', 'protein', 'salt_per_portion_g', 'prep_minutes', 'finish_minutes', 'hands_off_minutes', 'tags', 'equipment',
-  'reheat', 'status'];
+  'reheat', 'status', 'batch'];
 const num = (v) => (v === null || v === undefined ? v : Number(v));
 
 /** A saved recipe (row + ingredients + steps) in the seed format, e.g. for Claude to rework it. */
