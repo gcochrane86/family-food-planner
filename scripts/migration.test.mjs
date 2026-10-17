@@ -538,8 +538,9 @@ test('0014: save_claude_week makes a new week and closes the request', async () 
   expect(await one(OWNER, `select status from week_plan_requests where id = '${req}'`)).toBe('done');
 });
 
-test('0014: save_claude_week replaces a draft week', async () => {
+test('0014: save_claude_week replaces a draft week when asked to replan it', async () => {
   const { hid, rid, req } = await weekRequest(OWNER);
+  await svc(`update week_plan_requests set replace = true where id = '${req}'`);
   const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-26') returning id`);
   await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-10-27', 'dinner', 'out')`);
   await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
@@ -565,4 +566,22 @@ test("0014: save_claude_week refuses another household's recipe, and members can
   expect(await svc(`select save_claude_week('${req}', 7, '${claudeSlots(theirs)}', 'S')`).then(() => null, (e) => e.message)).toMatch(/unknown_recipe/);
   expect(await as(OWNER, 'select * from plan_weeks')).toHaveLength(0);
   expect(await fails(OWNER, `select save_claude_week('${req}', 7, '[]', 'S')`)).toMatch(/permission denied/);
+});
+
+test('0014: a plain request never overwrites a week made since (e.g. the 7pm backup the owner then edited)', async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-10-26') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-10-27', 'dinner', 'out')`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  expect(await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S')`).then(() => null, (e) => e.message)).toMatch(/week_exists/);
+  expect(await as(OWNER, 'select mode from meal_slots')).toEqual([{ mode: 'out' }]);
+});
+
+test('0014: members only ask (requested, on a Monday) or cancel; only the Mac plans', async () => {
+  const { hid, req } = await weekRequest(OWNER);
+  expect(await fails(OWNER, `insert into week_plan_requests (household_id, week_start, status) values ('${hid}', '2026-11-02', 'planning')`)).toMatch(/row-level security/);
+  expect(await fails(OWNER, `insert into week_plan_requests (household_id, week_start) values ('${hid}', '2026-11-03')`)).toMatch(/check constraint/);
+  expect(await fails(OWNER, `update week_plan_requests set status = 'done' where id = '${req}'`)).toMatch(/row-level security/);
+  await as(OWNER, `update week_plan_requests set status = 'failed', summary = 'Cancelled' where id = '${req}'`);
+  expect(await one(OWNER, `select status from week_plan_requests where id = '${req}'`)).toBe('failed');
 });

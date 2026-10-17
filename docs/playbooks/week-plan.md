@@ -20,7 +20,8 @@ request itself. Claude chooses the **dinners**; the built-in planner then fills 
 
 ## Steps
 1. `npm run -s week -- pending --household <id>` prints the waiting requests. For each, oldest first:
-2. `npm run -s week -- claim --request <id>`. If it says already taken or approved, move on.
+2. `npm run -s week -- claim --request <id>`. If it says already taken, approved, or that a menu was made in the
+   meantime (only Replan with Claude may replace a draft), move on: the request is already closed.
 3. `npm run -s week -- context --request <id>` prints:
    - `request.note`: the household's note, if any
    - `week`: the dates, which are office days, household portions

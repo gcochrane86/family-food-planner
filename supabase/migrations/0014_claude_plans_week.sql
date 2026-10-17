@@ -3,7 +3,9 @@
 create table public.week_plan_requests (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households (id) on delete cascade,
-  week_start date not null, -- a Monday
+  week_start date not null check (extract(isodow from week_start) = 1), -- a Monday
+  -- Replan with Claude: may replace the week's draft. A plain request never overwrites a week made since.
+  replace boolean not null default false,
   note text check (note is null or char_length(note) <= 300),
   status text not null default 'requested' check (status in ('requested', 'planning', 'done', 'failed')),
   requested_at timestamptz not null default now(),
@@ -15,9 +17,13 @@ create table public.week_plan_requests (
 create unique index week_plan_requests_open on public.week_plan_requests (household_id, week_start)
   where status in ('requested', 'planning');
 alter table public.week_plan_requests enable row level security;
-create policy "household access" on public.week_plan_requests
-  for all to authenticated
-  using (public.is_member(household_id)) with check (public.is_member(household_id));
+-- Members ask (a new request) and cancel (mark it failed); only the owner's Mac (the service key) plans.
+create policy "members read" on public.week_plan_requests
+  for select to authenticated using (public.is_member(household_id));
+create policy "members ask" on public.week_plan_requests
+  for insert to authenticated with check (public.is_member(household_id) and status = 'requested');
+create policy "members cancel" on public.week_plan_requests
+  for update to authenticated using (public.is_member(household_id)) with check (public.is_member(household_id) and status = 'failed');
 
 -- Who planned a week, and Claude's summary of why.
 alter table public.plan_weeks add column planned_by text not null default 'planner' check (planned_by in ('planner', 'claude'));
@@ -40,6 +46,7 @@ begin
 
   select * into w from public.plan_weeks where household_id = r.household_id and week_start = r.week_start for update;
   if w.id is not null and w.status = 'approved' then raise exception 'week_approved'; end if;
+  if w.id is not null and not r.replace then raise exception 'week_exists'; end if;
   if w.id is null then
     insert into public.plan_weeks (household_id, week_start, days, planned_by, summary)
       values (r.household_id, r.week_start, p_days, 'claude', p_summary) returning * into w;

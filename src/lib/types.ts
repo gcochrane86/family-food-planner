@@ -175,6 +175,9 @@ export interface PlanWeek {
   summary?: string | null; // Claude's note on why this week
 }
 
+/** The summary on a request the household cancelled (not shown as a failure). */
+export const CANCELLED = 'Cancelled';
+
 /** "Plan with Claude": a request the scheduled task on the owner's Mac picks up. */
 export interface WeekPlanRequest {
   id: string;
@@ -182,6 +185,7 @@ export interface WeekPlanRequest {
   week_start: string;
   note: string | null;
   status: 'requested' | 'planning' | 'done' | 'failed';
+  replace?: boolean; // Replan: may replace the week's draft
   requested_at: string;
   summary: string | null;
 }

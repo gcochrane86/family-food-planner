@@ -226,17 +226,31 @@ describe('Plan with Claude', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await user().type(await screen.findByRole('textbox', { name: 'Anything for this week?' }), 'Out Wednesday');
     await user().click(screen.getByRole('button', { name: 'Plan with Claude' }));
-    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', 'Out Wednesday');
+    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', 'Out Wednesday', false);
     expect(await screen.findByText(/Claude is planning next week/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Plan with Claude' })).not.toBeInTheDocument();
   });
 
-  test('an open request shows that Claude is planning instead of the buttons', async () => {
+  test('while Claude is planning, Quick menu still works and the request can be cancelled', async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
     h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'planning' }));
     render(<WeekView />, { wrapper: MemoryRouter });
     expect(await screen.findByText(/Claude is planning next week/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Quick menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Plan with Claude' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Quick menu' })).toBeInTheDocument();
+    await user().click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(h.repo.cancelWeekPlan).toHaveBeenCalledWith('q1');
+    expect(await screen.findByRole('button', { name: 'Plan with Claude' })).toBeInTheDocument();
+  });
+
+  test('a failed request is not offered again under an approved week', async () => {
+    const week = await h.repo.getWeek('h1', '2026-10-19');
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
+      ? { ...week, week: { ...week.week!, status: 'approved', proposed_at: '2026-10-16T18:00:00Z' } } : { week: null, slots: [] }));
+    h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'failed', summary: 'That week was approved while planning.' }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
   test('a failed request says why and can try again', async () => {
@@ -245,7 +259,7 @@ describe('Plan with Claude', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     expect(await screen.findByText(/the Mac may have slept/)).toBeInTheDocument();
     await user().click(screen.getByRole('button', { name: 'Try again' }));
-    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', 'Out Wednesday');
+    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', 'Out Wednesday', false);
   });
 
   test('replanning a draft warns that it replaces the draft first', async () => {
@@ -254,7 +268,7 @@ describe('Plan with Claude', () => {
     expect(screen.getByText(/replaces this draft, including any changes/)).toBeInTheDocument();
     expect(h.repo.requestWeekPlan).not.toHaveBeenCalled();
     await user().click(screen.getByRole('button', { name: 'Replan' }));
-    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', null);
+    expect(h.repo.requestWeekPlan).toHaveBeenCalledWith('h1', '2026-10-19', null, true);
   });
 
   test("a week Claude planned shows Claude's summary", async () => {

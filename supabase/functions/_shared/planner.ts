@@ -48,7 +48,7 @@ export interface ProposedSlot {
 const NAME: Record<Protein, string> = { chicken: 'chicken', fish: 'fish', red_meat: 'red meat', veggie: 'veggie', egg: 'egg', other: 'other' };
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const GUEST_PORTION = 1.25;
-const OFFICE_MAX = 20;
+export const OFFICE_MAX = 20;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 export function addDays(iso: string, n: number): string {

@@ -42,8 +42,9 @@ export default function WeekView() {
       {w.saveError && <ErrorBanner message={w.saveError} />}
       {w.loading && !w.error && <p className="text-muted">Loading…</p>}
 
-      {!w.loading && !w.error && !w.week && (plan.open ? <Planning which={w.shown} /> : (
+      {!w.loading && !w.error && !w.week && (
         <div className="grid justify-items-start gap-3 rounded-2xl border border-dashed border-line p-6">
+          {plan.open ? <Planning w={w} /> : (<>
           <p className="m-0 font-semibold">{w.shown === 'next' ? 'Claude plans next week on Friday evening' : 'No menu for this week'}</p>
           <p className="m-0 text-sm text-muted">
             Or ask now: Claude plans from your specifications, recipes, freezer and pantry, usually within 15 minutes while the Mac is on.
@@ -51,9 +52,10 @@ export default function WeekView() {
           </p>
           {plan.failed && <Failed w={w} summary={plan.req!.summary} note={plan.req!.note} />}
           <PlanForm label="Plan with Claude" onPlan={(note) => void w.planWithClaude(note)} />
+          </>)}
           <button type="button" onClick={() => void w.propose()} className="font-semibold text-accent underline">Quick menu</button>
         </div>
-      ))}
+      )}
 
       {w.week && (
         <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">

@@ -19,6 +19,7 @@ describe('parseWeekPlan', () => {
       { date: '2026-10-29', recipe: 'salmon', reason: 'Fishmonger day' },
     ]);
     expect(out.newRecipes[0].source).toBe('claude');
+    expect(parseWeekPlan(plan({ new_recipes: [{ ...example, status: 'archived' }] }), week).newRecipes[0].status).toBe('active');
   });
   it('needs a summary and at least one dinner', () => {
     expect(() => parseWeekPlan(plan({ summary: '' }), week)).toThrow('"summary"');

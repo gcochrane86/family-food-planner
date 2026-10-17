@@ -73,7 +73,8 @@ export function fakeRepo() {
     approveWeek: vi.fn(async () => {}),
     proposeNow: vi.fn(async () => 'created'),
     getWeekPlanRequest: vi.fn(async (_hid: string, _weekStart: string): Promise<WeekPlanRequest | null> => null),
-    requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null): Promise<WeekPlanRequest> => ({
+    cancelWeekPlan: vi.fn(async (_id: string) => {}),
+    requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null, _replace?: boolean): Promise<WeekPlanRequest> => ({
       id: 'q1', household_id: hid, week_start: weekStart, note, status: 'requested', requested_at: new Date().toISOString(), summary: null })),
     recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),

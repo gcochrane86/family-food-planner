@@ -4,7 +4,7 @@
 
 **Goal:** A **Plan with Claude** button on the Week tab. Claude, on the owner's Mac, plans the week from the
 household's written specifications, recipes, freezer and pantry, and can write a new recipe or two. On Fridays it
-plans next week by itself at 6:30pm. The built-in planner stays as the quick option ("Quick menu") and as the 7pm
+plans next week by itself from 6pm. The built-in planner stays as the quick option ("Quick menu") and as the 7pm
 backup when the Mac is off.
 
 **Architecture:**
@@ -14,7 +14,7 @@ backup when the Mac is off.
   lunches, office days, breakfast turns), so those rules live in one place: `PlannerInput.chosenDinners`.
 - **Saving is one database call** (`save_claude_week`): it replaces a draft (never an approved week), writes the
   slots and closes the request, all or nothing.
-- **Friday:** `week pending` creates next week's request itself on Friday from 18:30 London time when next week has
+- **Friday:** `week pending` creates next week's request itself on Friday from 18:00 London time when next week has
   no plan and no request. The Edge Function's 7pm run skips weeks that already have a plan, so it is the backup.
 
 **Tech Stack:** React + Vite + TS, Supabase (migration 0014), tsx CLI with the service key, Vitest + PGlite.
@@ -59,7 +59,7 @@ does when it plans.
   approved week and leaves it untouched; save refuses a request that isn't planning.
 
 ### Task 3: `npm run week` (scripts/week.ts, scripts/weekInput.ts)
-- `pending --household` — open requests (and on Friday ≥18:30 London, creates next week's when missing); closes
+- `pending --household` — open requests (and on Friday ≥18:00 London, creates next week's when missing); closes
   stalled ones.
 - `claim --request` — requested → planning; fails it if the week is approved.
 - `context --request` — the request, the week's dates and office days, Meal and Planner specifications, house rules,

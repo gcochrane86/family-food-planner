@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
+import { CANCELLED } from '../../lib/types';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
 import type { BasketRun, BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
 import { availablePortions, parseBatch } from '../../lib/batch';
@@ -346,14 +347,27 @@ export function useWeek() {
       if (req.status === 'done') await reload();
       else setData((d) => d && { ...d, [key]: req });
     },
-    /** Asks Claude to plan (or replan) the week shown. */
-    async planWithClaude(note: string | null) {
+    /** Asks Claude to plan the week shown, or with `replace`, to replan its draft. */
+    async planWithClaude(note: string | null, replace = false) {
       setSaveError(null);
       try {
-        const req = await repo.requestWeekPlan(hid, weekStart, note?.trim() || null);
+        const req = await repo.requestWeekPlan(hid, weekStart, note?.trim() || null, replace);
         setData((d) => d && { ...d, [shown === 'next' ? 'nextRequest' : 'thisRequest']: req });
       } catch {
         setSaveError("Couldn't ask Claude. Check your connection and try again.");
+      }
+    },
+    /** Cancels the open "Plan with Claude" request. */
+    async cancelPlan() {
+      const key = shown === 'next' ? 'nextRequest' : 'thisRequest';
+      const req = data?.[key];
+      if (!req) return;
+      setSaveError(null);
+      try {
+        await repo.cancelWeekPlan(req.id);
+        setData((d) => d && { ...d, [key]: { ...req, status: 'failed', summary: CANCELLED } });
+      } catch {
+        setSaveError("Couldn't cancel. Check your connection and try again.");
       }
     },
     async propose() {

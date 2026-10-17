@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { CANCELLED } from '../../lib/types';
 import type { WeekState } from './useWeek';
 
 const MINUTE = 60_000;
@@ -8,21 +9,27 @@ const MINUTE = 60_000;
 export function usePlanRequest(w: WeekState) {
   const req = w.planRequest;
   const open = !!req && (req.status === 'requested' || req.status === 'planning');
-  // A failure only matters until a newer week replaces it.
-  const failed = !!req && req.status === 'failed' && (!w.week || Date.parse(req.requested_at) > Date.parse(w.week.proposed_at));
+  // A failure only matters while the week can still be planned (no week, or a draft older than the request).
+  const failed = !!req && req.status === 'failed' && req.summary !== CANCELLED
+    && (!w.week || (w.week.status === 'draft' && Date.parse(req.requested_at) > Date.parse(w.week.proposed_at)));
+  const latest = useRef(w);
+  latest.current = w;
   useEffect(() => {
     if (!open) return;
-    const t = setInterval(() => void w.checkRequest(), MINUTE);
+    const t = setInterval(() => void latest.current.checkRequest(), MINUTE);
     return () => clearInterval(t);
-  }, [open, w.checkRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open]);
   return { req, open, failed };
 }
 
-export function Planning({ which }: { which: 'this' | 'next' }) {
+export function Planning({ w }: { w: WeekState }) {
   return (
-    <p role="status" className="m-0 rounded-2xl bg-accent-soft p-4 font-semibold">
-      Claude is planning {which === 'next' ? 'next week' : 'this week'}… usually within 15 minutes, while the Mac is on.
-    </p>
+    <div className="grid justify-items-start gap-2 rounded-2xl bg-accent-soft p-4">
+      <p role="status" className="m-0 font-semibold">
+        Claude is planning {w.shown === 'next' ? 'next week' : 'this week'}… usually within 15 minutes, while the Mac is on.
+      </p>
+      <button type="button" onClick={() => void w.cancelPlan()} className="text-sm font-semibold text-accent underline">Cancel</button>
+    </div>
   );
 }
 
@@ -30,7 +37,7 @@ export function Failed({ w, summary, note }: { w: WeekState; summary: string | n
   return (
     <div role="alert" className="grid justify-items-start gap-2 rounded-2xl border border-warn p-4">
       <p className="m-0">Claude couldn't plan it{summary ? `: ${summary}` : '.'}</p>
-      <button type="button" onClick={() => void w.planWithClaude(note)} className="font-semibold text-accent underline">Try again</button>
+      <button type="button" onClick={() => void w.planWithClaude(note, !!w.week)} className="font-semibold text-accent underline">Try again</button>
     </div>
   );
 }
@@ -66,12 +73,12 @@ export default function ClaudeWeekNotes({ w, plan }: { w: WeekState; plan: Retur
           <p className="m-0 text-[15px] leading-snug">{w.week.summary}</p>
         </section>
       )}
-      {open && <Planning which={w.shown} />}
+      {open && <Planning w={w} />}
       {!open && failed && <Failed w={w} summary={req!.summary} note={req!.note} />}
       {!open && w.week.status === 'draft' && (replanning ? (
         <div className="grid gap-2 rounded-2xl border border-line p-4">
           <p className="m-0 text-sm">Claude replaces this draft, including any changes you've made to it.</p>
-          <PlanForm label="Replan" onPlan={(note) => { setReplanning(false); void w.planWithClaude(note); }} onCancel={() => setReplanning(false)} />
+          <PlanForm label="Replan" onPlan={(note) => { setReplanning(false); void w.planWithClaude(note, true); }} onCancel={() => setReplanning(false)} />
         </div>
       ) : (
         <button type="button" onClick={() => setReplanning(true)} className="justify-self-start font-semibold text-accent underline">Replan with Claude</button>

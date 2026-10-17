@@ -38,7 +38,7 @@ export function parseWeekPlan(input: string, week: { weekStart: string; days: nu
   const raw = o.new_recipes ?? [];
   if (!Array.isArray(raw)) throw new Error('"new_recipes" must be a list');
   if (raw.length > week.adventure) throw new Error(`at most ${week.adventure} new recipe${week.adventure === 1 ? '' : 's'} a week (Settings → adventure)`);
-  const newRecipes = raw.map((r) => ({ ...(r as Record<string, unknown>), source: 'claude' }) as SeedRecipe);
+  const newRecipes = raw.map((r) => ({ ...(r as Record<string, unknown>), source: 'claude', status: 'active' }) as unknown as SeedRecipe);
   if (newRecipes.length) {
     const problems: string[] = validateRecipeSeed({ recipes: newRecipes });
     if (problems.length) throw new Error(`A new recipe has problems:\n- ${problems.join('\n- ')}`);
