@@ -27,6 +27,7 @@ export interface PlannerInput {
   householdPortions: number;
   seed: number;
   breakfasts?: string[];      // your breakfast options; the built-in rotation when missing
+  frozen?: { recipeId: string; portions: number }[]; // batch portions in the freezer, in date
 }
 
 export interface ProposedSlot {
@@ -39,6 +40,7 @@ export interface ProposedSlot {
   locked: boolean;
   reason: string | null;
   sourceDate: string | null;  // for leftovers at lunch: the dinner they come from
+  batch?: 'frozen' | null;    // uses a batch portion from the freezer
 }
 
 const NAME: Record<Protein, string> = { chicken: 'chicken', fish: 'fish', red_meat: 'red meat', veggie: 'veggie', egg: 'egg', other: 'other' };
@@ -123,6 +125,7 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const nights = dates.map((_, i) => i);
   const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[] }>();
   const used = new Set<string>();
+  const frozenLeft = new Map((input.frozen ?? []).map((f) => [f.recipeId, f.portions]));
   const recent = new Set(input.recentRecipeIds);
 
   const fixed = new Map<number, Protein | null>();
@@ -153,7 +156,10 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     for (const rule of rules) {
       const options = input.recipes.filter(rule.test);
       if (!options.length) continue;
-      const pick = options[Math.floor(rnd() * options.length)];
+      // Among equally good dinners, one with a batch in the freezer comes first.
+      const fromFreezer = options.filter((o) => (frozenLeft.get(o.id) ?? 0) > 0);
+      const pool = fromFreezer.length ? fromFreezer : options;
+      const pick = pool[Math.floor(rnd() * pool.length)];
       const note = rule.note(pick);
       chosen.set(i, { recipe: pick, notes: note ? [note] : [] });
       used.add(pick.id);
@@ -201,9 +207,11 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     else reason = `${what} · ${r.finishMinutes} min`;
     if (r.reheatsWell && i + 1 < input.days) reason += ` · makes ${DAY[i + 1]}'s lunch`;
     if (c.notes.length) reason += ` · ${c.notes.join(' · ')}`;
+    const frozen = (frozenLeft.get(r.id) ?? 0) > 0;
+    if (frozen) frozenLeft.set(r.id, frozenLeft.get(r.id)! - 1);
     slots.push({
       date, slot: 'dinner', recipeId: r.id, mode: 'cook', guests: 0, locked: false, sourceDate: null,
-      portions: input.householdPortions, reason,
+      portions: input.householdPortions, reason: frozen ? `${reason} · from the freezer` : reason, ...(frozen ? { batch: 'frozen' as const } : {}),
     });
   });
   return slots;

@@ -75,3 +75,13 @@ test('your breakfast list reaches the planner', () => {
   expect(buildPlannerInput({ ...rows, settings: { breakfasts: ['Overnight oats', 'Banana pancakes'] } }).breakfasts).toEqual(['Overnight oats', 'Banana pancakes']);
   expect(buildPlannerInput({ ...rows, settings: null }).breakfasts).toBeUndefined();
 });
+
+test('frozen portions reach the planner, and a frozen dinner keeps its batch plan when saved', () => {
+  const i = buildPlannerInput({ ...rows, frozen: [{ recipe_id: 'a', portions: 2 }, { recipe_id: 'a', portions: 1 }, { recipe_id: null, portions: 4 }] });
+  expect(i.frozen).toEqual([{ recipeId: 'a', portions: 3 }]);
+  expect(buildPlannerInput(rows).frozen).toBeUndefined();
+  const saved = slotRows('w1', [{ date: '2026-10-19', slot: 'dinner', recipeId: 'a', mode: 'cook', portions: 3, guests: 0, locked: false, reason: null, sourceDate: null, batch: 'frozen' }]);
+  expect(saved[0].batch).toBe('frozen');
+  const plain = slotRows('w1', [{ date: '2026-10-19', slot: 'dinner', recipeId: 'a', mode: 'cook', portions: 3, guests: 0, locked: false, reason: null, sourceDate: null }]);
+  expect(plain[0]).not.toHaveProperty('batch');
+});

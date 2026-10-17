@@ -5,6 +5,7 @@ import type { Balance, PlannerInput, PlannerRecipe, Protein, ProposedSlot } from
 export const DEFAULT_BALANCE: Balance = { chicken: 2, fish: 1, red_meat: 1, veggie: 1 };
 
 interface Rows {
+  frozen?: { recipe_id: string | null; portions: number }[]; // in-date freezer portions
   weekStart: string;
   householdId: string;
   settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance>; breakfasts?: unknown[] } | null;
@@ -22,6 +23,13 @@ export function weekSeed(householdId: string, weekStart: string): number {
   let h = 2166136261;
   for (const c of `${householdId}|${weekStart}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   return h >>> 0;
+}
+
+/** Freezer portions per recipe (items not tied to a recipe are left out). */
+function frozenTotals(items: { recipe_id: string | null; portions: number }[]): { recipeId: string; portions: number }[] {
+  const by = new Map<string, number>();
+  for (const i of items) if (i.recipe_id && i.portions > 0) by.set(i.recipe_id, (by.get(i.recipe_id) ?? 0) + i.portions);
+  return [...by.entries()].map(([recipeId, portions]) => ({ recipeId, portions }));
 }
 
 export function buildPlannerInput(rows: Rows): PlannerInput {
@@ -46,12 +54,13 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
     householdPortions: Math.round(portions * 100) / 100 || 3,
     seed: weekSeed(rows.householdId, rows.weekStart),
     ...(Array.isArray(s.breakfasts) && s.breakfasts.length ? { breakfasts: s.breakfasts.filter((b: unknown): b is string => typeof b === 'string') } : {}),
+    ...(rows.frozen ? { frozen: frozenTotals(rows.frozen) } : {}),
   };
 }
 
 export function slotRows(planWeekId: string, plan: ProposedSlot[]) {
   return plan.map((s) => ({
     plan_week_id: planWeekId, date: s.date, slot: s.slot, recipe_id: s.recipeId, mode: s.mode, portions: s.portions,
-    guests: s.guests, locked: s.locked, reason: s.reason, source_date: s.sourceDate,
+    guests: s.guests, locked: s.locked, reason: s.reason, source_date: s.sourceDate, ...(s.batch ? { batch: s.batch } : {}),
   }));
 }

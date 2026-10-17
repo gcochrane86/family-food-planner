@@ -45,9 +45,13 @@ async function proposeFor(db: SupabaseClient, householdId: string, weekStart: st
   if (pattern.error) throw pattern.error;
   if (recent.error) throw recent.error;
 
+  // In-date batch portions in the freezer (none if the table isn't there yet, so the menu still arrives).
+  const frozen = await db.from('prepared_items').select('recipe_id, portions').eq('household_id', householdId).eq('location', 'freezer')
+    .gt('portions', 0).or(`use_by.is.null,use_by.gte.${weekStart}`);
   const input = buildPlannerInput({
     weekStart, householdId, settings: settings.data?.data ?? null, members: members.data ?? [], pattern: pattern.data ?? [],
     recipes: recipes.data ?? [], recentDinnerRecipeIds: (recent.data ?? []).map((r) => r.recipe_id),
+    ...(frozen.error ? {} : { frozen: frozen.data ?? [] }),
   });
   const plan = proposeWeek(input);
 

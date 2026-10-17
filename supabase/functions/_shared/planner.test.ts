@@ -235,3 +235,22 @@ test("a dinner that reheats well makes the next day's lunch: packed on office da
   }
   expect(checked).toBeGreaterThan(20);
 });
+
+describe('the freezer', () => {
+  test('a dinner with frozen portions is marked to use one, once per portion', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const p = proposeWeek(input({ seed, frozen: [{ recipeId: 'chickpea-curry', portions: 1 }] }));
+      const curries = dinners(p).filter((s) => s.recipeId === 'chickpea-curry');
+      expect({ seed, frozen: curries.filter((s) => s.batch === 'frozen').length }).toEqual({ seed, frozen: Math.min(1, curries.length) });
+      for (const s of dinners(p).filter((x) => x.recipeId !== 'chickpea-curry')) expect(s.batch ?? null).toBeNull();
+    }
+  });
+
+  test('among equally good dinners, the one with portions in the freezer is chosen', () => {
+    let used = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      if (dinners(proposeWeek(input({ seed, frozen: [{ recipeId: 'chickpea-curry', portions: 2 }] }))).some((s) => s.recipeId === 'chickpea-curry')) used++;
+    }
+    expect(used).toBe(40);
+  });
+});

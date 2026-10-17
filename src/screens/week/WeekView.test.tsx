@@ -665,3 +665,13 @@ test('after a batch night, the feedback card asks whether the batch went in the 
   expect(h.repo.addPrepared).toHaveBeenCalledWith('h1', { recipe_id: 'r-honey', name: 'Honey chilli sauce', portions: 3, location: 'freezer', made_on: '2026-10-19', use_by: '2027-01-17' });
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'made' });
 });
+
+test("changing a frozen-batch dinner (out tonight, swap) drops its batch plan, so the freezer check doesn't ask about it", async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, batch: 'frozen' as const } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Mon');
+  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
+  expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ mode: 'out', batch: null });
+});
