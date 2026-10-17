@@ -3,6 +3,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { daySummary } from '../../lib/weekSummary';
 import DaySheet from './DaySheet';
 import FeedbackCard from './FeedbackCard';
+import ApprovedSheet from './ApprovedSheet';
 import ClaudeWeekNotes, { Failed, PlanForm, Planning, usePlanRequest } from './PlanWithClaude';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
@@ -12,6 +13,7 @@ export default function WeekView() {
   const w = useWeek();
   const plan = usePlanRequest(w);
   const [open, setOpen] = useState<string | null>(null);
+  const [approvedOpen, setApprovedOpen] = useState(false);
   const tiles = useRef(new Map<string, HTMLButtonElement | null>());
   const dates = Array.from({ length: w.week?.days ?? 7 }, (_, i) => addDays(w.weekStart, i));
   const { weekday, hour, date: today } = w.starts.london;
@@ -64,11 +66,13 @@ export default function WeekView() {
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
           <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14}
-            onApprove={() => void w.approve()} cookidoo={w.cookidoo} onRetry={() => void w.retryCookidoo()} baskets={w.baskets} shopsPerWeek={w.shopsPerWeek} />
+            onApprove={() => void w.approve()} cookidoo={w.cookidoo} onRetry={() => void w.retryCookidoo()} baskets={w.baskets} shopsPerWeek={w.shopsPerWeek}
+            onOpen={() => setApprovedOpen(true)} />
         </div>
       )}
       {w.week && <ClaudeWeekNotes w={w} plan={plan} />}
 
+      {w.week && w.week.status !== 'draft' && approvedOpen && <ApprovedSheet w={w} onClose={() => setApprovedOpen(false)} />}
       {w.week && open && <DaySheet date={open} w={w} onClose={close} />}
     </section>
   );

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, PARTNER, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
 import { BEEF, CHOW, COD, CURRY, DONER, HONEY, NEXT_WEEK, PENNE, SALMON, TACOS } from '../../test/fixtures';
-import type { MealSlot, WeekPlanRequest } from '../../lib/types';
+import type { BasketRun, MealSlot, WeekPlanRequest } from '../../lib/types';
 import WeekView from './WeekView';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -858,4 +858,53 @@ test('the fillings stay folded away until you tap the card, even when a sandwich
   expect(h.repo.saveSlots).not.toHaveBeenCalled();
   await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
   expect(within(thu()).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+});
+
+describe('the approved pop-up', () => {
+  async function openApproved(runs: BasketRun[] = []) {
+    const week = await h.repo.getWeek('h1', '2026-10-19');
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
+      ? { ...week, week: { ...week.week!, status: 'approved', approved_at: '2026-10-17T12:59:00Z' } } : { week: null, slots: [] }));
+    h.repo.getRuns.mockResolvedValue(runs);
+    h.repo.getCookidooRun.mockResolvedValue({ id: 'c1', plan_week_id: 'w-next', status: 'done', requested_at: '2026-10-17T13:00:00Z', started_at: null, finished_at: null, summary: null });
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('button', { name: /✓ Approved/ }));
+    return screen.getByRole('dialog', { name: 'Next week: approved' });
+  }
+  const run = (delivery: 'sun' | 'tue', status: BasketRun['status'], summary: string | null = null): BasketRun =>
+    ({ id: `run-${delivery}`, plan_week_id: 'w-next', delivery, status, requested_at: '2026-10-17T13:00:00Z', finished_at: null, summary });
+
+  test("shows where Sainsbury's and Cookidoo have got to, and sends a delivery to Sainsbury's again", async () => {
+    const pop = await openApproved([run('sun', 'failed', 'Sainsbury\'s was signed out'), run('tue', 'done')]);
+    const sun = within(pop).getByRole('group', { name: 'Sunday delivery' });
+    expect(sun).toHaveTextContent(/signed out/);
+    expect(within(pop).getByRole('group', { name: 'Cookidoo' })).toHaveTextContent('✓ In Cookidoo');
+    await user().click(within(sun).getByRole('button', { name: "Send to Sainsbury's again" }));
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun');
+    expect(within(sun).getByText(/waiting for Claude/)).toBeInTheDocument();
+  });
+
+  test('a delivery never sent points to the Shop tab, where the freezer check is', async () => {
+    const pop = await openApproved([]);
+    const sun = within(pop).getByRole('group', { name: 'Sunday delivery' });
+    expect(within(sun).queryByRole('button', { name: /Send to Sainsbury's/ })).not.toBeInTheDocument();
+    expect(within(sun).getByRole('link', { name: 'Open the Shop tab' })).toBeInTheDocument();
+  });
+
+  test('syncs Cookidoo again', async () => {
+    const pop = await openApproved([run('sun', 'done'), run('tue', 'done')]);
+    await user().click(within(pop).getByRole('button', { name: 'Sync Cookidoo again' }));
+    expect(h.repo.requestCookidooSync).toHaveBeenCalledWith('w-next');
+  });
+
+  test('Back to draft asks first, then makes the week a draft again', async () => {
+    const pop = await openApproved([run('sun', 'done')]);
+    await user().click(within(pop).getByRole('button', { name: 'Back to draft' }));
+    expect(within(pop).getByText(/stays in your Sainsbury's trolley/)).toBeInTheDocument();
+    expect(h.repo.unapproveWeek).not.toHaveBeenCalled();
+    await user().click(within(pop).getByRole('button', { name: 'Yes, back to draft' }));
+    expect(h.repo.unapproveWeek).toHaveBeenCalledWith('w-next');
+    expect(await screen.findByRole('button', { name: 'Approve week' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /approved/ })).not.toBeInTheDocument();
+  });
 });

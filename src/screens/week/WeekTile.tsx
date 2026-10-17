@@ -23,14 +23,15 @@ export function sainsburysTick(runs: BasketRun[], shopsPerWeek: 1 | 2): { text: 
   return { text: "○ Sainsbury's: not filled yet", done: false, failed: false };
 }
 
-export default function WeekTile({ approved, saturdayMorning, onApprove, cookidoo = null, onRetry, baskets = [], shopsPerWeek = 2 }:
-  { approved: boolean; saturdayMorning: boolean; onApprove: () => void; cookidoo?: CookidooRun | null; onRetry?: () => void; baskets?: BasketRun[]; shopsPerWeek?: 1 | 2 }) {
+export default function WeekTile({ approved, saturdayMorning, onApprove, cookidoo = null, onRetry, baskets = [], shopsPerWeek = 2, onOpen }:
+  { approved: boolean; saturdayMorning: boolean; onApprove: () => void; cookidoo?: CookidooRun | null; onRetry?: () => void; baskets?: BasketRun[]; shopsPerWeek?: 1 | 2; onOpen?: () => void }) {
   const shop = sainsburysTick(baskets, shopsPerWeek);
   return (
     <div className={`grid content-between gap-2 rounded-[22px] p-3.5 md:min-h-[230px] md:gap-3 md:rounded-[26px] md:p-5 ${approved ? 'bg-accent-soft' : 'bg-accent text-accent-ink'}`}>
       <div className="grid gap-1">
         <h2 className="text-[17px] font-bold md:text-2xl">
-          {approved ? '✓ Approved' : saturdayMorning ? "Approve by 2pm today for Sunday's delivery" : "Next week's menu is ready"}
+          {approved ? (onOpen ? <button type="button" onClick={onOpen} className="text-left underline decoration-1 underline-offset-4">✓ Approved</button> : '✓ Approved')
+            : saturdayMorning ? "Approve by 2pm today for Sunday's delivery" : "Next week's menu is ready"}
         </h2>
         {!approved && !saturdayMorning && <p className="m-0 text-[13px] opacity-90 md:text-base">Approve by Saturday 2pm for the Sunday delivery.</p>}
         {approved && (

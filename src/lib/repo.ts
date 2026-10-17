@@ -205,6 +205,11 @@ export const repo = {
     must(await db().rpc('approve_week', { p_week: weekId }));
   },
 
+  /** Makes an approved week a draft again, to change or replan it (approving again re-syncs Cookidoo). */
+  async unapproveWeek(weekId: string): Promise<void> {
+    must(await db().from('plan_weeks').update({ status: 'draft', approved_at: null }).eq('id', weekId));
+  },
+
   /** Asks the propose-week function for a menu now, instead of waiting for Friday 7pm. */
   async proposeNow(weekStart: string): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('propose-week', { body: { weekStart } });

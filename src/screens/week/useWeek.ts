@@ -357,6 +357,31 @@ export function useWeek() {
         setSaveError("Couldn't ask Claude. Check your connection and try again.");
       }
     },
+    /** Asks Claude to fill a delivery's Sainsbury's trolley again (tops up only). */
+    async resendBasket(delivery: 'sun' | 'tue') {
+      if (!current?.week) return;
+      setSaveError(null);
+      try {
+        const run = await repo.requestRun(current.week.id, delivery);
+        const key = shown === 'next' ? 'nextBaskets' : 'thisBaskets';
+        setData((d) => d && { ...d, [key]: [...d[key].filter((r: BasketRun) => r.delivery !== delivery), run] });
+      } catch {
+        setSaveError("Couldn't ask for Sainsbury's again. Check your connection and try again.");
+      }
+    },
+    /** Makes the approved week a draft again. */
+    async unapprove(): Promise<boolean> {
+      if (!current?.week) return false;
+      setSaveError(null);
+      try {
+        await repo.unapproveWeek(current.week.id);
+        setCurrent(latest.current, { ...current.week, status: 'draft', approved_at: null });
+        return true;
+      } catch {
+        setSaveError("Couldn't move the week back to draft. Check your connection and try again.");
+        return false;
+      }
+    },
     /** Cancels the open "Plan with Claude" request. */
     async cancelPlan() {
       const key = shown === 'next' ? 'nextRequest' : 'thisRequest';
