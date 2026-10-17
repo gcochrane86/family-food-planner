@@ -31,6 +31,18 @@ test('quantities start scaled to the household and rescale with the tabs', async
   expect(screen.getByRole('tab', { name: 'Household · 3.0' })).toHaveAttribute('aria-selected', 'false');
 });
 
+test('− and + scale to any number of portions in between the tabs', async () => {
+  open('r-honey');
+  await screen.findByText('chicken breast or thigh');
+  await userEvent.click(screen.getByRole('button', { name: 'More portions' }));
+  expect(screen.getByRole('status', { name: 'Portions' })).toHaveTextContent('4 portions');
+  expect(screen.getByText('chicken breast or thigh').closest('li')).toHaveTextContent('800g');
+  for (let i = 0; i < 5; i++) await userEvent.click(screen.getByRole('button', { name: 'Fewer portions' }));
+  expect(screen.getByRole('status', { name: 'Portions' })).toHaveTextContent('1 portion');
+  expect(screen.getByRole('button', { name: 'Fewer portions' })).toBeDisabled();
+  expect(screen.getByText('chicken breast or thigh').closest('li')).toHaveTextContent('200g');
+});
+
 test('ingredients have no pantry or to-buy labels', async () => {
   open('r-honey');
   const chicken = await screen.findByText('chicken breast or thigh');

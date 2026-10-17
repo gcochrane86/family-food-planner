@@ -75,6 +75,8 @@ function Steps({ steps, label, minutes, timeline, markAhead, batch }: {
   );
 }
 
+const MAX_PORTIONS = 40;
+
 export default function RecipeCard() {
   const navigate = useNavigate();
   const [reworking, setReworking] = useState(false);
@@ -315,6 +317,16 @@ export default function RecipeCard() {
                 {tabLabel(n)}
               </button>
             ))}
+          </div>
+          {/* Any number in between: − and + step by whole portions from whatever is shown. */}
+          <div className="mt-2 flex items-center gap-2 print:hidden">
+            <button type="button" aria-label="Fewer portions" disabled={target <= 1} onClick={() => setPortions(Math.max(1, Math.ceil(target) - 1))}
+              className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg font-bold disabled:opacity-40">−</button>
+            <span role="status" aria-label="Portions" className="min-w-[96px] text-center text-sm font-semibold">
+              {Number.isInteger(target) ? `${target} portion${target === 1 ? '' : 's'}` : `${formatPortions(target)} portions`}
+            </span>
+            <button type="button" aria-label="More portions" disabled={target >= MAX_PORTIONS} onClick={() => setPortions(Math.min(MAX_PORTIONS, Math.floor(target) + 1))}
+              className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg font-bold disabled:opacity-40">+</button>
           </div>
           <p className="mt-2 hidden text-sm print:block">Quantities for {formatPortions(target)} portions.</p>
           {groupIngredients(recipe.ingredients).map((g) => (
