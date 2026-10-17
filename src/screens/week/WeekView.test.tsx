@@ -703,3 +703,43 @@ describe('batch question, review fixes', () => {
     expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: null });
   });
 });
+
+describe("Sainsbury's and Cookidoo ticks on the week tile", () => {
+  const approved = { ...NEXT_WEEK, week: { ...NEXT_WEEK.week, status: 'approved' as const, approved_at: '2026-10-16T19:00:00Z' } };
+  const basket = (delivery: 'sun' | 'tue', status: 'requested' | 'filling' | 'done' | 'failed') =>
+    ({ id: `b-${delivery}`, plan_week_id: 'w-next', delivery, status, requested_at: '2026-10-17T09:00:00Z', finished_at: null, summary: null });
+  const show = async (runs: ReturnType<typeof basket>[], settings: { shops_per_week?: 1 | 2 } = {}) => {
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19' ? approved : { week: null, slots: [] }));
+    h.repo.getRuns.mockResolvedValue(runs);
+    h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1, ...settings });
+    render(<WeekView />, { wrapper: MemoryRouter });
+    return screen.findByRole('list', { name: 'Where this week has got to' });
+  };
+
+  test('before anything is sent, both say not yet', async () => {
+    const list = await show([]);
+    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual(["○ Sainsbury's: not filled yet", '○ Cookidoo: not synced yet']);
+  });
+
+  test("both deliveries filled is ✓ In Sainsbury's; one filled says which", async () => {
+    expect(await show([basket('sun', 'done'), basket('tue', 'done')])).toHaveTextContent("✓ In Sainsbury's");
+  });
+
+  test('one of two deliveries filled says which', async () => {
+    expect(await show([basket('sun', 'done')])).toHaveTextContent("✓ Sunday in Sainsbury's · Tuesday not yet");
+  });
+
+  test('a fill under way, waiting or failed says so', async () => {
+    expect(await show([basket('sun', 'filling')])).toHaveTextContent("Sainsbury's: filling…");
+  });
+
+  test('with one shop a week, the Sunday fill is enough', async () => {
+    expect(await show([basket('sun', 'done')], { shops_per_week: 1 })).toHaveTextContent("✓ In Sainsbury's");
+  });
+
+  test('a draft week shows no ticks', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByText("Next week's menu is ready");
+    expect(screen.queryByRole('list', { name: 'Where this week has got to' })).not.toBeInTheDocument();
+  });
+});

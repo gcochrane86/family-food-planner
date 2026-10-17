@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
-import type { BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
+import type { BasketRun, BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
 import { availablePortions, parseBatch } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
@@ -61,8 +61,11 @@ export function useWeek() {
     ]);
     const run = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getCookidooRun(w.week.id).catch(() => null) : Promise.resolve(null));
     // The freezer, for batch suggestions (an empty freezer if it can't be read, so the week still shows).
-    const [thisCookidoo, nextCookidoo, freezer] = await Promise.all([run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
-    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer };
+    // Basket fills, for the week tile's Sainsbury's tick (none for a draft, or if they can't be read).
+    const baskets = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getRuns(w.week.id).catch(() => [] as BasketRun[]) : Promise.resolve([] as BasketRun[]));
+    const [thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets] = await Promise.all([
+      run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[]), baskets(thisWeek), baskets(nextWeek)]);
+    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets };
   }, [hid, starts]);
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
@@ -161,6 +164,8 @@ export function useWeek() {
     week: current?.week ?? null,
     /** This week's Cookidoo sync (spec §10), or null before approval. */
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
+    baskets: (shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? [],
+    shopsPerWeek: (data?.settings?.shops_per_week === 1 ? 1 : 2) as 1 | 2,
     slots: current?.slots ?? [],
     officeDays: input?.officeDays ?? [],
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
