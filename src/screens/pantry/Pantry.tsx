@@ -21,7 +21,7 @@ const card = 'rounded-2xl border border-line bg-surface';
 export default function Pantry() {
   const { householdId } = useAuth();
   const hid = householdId!;
-  const { data, setData, error, loading, reload } = useAsync(
+  const { data, setData, error, loading, reload, fresh } = useAsync(
     async () => ({ prepared: await repo.listPrepared(hid), pantry: await repo.listPantry(hid) }), [hid], { keep: `ffp.pantry.${hid}` });
   const [tab, setTab] = useState<Tab>('freezer');
   const [query, setQuery] = useState('');
@@ -64,6 +64,7 @@ export default function Pantry() {
   return (
     <section className="grid gap-4 py-4">
       <h1 className="text-3xl font-bold">Pantry</h1>
+      {data && !fresh && !error && <p className="m-0 text-sm text-muted">Checking for changes…</p>}
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {banner && <ErrorBanner message={banner} />}
 
@@ -73,7 +74,7 @@ export default function Pantry() {
         {matches.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {matches.map((e) => (
-              <button key={e.id} type="button" aria-label={`Out of ${e.name}`} className={small}
+              <button key={e.id} type="button" aria-label={`Out of ${e.name}`} disabled={!fresh} className={small}
                 onClick={() => { if (e.staple) staple(e, 'out'); else remove(e); setQuery(''); }}>
                 {e.name}
               </button>
@@ -107,8 +108,8 @@ export default function Pantry() {
                       : i.use_by && <span className="text-muted"> · use by {shortDate(i.use_by)}</span>}
                   </span>
                   <span className="flex shrink-0 gap-1.5">
-                    <button type="button" aria-label={`One fewer ${i.name}`} className={small} onClick={() => (i.portions <= 1 ? setLastOne(i) : portions(i, i.portions - 1))}>−</button>
-                    <button type="button" aria-label={`One more ${i.name}`} className={small} onClick={() => portions(i, i.portions + 1)}>+</button>
+                    <button type="button" aria-label={`One fewer ${i.name}`} disabled={!fresh} className={`${small} disabled:opacity-50`} onClick={() => (i.portions <= 1 ? setLastOne(i) : portions(i, i.portions - 1))}>−</button>
+                    <button type="button" aria-label={`One more ${i.name}`} disabled={!fresh} className={`${small} disabled:opacity-50`} onClick={() => portions(i, i.portions + 1)}>+</button>
                   </span>
                 </li>
               ))}
@@ -136,7 +137,7 @@ export default function Pantry() {
                         <span className="min-w-0 font-semibold">{e.name}</span>
                         <span className="flex shrink-0 gap-1">
                           {STATUSES.map((st) => (
-                            <button key={st} type="button" aria-pressed={e.staple === st} onClick={() => { if (e.staple !== st) staple(e, st); }}
+                            <button key={st} type="button" aria-pressed={e.staple === st} disabled={!fresh} onClick={() => { if (e.staple !== st) staple(e, st); }}
                               className={`rounded-full px-2.5 py-1 text-xs font-bold ${e.staple === st ? (st === 'have' ? 'bg-accent text-accent-ink' : st === 'low' ? 'bg-yolk text-bg' : 'bg-warn text-bg') : 'bg-surface-2 text-muted'}`}>
                               {st}
                             </button>
@@ -151,7 +152,7 @@ export default function Pantry() {
                     {own.map((e) => (
                       <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                         <span className="min-w-0"><b>{e.name}</b>{e.qty !== null && <span className="text-muted"> · {formatQty(e.qty, e.unit ?? '', false)}</span>}</span>
-                        <button type="button" aria-label={`Remove ${e.name}`} className="px-2 text-lg text-muted" onClick={() => remove(e)}>×</button>
+                        <button type="button" aria-label={`Remove ${e.name}`} disabled={!fresh} className="px-2 text-lg text-muted disabled:opacity-50" onClick={() => remove(e)}>×</button>
                       </li>
                     ))}
                   </ul>

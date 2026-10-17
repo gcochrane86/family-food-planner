@@ -40,6 +40,9 @@ export default function ShopList() {
   const runFor = (d: Delivery) => runs[d] ?? data?.runs.find((r) => r.delivery === d) ?? null;
   // The freezer check changes dinners' batch plans, and so the list: keep the changed slots and rebuild from them.
   const [slots, setSlots] = useState<MealSlot[] | null>(null);
+  // The freezer as the check leaves it, so a second "It's there" takes the next portion, not the same one again.
+  const [freezerNow, setFreezer] = useState<PreparedItem[] | null>(null);
+  const freezer = freezerNow ?? data?.freezer ?? [];
   const weekSlots = slots ?? data?.chosen?.slots ?? [];
   const list = data?.build ? (slots ? data.build(slots) : data.list) : null;
   const unchecked = weekSlots.filter((s) => s.slot === 'dinner' && s.batch === 'frozen');
@@ -50,19 +53,23 @@ export default function ShopList() {
     if (!data?.chosen) return;
     setBanner(null);
     const today = new Date().toISOString().slice(0, 10);
-    const items = (data.freezer ?? []).filter((i) => i.recipe_id === slot.recipe_id && i.location === 'freezer' && i.portions > 0);
+    const items = freezer.filter((i) => i.recipe_id === slot.recipe_id && i.location === 'freezer' && i.portions > 0);
     const inDate = items.filter((i) => !i.use_by || i.use_by >= today).sort((a, b) => (a.use_by ?? '9999').localeCompare(b.use_by ?? '9999'));
     const take = there ? inDate[0] : undefined;
     const updated: MealSlot = { ...slot, batch: take ? 'frozen_ok' : null };
     try {
-      await repo.saveSlots([updated]);
+      // Freezer first: if that fails the dinner stays unanswered, so nothing is checked without its portion taken.
       if (take) await repo.setPreparedPortions(take.id, take.portions - 1);
       else await Promise.all(items.map((i) => repo.setPreparedPortions(i.id, 0)));
-      setSlots(weekSlots.map((s) => (s.date === slot.date && s.slot === slot.slot ? updated : s)));
+      setFreezer((list) => (list ?? data.freezer ?? []).map((i) => (take ? (i.id === take.id ? { ...i, portions: i.portions - 1 } : i) : items.some((x) => x.id === i.id) ? { ...i, portions: 0 } : i)));
+      await repo.saveSlots([updated]);
+      setSlots((prev) => (prev ?? data.chosen!.slots).map((s) => (s.date === slot.date && s.slot === slot.slot ? updated : s)));
+      if (there && !take) setBanner(`No ${parseBatch(data.recipes?.get(slot.recipe_id ?? '')?.batch)?.name.toLowerCase() ?? 'batch'} left in the freezer list, so its ingredients are back on the list.`);
     } catch {
       setBanner(SAVE_ERROR);
     }
   }
+
 
   async function ready(d: Delivery, emptyFirst = false) {
     if (!data?.chosen?.week) return;

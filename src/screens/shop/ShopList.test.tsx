@@ -173,3 +173,35 @@ describe('Check the freezer first', () => {
     expect(await screen.findByText(/chicken breast or thigh/)).toBeInTheDocument();
   });
 });
+
+describe('freezer check, review fixes', () => {
+  const sauce = { name: 'Honey chilli sauce', group: 'The meat', steps: [], makes: 4, freezer_days: 90 };
+  const twoFrozen = () => {
+    const w = approved();
+    w.slots = w.slots.map((s: MealSlot) => (s.slot === 'dinner' && (s.date === '2026-10-19' || s.date === '2026-10-22') ? { ...s, recipe_id: 'r-honey', batch: 'frozen' } : s));
+    return w;
+  };
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? twoFrozen() : { week: null, slots: [] }));
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, batch: sauce } : ({ 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null));
+    h.repo.listPrepared.mockResolvedValue([{ id: 'p', household_id: 'h1', recipe_id: 'r-honey', name: 'Honey chilli sauce', portions: 2, location: 'freezer' as const, made_on: '2026-10-01', use_by: '2026-12-30' }]);
+  });
+
+  test("two It's there answers take two portions, and both dinners stay answered", async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the freezer first' });
+    await user().click(within(check).getAllByRole('button', { name: "It's there" })[0]);
+    await user().click(within(screen.getByRole('region', { name: 'Check the freezer first' })).getByRole('button', { name: "It's there" }));
+    expect(h.repo.setPreparedPortions.mock.calls).toEqual([['p', 1], ['p', 0]]);
+    expect(screen.queryByRole('region', { name: 'Check the freezer first' })).not.toBeInTheDocument();
+  });
+
+  test('if taking the portion fails, the dinner is not marked checked', async () => {
+    h.repo.setPreparedPortions.mockRejectedValueOnce(new Error('offline'));
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the freezer first' });
+    await user().click(within(check).getAllByRole('button', { name: "It's there" })[0]);
+    expect(h.repo.saveSlots).not.toHaveBeenCalled();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+});

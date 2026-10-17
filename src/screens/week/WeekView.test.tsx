@@ -675,3 +675,31 @@ test("changing a frozen-batch dinner (out tonight, swap) drops its batch plan, s
   await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ mode: 'out', batch: null });
 });
+
+describe('batch question, review fixes', () => {
+  const sauce = { name: 'Honey chilli sauce', group: 'The meat', steps: [], makes: 4, freezer_days: 90 };
+  beforeEach(() => {
+    vi.setSystemTime(new Date('2026-10-20T08:00:00Z'));
+    h.repo.listRecipes.mockResolvedValue([{ ...HONEY, batch: sauce }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+      ? { ...NEXT_WEEK, week: { ...NEXT_WEEK.week, status: 'approved' }, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, batch: 'make' as const } : s)) }
+      : { week: null, slots: [] }));
+  });
+
+  test('a retry after a failed save never adds the batch to the freezer twice', async () => {
+    h.repo.saveSlots.mockRejectedValueOnce(new Error('offline'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night's/ });
+    await user().click(within(card).getByRole('button', { name: 'Yes, 3 portions frozen' }));
+    await user().click(await within(card).findByRole('button', { name: 'Yes, 3 portions frozen' }));
+    expect(h.repo.addPrepared).toHaveBeenCalledTimes(1);
+  });
+
+  test("No clears the batch plan rather than saying it was frozen", async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const card = await screen.findByRole('region', { name: /How was last night's/ });
+    await user().click(within(card).getByRole('button', { name: 'No' }));
+    expect(h.repo.addPrepared).not.toHaveBeenCalled();
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: null });
+  });
+});

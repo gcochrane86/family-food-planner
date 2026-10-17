@@ -8,6 +8,12 @@ import { parseOrder } from './pantryInput';
 import { pantryLabel } from '../src/lib/recipes';
 import type { StapleStatus } from '../src/lib/types';
 
+/** A query's data, or an error thrown for that one item (so the rest of the order still goes in). */
+function check<T>(r: { data: T | null; error: { message: string } | null }): T {
+  if (r.error) throw new Error(r.error.message);
+  return r.data as T;
+}
+
 async function recorded() {
   const householdId = arg('household') ?? fail('--household is required');
   const rows = must<{ order_ref: string; recorded_at: string }[]>(
@@ -21,9 +27,10 @@ async function recorded() {
 async function recordOrder() {
   const householdId = arg('household') ?? fail('--household is required');
   const { order, items } = read(parseOrder, await stdin());
-  const done = must<{ order_ref: string } | null>(
-    await db.from('pantry_orders').select('order_ref').eq('household_id', householdId).eq('order_ref', order).maybeSingle(), 'Checking the order');
-  if (done) fail(`Order ${order} is already in the pantry.`);
+  // Claim the order first: a second run (or a rerun after a problem) stops here instead of adding it all again.
+  const claimed = await db.from('pantry_orders').insert({ household_id: householdId, order_ref: order });
+  if (claimed.error?.code === '23505') fail(`Order ${order} is already in the pantry.`);
+  if (claimed.error) fail(`Recording the order: ${claimed.error.message}`);
 
   const products = must<{ item_key: string; product_url: string | null }[]>(
     await db.from('products').select('item_key, product_url').eq('household_id', householdId), 'Reading saved products');
@@ -33,32 +40,40 @@ async function recordOrder() {
   const staples = pantry.filter((p) => p.staple_status).map((p) => ({ id: p.id, ingredient_id: p.ingredient_id, name: nameOf(p.ingredients), status: 'have' as const }));
 
   const counts = { staples: 0, added: 0, frozen: 0 };
+  const problems: string[] = [];
   for (const it of items) {
+   try {
     // The plain ingredient name: given, or from the saved product it was bought as, or the product name itself.
     const saved = it.url ? products.find((p) => p.product_url === it.url) : undefined;
     const name = it.ingredient ?? (saved ? saved.item_key.split('|')[0] : it.name);
     const staple = staples.find((s) => pantryLabel(name, [s]) === 'In pantry');
     if (staple) {
-      must(await db.from('pantry_items').update({ staple_status: 'have' }).eq('id', staple.id), `Marking ${staple.name} in stock`);
+      check(await db.from('pantry_items').update({ staple_status: 'have' }).eq('id', staple.id));
       counts.staples++;
       continue;
     }
     if (it.location === 'freezer') {
-      must(await db.from('prepared_items').insert({ household_id: householdId, recipe_id: null, name, portions: Math.max(1, Math.round(it.qty)), location: 'freezer' }), `Adding ${name} to the freezer`);
+      check(await db.from('prepared_items').insert({ household_id: householdId, recipe_id: null, name, portions: Math.max(1, Math.round(it.qty)), location: 'freezer' }));
       counts.frozen++;
       continue;
     }
-    const ing = must<{ id: string }>(await db.from('ingredients').upsert({ household_id: householdId, name }, { onConflict: 'household_id,name' }).select('id').single(), `Saving ${name}`);
+    const ing = check<{ id: string }>(await db.from('ingredients').upsert({ household_id: householdId, name }, { onConflict: 'household_id,name' }).select('id').single());
     const existing = pantry.find((p) => !p.staple_status && p.ingredient_id === ing.id && p.location === it.location);
     if (existing) {
-      must(await db.from('pantry_items').update({ qty: Number(existing.qty ?? 0) + it.qty }).eq('id', existing.id), `Topping up ${name}`);
+      check(await db.from('pantry_items').update({ qty: Number(existing.qty ?? 0) + it.qty }).eq('id', existing.id));
+      existing.qty = Number(existing.qty ?? 0) + it.qty;
     } else {
-      must(await db.from('pantry_items').insert({ household_id: householdId, ingredient_id: ing.id, qty: it.qty, unit: 'pack', location: it.location }), `Adding ${name}`);
+      const row = check<{ id: string }>(await db.from('pantry_items').insert({ household_id: householdId, ingredient_id: ing.id, qty: it.qty, unit: 'pack', location: it.location }).select('id').single());
+      pantry.push({ id: row.id, staple_status: null, qty: it.qty, location: it.location, ingredient_id: ing.id, ingredients: { name } });
     }
     counts.added++;
+   } catch (e) {
+    problems.push(`${it.name}: ${(e as Error).message}`);
+   }
   }
-  must(await db.from('pantry_orders').insert({ household_id: householdId, order_ref: order }), 'Recording the order');
   console.log(`Order ${order}: ${counts.staples} staples marked in stock, ${counts.added} added to the fridge or cupboard, ${counts.frozen} to the freezer.`);
+  // The order stays recorded; anything that failed is listed so it can be added by hand on the Pantry tab.
+  if (problems.length) fail(`Not added (add these on the Pantry tab):\n- ${problems.join('\n- ')}`);
 }
 
 const commands: Record<string, () => Promise<void>> = { recorded, 'record-order': recordOrder };

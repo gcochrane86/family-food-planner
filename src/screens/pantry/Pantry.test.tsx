@@ -99,3 +99,13 @@ test('+ Add to the fridge saves the name, amount and unit', async () => {
   await user().click(within(form).getByRole('button', { name: 'Add' }));
   expect(h.repo.addPantryItem).toHaveBeenCalledWith('h1', 'Feta', 'fridge', 200, 'g');
 });
+
+test("while the phone's kept copy is showing, the − / + and have / low / out buttons wait for the fresh numbers", async () => {
+  localStorage.setItem('ffp.pantry.h1', JSON.stringify({ prepared: [frozen({})], pantry: [entry({})] }));
+  h.repo.listPrepared.mockReturnValue(new Promise(() => {}));
+  render(<Pantry />, { wrapper: MemoryRouter });
+  expect(screen.getByRole('button', { name: 'One fewer Katsu curry paste' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'One more Katsu curry paste' })).toBeDisabled();
+  await user().click(screen.getByRole('tab', { name: 'Cupboard' }));
+  expect(within(screen.getByRole('group', { name: 'Cumin' })).getByRole('button', { name: 'low' })).toBeDisabled();
+});

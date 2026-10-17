@@ -11,6 +11,8 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { 
   const { keep } = options;
   const [data, setData] = useState<T | null>(() => readKept<T>(keep));
   const [error, setError] = useState<string | null>(null);
+  // True once this screen has loaded its own fresh copy (not just the one kept on the device).
+  const [fresh, setFresh] = useState(false);
   const [loading, setLoading] = useState(() => readKept<T>(keep) === null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const run = useCallback(load, deps);
@@ -21,6 +23,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { 
     setError(null);
     try {
       setData(await run());
+      setFresh(true);
     } catch {
       setError("Couldn't load this. Check your connection and try again.");
     } finally {
@@ -33,7 +36,7 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { 
     if (!keep || data === null) return;
     try { localStorage.setItem(keep, JSON.stringify(data)); } catch { /* storage full or blocked: just don't keep it */ }
   }, [keep, data]);
-  return { data, setData, error, loading, reload };
+  return { data, setData, error, loading, reload, fresh };
 }
 
 export const SAVE_ERROR = "Couldn't save. Check your connection and try again.";
