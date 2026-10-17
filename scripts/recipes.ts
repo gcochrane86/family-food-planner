@@ -65,10 +65,12 @@ async function context() {
     await db.from('equipment').select('code, name, capabilities').eq('household_id', householdId), 'Reading equipment');
   const rules = must<{ kind: string; match: string; replacement: string | null; note: string | null }[]>(
     await db.from('house_rules').select('kind, match, replacement, note').eq('household_id', householdId), 'Reading house rules');
+  const settings = must<{ data: { private_rules?: unknown } } | null>(await db.from('settings').select('data').eq('household_id', householdId).maybeSingle(), 'Reading settings');
+  const privateRules = Array.isArray(settings?.data?.private_rules) ? settings!.data.private_rules : [];
   const recipes = must<{ slug: string; title: string }[]>(
     await db.from('recipes').select('slug, title').eq('household_id', householdId).order('title'), 'Reading recipes');
   const portions = members.reduce((sum, m) => sum + Number(m.portion_weight), 0);
-  console.log(JSON.stringify({ householdPortions: Math.round(portions * 100) / 100, members, equipment, whatMakesAMeal: MEAL_SPEC, houseRules: rules, existingRecipes: recipes }, null, 2));
+  console.log(JSON.stringify({ householdPortions: Math.round(portions * 100) / 100, members, equipment, whatMakesAMeal: MEAL_SPEC, houseRules: rules, privateRules, existingRecipes: recipes }, null, 2));
 }
 
 /** Saves a converted recipe as a new recipe and marks the link done. Never changes an existing recipe. */

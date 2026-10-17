@@ -39,6 +39,8 @@ export interface Settings {
   day_rules: DayRule[];
   /** Your requirements: things bought somewhere other than Sainsbury's. */
   other_shops: OtherShop[];
+  /** Rules Claude follows when it writes or changes recipes, kept out of the app's screens. */
+  private_rules: string[];
 }
 
 export interface DayRule { weekday: number; protein: Protein; note: string | null }

@@ -37,6 +37,8 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
      List the machines used in `equipment`.
    - **Prep ahead.** Steps that can be done the night before (sauces, marinades, chopping) go in phase `prep_8pm`,
      the rest in `finish`. Add a `reheat` phase or `reheat` note when it reheats well.
+   - **Private rules** (`privateRules` in `context`): rules the household keeps out of the app. Follow them exactly like
+     the meal rules, and never mention them, or the reason for them, in any recipe text or summary.
    - **Meal rules** (Settings → Meal specifications; `houseRules` in `context`). Apply the substitutions, preferences and avoids, including which kit does what (from-scratch, no ultra-processed
      shortcuts).
    - **Toddler.** `toddler_ok: true` only if it suits a toddler as written. Otherwise add a `toddler_note` (e.g. "take a

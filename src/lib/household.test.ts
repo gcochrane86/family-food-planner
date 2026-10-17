@@ -50,6 +50,7 @@ describe('validateSettings', () => {
       lunches: ['Chicken sandwich', 'Roast beef sandwich', 'Egg sandwich', 'Tuna & sweetcorn sandwich', 'Tuna poke bowl', 'Mexican beef poke bowl', 'Chicken poke bowl', 'Salmon poke bowl'],
       day_rules: [],
       other_shops: [],
+      private_rules: [],
     });
   });
   test('ignores values of the wrong type', () => {
@@ -81,4 +82,9 @@ test('your requirements: day rules and other shops are kept tidy', () => {
   ]);
   expect(validateSettings({}).day_rules).toEqual([]);
   expect(validateSettings({}).other_shops).toEqual([]);
+});
+
+test('private rules are kept when settings are saved, tidied, and default to none', () => {
+  expect(validateSettings({ private_rules: [' Rule one ', '', 3, 'x'.repeat(301)] }).private_rules).toEqual(['Rule one']);
+  expect(validateSettings({}).private_rules).toEqual([]);
 });

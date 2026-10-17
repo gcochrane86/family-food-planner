@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lunches: HOME_LUNCHES,
   day_rules: [],
   other_shops: [],
+  private_rules: [],
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -105,5 +106,7 @@ export function validateSettings(raw: unknown): Settings {
     lunches: mealList(r.lunches, d.lunches),
     day_rules: dayRules(r.day_rules),
     other_shops: otherShops(r.other_shops),
+    // Never shown in the app; kept here so saving other settings doesn't drop them.
+    private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
 }
