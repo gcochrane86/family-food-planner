@@ -42,6 +42,10 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
    - **Toddler.** `toddler_ok: true` only if it suits a toddler as written. Otherwise add a `toddler_note` (e.g. "take a
      portion out before the chilli"). Estimate `salt_per_portion_g`, aiming for about 0.5g in the toddler's portion:
      cook with less salt and season adult plates at the table.
+   - **Batch and freeze.** If a make-ahead part freezes well and is its own ingredient group (a curry paste, a sauce,
+     shredded meat), add `"batch": {"name": "Curry paste", "group": "<that ingredient group>", "steps": ["<its step
+     titles>"], "makes": 4, "freezer_days": 90}`. Leave it out for cream or yoghurt sauces, salads and anything that
+     doesn't freeze well.
    - **Timings.** `finish_minutes` is the on-the-night time, `prep_minutes` the night-before time.
    - **Fields.** `kind: "meal"`, `protein` (chicken, fish, red_meat, veggie, egg, other), `status: "active"`, a new
      `slug` not in `existingRecipes`, `title` and `subtitle` in the household's style ("Chicken Katsu" / "with
