@@ -8,6 +8,7 @@ import SparList from './SparList';
 import { packsNeeded } from '../../lib/packs';
 import type { BasketRun, MealSlot, PreparedItem, Product, RecipeDetail } from '../../lib/types';
 import { parseBatch } from '../../lib/batch';
+import { parseRoastChoice } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
 
@@ -27,6 +28,12 @@ export default function ShopList() {
     const draft = !chosen && (next.week ?? current.week) ? true : false;
     if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
     const ids = [...new Set(chosen.slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+    // A roast also needs its sides, which are recipes of their own (found by slug).
+    const sideSlugs = new Set(chosen.slots.flatMap((s) => parseRoastChoice(s.roast)?.sides ?? []));
+    if (sideSlugs.size) {
+      const all = await repo.listRecipes(hid);
+      for (const r of all) if (sideSlugs.has(r.slug) && !ids.includes(r.id)) ids.push(r.id);
+    }
     const details = (await Promise.all(ids.map((id) => repo.getRecipe(id)))).filter((r): r is RecipeDetail => !!r);
     const recipes = new Map(details.map((r) => [r.id, r]));
     const build = (slots: MealSlot[]) => buildShoppingList(slots, recipes, staples, settings.shops_per_week, basics);

@@ -1,3 +1,4 @@
+import { parseRoastChoice } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
@@ -42,13 +43,7 @@ export function buildShoppingList(
   const have = staples.filter((s) => s.status === 'have' && !basicNames.has(words(s.name).join(' ')));
   const items = new Map<string, ShopItem>();
 
-  for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
-    if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
-    const recipe = recipes.get(slot.recipe_id);
-    if (!recipe) continue;
-    // A dinner that reheats well is cooked bigger when the next day's lunch is its leftovers.
-    const factor = ((slot.portions ?? recipe.base_portions) + leftoverLunchPortions(slot, slots, recipes)) / recipe.base_portions;
-    const meal = `${SHORT[weekdayIndex(slot.date)]} ${recipe.title}`;
+  const add = (recipe: RecipeDetail, factor: number, meal: string, slot: MealSlot) => {
     const batch = parseBatch(recipe.batch);
     for (const ing of recipe.ingredients) {
       if (pantryLabel(ing.name, have) === 'In pantry') continue;
@@ -67,6 +62,24 @@ export function buildShoppingList(
       existing.approx ||= ing.qty_approx;
       if (!existing.forMeals.includes(meal)) existing.forMeals.push(meal);
     }
+  };
+
+  for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
+    const recipe = recipes.get(slot.recipe_id);
+    if (!recipe) continue;
+    const day = SHORT[weekdayIndex(slot.date)];
+    // A roast buys its main and every chosen side, each scaled to the people eating.
+    const roast = parseRoastChoice(slot.roast);
+    if (roast) {
+      const bySlug = new Map([...recipes.values()].map((r) => [r.slug, r]));
+      const parts = [recipe, ...roast.sides.map((s) => bySlug.get(s)).filter((r): r is RecipeDetail => !!r)];
+      for (const part of parts) add(part, roast.people / part.base_portions, `${day} roast: ${part.title.toLowerCase()}`, slot);
+      continue;
+    }
+    // A dinner that reheats well is cooked bigger when the next day's lunch is its leftovers.
+    const factor = ((slot.portions ?? recipe.base_portions) + leftoverLunchPortions(slot, slots, recipes)) / recipe.base_portions;
+    add(recipe, factor, `${day} ${recipe.title}`, slot);
   }
 
   const sun: ShopItem[] = [];

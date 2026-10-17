@@ -85,3 +85,11 @@ test('frozen portions reach the planner, and a frozen dinner keeps its batch pla
   const plain = slotRows('w1', [{ date: '2026-10-19', slot: 'dinner', recipeId: 'a', mode: 'cook', portions: 3, guests: 0, locked: false, reason: null, sourceDate: null }]);
   expect(plain[0]).not.toHaveProperty('batch');
 });
+
+test('the planner never picks a roast part or a hosting recipe by itself', () => {
+  const i = buildPlannerInput({ ...rows, recipes: [...rows.recipes,
+    { id: 'h', title: 'Sunday Roast', kind: 'meal', status: 'active', protein: 'red_meat', finish_minutes: 285, reheats_well: false, base_portions: 15, tags: ['Sunday roast', 'Hosting'] },
+    { id: 'r', title: 'Roast Leg of Lamb', kind: 'meal', status: 'active', protein: 'red_meat', finish_minutes: 30, reheats_well: false, base_portions: 6, tags: ['Roast'] }] });
+  expect(i.recipes.map((r) => r.id)).not.toContain('h');
+  expect(i.recipes.map((r) => r.id)).not.toContain('r');
+});

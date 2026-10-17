@@ -2,6 +2,7 @@ import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
 import { parseBatch } from '../../lib/batch';
+import { parseRoastChoice } from '../../lib/roastModel';
 import { switchClasses } from '../../lib/prepAhead';
 import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib/weekSummary';
 import type { MealSlot, Recipe } from '../../lib/types';
@@ -85,6 +86,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const lunchUsage: Record<string, number> = {};
   for (const s of w.slots) if (s.slot === 'lunch' && s.date !== date && s.routine_choice) lunchUsage[s.routine_choice] = (lunchUsage[s.routine_choice] ?? 0) + 1;
   const lunchExtra = dinner ? leftoverLunchPortions(dinner, w.slots, w.recipes) : 0;
+  const roast = dinner ? parseRoastChoice(dinner.roast) : null;
   const nextDayName = DAY[new Date(`${date}T00:00:00Z`).getUTCDay() % 7];
   const card = 'overflow-hidden rounded-[20px] bg-surface shadow-sm';
 
@@ -124,7 +126,16 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       {dinner && (
         <div className="grid gap-2">
           <Label tone="text-accent">Dinner</Label>
-          {dinner.mode === 'cook' && dinnerRecipe ? (
+          {dinner.mode === 'cook' && dinnerRecipe && roast ? (
+            <Link to={`/recipes/roast?${new URLSearchParams({ main: roast.main, sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve })}`}
+              className={`${card} block text-ink no-underline`}>
+              <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
+              <span className="grid gap-0.5 px-4 py-2.5">
+                <b className="font-display text-lg leading-tight">Sunday roast · {roast.main} · {roast.people} people · {roast.serve}</b>
+                <span className="text-sm text-muted">{dinnerRecipe.title} and {roast.sides.length} side{roast.sides.length === 1 ? '' : 's'} · tap for the plan</span>
+              </span>
+            </Link>
+          ) : dinner.mode === 'cook' && dinnerRecipe ? (
             <Link to={`/recipes/${dinnerRecipe.id}`} className={`${card} block text-ink no-underline`}>
               <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
               <span className="grid gap-0.5 px-4 py-2.5">

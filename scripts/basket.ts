@@ -12,6 +12,7 @@ import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shoppin
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
 import { parseFinish, parseProduct, parseSpar } from './basketInput';
+import { parseRoastChoice } from '../src/lib/roastModel';
 import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
@@ -48,6 +49,12 @@ async function list() {
 
   const slots = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
   const ids = [...new Set(slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+  // A roast's sides are recipes of their own, found by slug.
+  const sideSlugs = [...new Set(slots.flatMap((s) => parseRoastChoice(s.roast)?.sides ?? []))];
+  if (sideSlugs.length) {
+    const sides = must<{ id: string }[]>(await db.from('recipes').select('id').eq('household_id', householdId).in('slug', sideSlugs), 'Reading roast sides');
+    for (const r of sides) if (!ids.includes(r.id)) ids.push(r.id);
+  }
   const recipes = must<RecipeDetail[]>(await db.from('recipes').select('*').in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']), 'Reading recipes');
   const ingredients = must<(RecipeDetail['ingredients'][number] & { recipe_id: string })[]>(
     await db.from('recipe_ingredients').select('recipe_id, position, group_name, name, qty, unit, note, qty_approx').in('recipe_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']).order('position'),

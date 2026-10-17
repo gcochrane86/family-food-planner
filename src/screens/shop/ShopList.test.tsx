@@ -205,3 +205,19 @@ describe('freezer check, review fixes', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
   });
 });
+
+test("a roast dinner's sides are on the list too", async () => {
+  const roastWeek = () => {
+    const w = approved();
+    w.slots = w.slots.map((s: MealSlot) => (s.slot === 'dinner' && s.date === '2026-10-25'
+      ? { ...s, mode: 'cook', recipe_id: 'r-doner', portions: 6, roast: { main: 'beef', sides: ['goose-fat-roasties'], people: 6, serve: '13:30' } } : s));
+    return w;
+  };
+  const roasties = { ...HONEY, id: 'r-roasties', slug: 'goose-fat-roasties', title: 'Goose-Fat Roasties', kind: 'component' as const, base_portions: 6,
+    ingredients: [{ position: 1, group_name: null, name: 'roasting potatoes', qty: 1400, unit: 'g', note: null, qty_approx: false }], steps: [] };
+  h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? roastWeek() : { week: null, slots: [] }));
+  h.repo.listRecipes.mockResolvedValue([roasties]);
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-roasties' ? roasties : ({ 'r-doner': DONER, 'r-honey': HONEY } as Record<string, RecipeDetail>)[id] ?? null));
+  render(<ShopList />, { wrapper: MemoryRouter });
+  expect(await screen.findByText(/1\.4kg roasting potatoes/)).toBeInTheDocument();
+});

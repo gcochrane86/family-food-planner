@@ -743,3 +743,15 @@ describe("Sainsbury's and Cookidoo ticks on the week tile", () => {
     expect(screen.queryByRole('list', { name: 'Where this week has got to' })).not.toBeInTheDocument();
   });
 });
+
+test('a roast dinner says so on its tile and opens the builder with that combination', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-25'
+      ? { ...s, mode: 'cook' as const, recipe_id: 'r-doner', portions: 6, roast: { main: 'beef', sides: ['goose-fat-roasties', 'roast-gravy'], people: 6, serve: '13:30' } } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  expect(within(await tile('Sunday 25')).getByText('Roast · beef')).toBeInTheDocument();
+  await openDay('Sun');
+  const link = within(day(/Sunday/)).getByRole('link', { name: /Sunday roast · beef · 6 people · 13:30/ });
+  expect(link).toHaveAttribute('href', '/recipes/roast?main=beef&sides=goose-fat-roasties%2Croast-gravy&people=6&serve=13%3A30');
+});

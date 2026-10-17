@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import { planRoast, type RoastPartRecipe } from '../../lib/roast';
-import { MAINS, parseRoastPart, type RoastMain } from '../../lib/roastModel';
+import { MAINS, parseRoastChoice, parseRoastPart, type RoastMain } from '../../lib/roastModel';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
@@ -26,10 +26,13 @@ export default function RoastBuilder() {
   const hid = householdId!;
   const { data, error, loading, reload } = useAsync(() => repo.listRecipes(hid), [hid]);
   const parts = useMemo(() => new Map((data ?? []).filter((r: Recipe) => parseRoastPart(r.roast)).map((r: Recipe) => [r.slug, r as RoastPartRecipe & Recipe])), [data]);
-  const [main, setMain] = useState<RoastMain>('beef');
-  const [sides, setSides] = useState<string[]>(DEFAULT_SIDES.beef);
-  const [people, setPeople] = useState(6);
-  const [serve, setServe] = useState('13:30');
+  // Opened from a planned roast (the day sheet), it starts with that combination.
+  const [params] = useSearchParams();
+  const start = parseRoastChoice({ main: params.get('main'), sides: (params.get('sides') ?? '').split(',').filter(Boolean), people: Number(params.get('people')), serve: params.get('serve') });
+  const [main, setMain] = useState<RoastMain>(start?.main ?? 'beef');
+  const [sides, setSides] = useState<string[]>(start?.sides ?? DEFAULT_SIDES.beef);
+  const [people, setPeople] = useState(start?.people ?? 6);
+  const [serve, setServe] = useState(start?.serve ?? '13:30');
   const [prepAt, setPrepAt] = useState('08:45');
   const days = useMemo(() => Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + i); return isoDay(d); }), []);
   const [day, setDay] = useState(() => days.find((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 0) ?? days[0]);

@@ -1,3 +1,4 @@
+import { parseRoastChoice } from './roastModel';
 import { HOME_LUNCHES } from './mealPhotos';
 // What each day tile on the week grid shows (spec §6: Home is a grid of day tiles).
 import type { MealSlot, Recipe } from './types';
@@ -62,7 +63,9 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const lunch = l?.mode === 'routine'
     ? homeLunchChoice(l.routine_choice, !!leftover)
     : l?.reason ?? (l?.mode === 'packed' ? 'Packed lunch' : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}` : 'Home lunch');
+  const roast = d?.mode === 'cook' ? parseRoastChoice(d.roast) : null;
   const dinner = d?.mode === 'out' ? 'Out tonight'
+    : roast ? `Roast · ${roast.main}`
     : d?.mode === 'cook' && title(d.recipe_id) ? title(d.recipe_id)!
       : 'Leftovers night';
 

@@ -201,3 +201,16 @@ describe('batch plans', () => {
     expect(plain.find((i) => i.name === 'onions')?.qty).toBe(2);
   });
 });
+
+test('a roast dinner buys every part it was built from, scaled to the people', () => {
+  const brisket = { ...recipe('brisket', 15, [['rolled beef brisket', 4750, 'g']]), slug: 'roast-brisket' };
+  const roasties = { ...recipe('roasties', 6, [['roasting potatoes', 1400, 'g']]), slug: 'goose-fat-roasties' };
+  const cauli = { ...recipe('cauli', 6, [['cauliflower', 1, '']]), slug: 'cauliflower-cheese' };
+  const map = new Map([['brisket', brisket], ['roasties', roasties], ['cauli', cauli]]);
+  const slot = { ...dinner('2026-10-25', 'brisket', 15), roast: { main: 'beef', sides: ['goose-fat-roasties', 'cauliflower-cheese'], people: 15, serve: '13:30' } };
+  const items = buildShoppingList([slot], map, [], 1).sun;
+  expect(items.find((i) => i.name === 'rolled beef brisket')?.qty).toBe(4750);
+  expect(items.find((i) => i.name === 'roasting potatoes')?.qty).toBe(3500);
+  expect(items.find((i) => i.name === 'cauliflower')?.qty).toBe(2.5);
+  expect(items.find((i) => i.name === 'roasting potatoes')?.forMeals).toEqual(['Sun roast: roasties']);
+});

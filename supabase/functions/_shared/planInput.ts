@@ -13,7 +13,7 @@ interface Rows {
   pattern: { member_id: string; weekday: number; office: boolean }[];
   recipes: {
     id: string; title: string; kind: string; status: string; protein: string | null;
-    finish_minutes: number; reheats_well: boolean; base_portions: number | string; rating?: string | null;
+    finish_minutes: number; reheats_well: boolean; base_portions: number | string; rating?: string | null; tags?: string[] | null;
   }[];
   recentDinnerRecipeIds: (string | null)[];
 }
@@ -37,7 +37,8 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
   const officeDays = [...new Set(rows.pattern.filter((p) => p.office && adults.has(p.member_id)).map((p) => p.weekday))].sort();
   const portions = rows.members.reduce((sum, m) => sum + Number(m.portion_weight), 0);
   const recipes: PlannerRecipe[] = rows.recipes
-    .filter((r) => r.kind === 'meal' && r.status !== 'archived' && r.rating !== 'down')
+    // Roast parts and hosting meals (a 15-person Sunday roast) are only planned by hand, never picked by the planner.
+    .filter((r) => r.kind === 'meal' && r.status !== 'archived' && r.rating !== 'down' && !(r.tags ?? []).some((t) => t === 'Roast' || t === 'Hosting'))
     .map((r) => ({
       id: r.id, title: r.title, protein: (r.protein as Protein | null) ?? null, finishMinutes: r.finish_minutes,
       reheatsWell: r.reheats_well, basePortions: Number(r.base_portions),

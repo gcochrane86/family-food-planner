@@ -61,3 +61,11 @@ test('add to a day saves the roast on that dinner', async () => {
   expect(h.repo.addRoast).toHaveBeenCalledWith('h1', '2026-10-25', expect.objectContaining({ main: 'beef', people: 6, serve: '13:30' }), 'r-roast-brisket');
   expect(await screen.findByText(/Added to Sunday 25 October/)).toBeInTheDocument();
 });
+
+test('opened from a planned roast, it starts with that combination', async () => {
+  render(<MemoryRouter initialEntries={['/recipes/roast?main=lamb&sides=goose-fat-roasties,mint-sauce&people=8&serve=14:00']}><RoastBuilder /></MemoryRouter>);
+  expect(await screen.findByRole('button', { name: 'Lamb' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(sides()).getAllByRole('button', { pressed: true }).map((b) => b.getAttribute('aria-label'))).toEqual(['Goose-Fat Roasties', 'Fresh Mint Sauce']);
+  expect(screen.getByLabelText('Eat at')).toHaveValue('14:00');
+  expect(screen.getByText('8')).toBeInTheDocument();
+});
