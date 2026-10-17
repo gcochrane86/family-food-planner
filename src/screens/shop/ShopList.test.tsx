@@ -2,7 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
-import { NEXT_WEEK } from '../../test/fixtures';
+import { DONER, HONEY, NEXT_WEEK } from '../../test/fixtures';
+import type { MealSlot, RecipeDetail } from '../../lib/types';
 import ShopList from './ShopList';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -128,5 +129,47 @@ describe("Ready for Sainsbury's", () => {
     render(<ShopList />, { wrapper: MemoryRouter });
     const chicken = (await screen.findByText(/1.2kg chicken breast or thigh/)).closest('label')!;
     expect(chicken).toHaveTextContent("Sainsbury's British Chicken Breast Fillets 640g × 2");
+  });
+});
+
+describe('Check the freezer first', () => {
+  const sauce = { name: 'Honey chilli sauce', group: 'The meat', steps: [], makes: 4, freezer_days: 90 };
+  const frozenWeek = () => {
+    const w = approved();
+    w.slots = w.slots.map((s: MealSlot) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, batch: 'frozen' } : s));
+    return w;
+  };
+  const item = (id: string, portions: number, use_by: string) => ({ id, household_id: 'h1', recipe_id: 'r-honey', name: 'Honey chilli sauce', portions, location: 'freezer' as const, made_on: '2026-09-01', use_by });
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? frozenWeek() : { week: null, slots: [] }));
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, batch: sauce } : ({ 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null));
+    h.repo.listPrepared.mockResolvedValue([item('late', 2, '2026-12-30'), item('soon', 1, '2026-11-01'), item('old', 3, '2026-10-01')]);
+  });
+
+  test('asks about each frozen dinner and holds the Sainsbury\'s buttons until answered', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the freezer first' });
+    expect(check).toHaveTextContent('Honey chilli sauce · for Mon');
+    for (const b of screen.getAllByRole('button', { name: "Ready for Sainsbury's" })) expect(b).toBeDisabled();
+    expect(screen.queryByText(/chicken breast or thigh/)).not.toBeInTheDocument();
+  });
+
+  test("It's there takes the portion with the soonest in-date use-by, and frees the buttons", async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the freezer first' });
+    await user().click(within(check).getByRole('button', { name: "It's there" }));
+    expect(h.repo.setPreparedPortions).toHaveBeenCalledWith('soon', 0);
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-19', slot: 'dinner', batch: 'frozen_ok' });
+    expect(screen.queryByRole('region', { name: 'Check the freezer first' })).not.toBeInTheDocument();
+    for (const b of screen.getAllByRole('button', { name: "Ready for Sainsbury's" })) expect(b).toBeEnabled();
+  });
+
+  test('Not there puts the ingredients back on the list and clears that freezer entry', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the freezer first' });
+    await user().click(within(check).getByRole('button', { name: 'Not there' }));
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-19', slot: 'dinner', batch: null });
+    for (const id of ['late', 'soon', 'old']) expect(h.repo.setPreparedPortions).toHaveBeenCalledWith(id, 0);
+    expect(await screen.findByText(/chicken breast or thigh/)).toBeInTheDocument();
   });
 });

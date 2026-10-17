@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
 import type { BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
-import { availablePortions } from '../../lib/batch';
+import { availablePortions, parseBatch } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
   alternatives as plannerAlternatives, applyGuests, applyLeftovers, applyOut, applySwap,
@@ -82,7 +82,8 @@ export function useWeek() {
       const slot = data[key].slots.find((s) => s.date === target && s.slot === 'dinner');
       if (!slot) continue;
       const recipe = slot.recipe_id ? recipes.get(slot.recipe_id) : undefined;
-      if (slot.mode !== 'cook' || !recipe || (slot.portions_verdict && recipe.rating)) return null;
+      // Still to ask: portions, "have it again", or (after making a batch) whether it went in the freezer.
+      if (slot.mode !== 'cook' || !recipe || (slot.portions_verdict && recipe.rating && slot.batch !== 'make')) return null;
       try { if (localStorage.getItem(`ffp.fb.${slot.id ?? target}`)) return null; } catch { /* no storage: just ask */ }
       return { key, slot, recipe };
     }
@@ -241,6 +242,27 @@ export function useWeek() {
       const base = (key === 'nextWeek') === (shown === 'next') ? latest.current : data[key].slots;
       const current = base.find((s) => s.date === slot.date && s.slot === 'dinner') ?? slot;
       const updated = { ...current, portions_verdict: v, cooked_at: current.cooked_at ?? new Date().toISOString() };
+      return commit(base.map((s) => (s === current ? updated : s)), [updated], base, key);
+    },
+    /** After a batch night: adds the extra portions to the freezer (when they went in) and marks the batch made. */
+    async lastNightBatch(frozen: boolean): Promise<boolean> {
+      if (!lastNight || !data) return false;
+      const { key, slot, recipe } = lastNight;
+      const b = parseBatch(recipe.batch);
+      if (!b) return false;
+      if (frozen) {
+        const useBy = new Date(`${slot.date}T00:00:00Z`); useBy.setUTCDate(useBy.getUTCDate() + b.freezer_days);
+        try {
+          const item = await repo.addPrepared(hid, { recipe_id: recipe.id, name: b.name, portions: b.makes - 1, location: 'freezer', made_on: slot.date, use_by: useBy.toISOString().slice(0, 10) });
+          setData((d) => d && { ...d, freezer: [...(d.freezer ?? []), item] });
+        } catch {
+          setSaveError("Couldn't save that. Check your connection and try again.");
+          return false;
+        }
+      }
+      const base = (key === 'nextWeek') === (shown === 'next') ? latest.current : data[key].slots;
+      const current = base.find((s) => s.date === slot.date && s.slot === 'dinner') ?? slot;
+      const updated = { ...current, batch: 'made' as const };
       return commit(base.map((s) => (s === current ? updated : s)), [updated], base, key);
     },
     /** Hides the "How was it?" card for that dinner on this device. */

@@ -3,6 +3,7 @@ import { repo } from '../../lib/repo';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import type { MealSlot, Recipe } from '../../lib/types';
 import type { WeekState } from './useWeek';
+import { parseBatch } from '../../lib/batch';
 
 const VERDICTS = [['not_enough', 'Not enough'], ['right', 'About right'], ['leftovers', 'Leftovers']] as const;
 
@@ -13,11 +14,13 @@ export default function FeedbackCard({ w }: { w: WeekState }) {
   const [verdict, setVerdict] = useState<MealSlot['portions_verdict']>(null);
   const [rating, setRating] = useState<'up' | 'down' | null>(null);
   const [done, setDone] = useState(false);
+  const [batchAnswered, setBatchAnswered] = useState(false);
   useEffect(() => { if (!target && w.lastNight) setTarget({ slot: w.lastNight.slot, recipe: w.lastNight.recipe }); }, [w.lastNight, target]);
 
   const answeredVerdict = verdict ?? target?.slot.portions_verdict ?? null;
   const answeredRating = rating ?? target?.recipe.rating ?? null;
-  const finished = !!answeredVerdict && !!answeredRating;
+  const batch = target?.slot.batch === 'make' ? parseBatch(target.recipe.batch) : null;
+  const finished = !!answeredVerdict && !!answeredRating && (!batch || batchAnswered);
   useEffect(() => {
     if (!finished) return undefined;
     const t = setTimeout(() => setDone(true), 2500);
@@ -51,6 +54,13 @@ export default function FeedbackCard({ w }: { w: WeekState }) {
                 onClick={() => { setVerdict(v); void w.lastNightVerdict(v).then((ok) => { if (!ok) setVerdict(null); }); }}>{label}</button>
             ))}
           </div>
+          {batch && !batchAnswered && (
+            <div className="flex flex-wrap items-center gap-1.5 text-[13.5px]">
+              <span className="font-semibold">Did {batch.makes - 1} portions of {batch.name[0].toLowerCase() + batch.name.slice(1)} go in the freezer?</span>
+              <button type="button" className={pill(false)} onClick={() => { setBatchAnswered(true); void w.lastNightBatch(true).then((ok) => { if (!ok) setBatchAnswered(false); }); }}>Yes, {batch.makes - 1} portions frozen</button>
+              <button type="button" className={pill(false)} onClick={() => { setBatchAnswered(true); void w.lastNightBatch(false).then((ok) => { if (!ok) setBatchAnswered(false); }); }}>No</button>
+            </div>
+          )}
           <div className="flex flex-wrap gap-1.5">
             <button type="button" aria-pressed={answeredRating === 'up'} className={pill(answeredRating === 'up')} onClick={() => void rate('up')}>👍 Have it again</button>
             <button type="button" aria-pressed={answeredRating === 'down'} className={pill(answeredRating === 'down')} onClick={() => void rate('down')}>👎 Not for us</button>

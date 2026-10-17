@@ -651,3 +651,17 @@ describe('batch and freeze', () => {
     expect(within(day(/Thursday/)).queryByRole('switch', { name: /^Use / })).not.toBeInTheDocument();
   });
 });
+
+test('after a batch night, the feedback card asks whether the batch went in the freezer', async () => {
+  vi.setSystemTime(new Date('2026-10-20T08:00:00Z')); // Tuesday morning: last night was Monday's honey chicken
+  const sauce = { name: 'Honey chilli sauce', group: 'The meat', steps: [], makes: 4, freezer_days: 90 };
+  h.repo.listRecipes.mockResolvedValue([{ ...HONEY, batch: sauce }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, week: { ...NEXT_WEEK.week, status: 'approved' }, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-19' ? { ...s, batch: 'make' as const } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  const card = await screen.findByRole('region', { name: /How was last night's/ });
+  await user().click(within(card).getByRole('button', { name: 'Yes, 3 portions frozen' }));
+  expect(h.repo.addPrepared).toHaveBeenCalledWith('h1', { recipe_id: 'r-honey', name: 'Honey chilli sauce', portions: 3, location: 'freezer', made_on: '2026-10-19', use_by: '2027-01-17' });
+  expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'made' });
+});
