@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type {
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
@@ -213,6 +213,20 @@ export const repo = {
       throw new Error(detail ?? error.message);
     }
     return (data as { result: string }).result;
+  },
+
+  /** The latest "Plan with Claude" request for a week, or null. */
+  async getWeekPlanRequest(householdId: string, weekStart: string): Promise<WeekPlanRequest | null> {
+    return must<WeekPlanRequest | null>(await db().from('week_plan_requests').select('id, household_id, week_start, note, status, requested_at, summary')
+      .eq('household_id', householdId).eq('week_start', weekStart).order('requested_at', { ascending: false }).limit(1).maybeSingle());
+  },
+
+  /** Asks Claude (the scheduled task on the owner's Mac) to plan a week. A request already open is returned instead. */
+  async requestWeekPlan(householdId: string, weekStart: string, note: string | null): Promise<WeekPlanRequest> {
+    const made = await db().from('week_plan_requests').insert({ household_id: householdId, week_start: weekStart, note })
+      .select('id, household_id, week_start, note, status, requested_at, summary').single();
+    if (made.error?.code === '23505') return (await this.getWeekPlanRequest(householdId, weekStart))!;
+    return must<WeekPlanRequest>(made);
   },
 
   /** Recipes cooked for dinner in the 14 days before a week, so the planner can avoid repeats. */

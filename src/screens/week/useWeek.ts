@@ -65,9 +65,12 @@ export function useWeek() {
     // The freezer, for batch suggestions (an empty freezer if it can't be read, so the week still shows).
     // Basket fills, for the week tile's Sainsbury's tick (none for a draft, or if they can't be read).
     const baskets = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getRuns(w.week.id).catch(() => [] as BasketRun[]) : Promise.resolve([] as BasketRun[]));
-    const [thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets] = await Promise.all([
-      run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[]), baskets(thisWeek), baskets(nextWeek)]);
-    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets };
+    // "Plan with Claude" requests (none if they can't be read, so the week still shows).
+    const asked = (ws: string) => repo.getWeekPlanRequest(hid, ws).catch(() => null);
+    const [thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest] = await Promise.all([
+      run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[]), baskets(thisWeek), baskets(nextWeek),
+      asked(starts.thisWeek), asked(starts.nextWeek)]);
+    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest };
   }, [hid, starts]);
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
@@ -164,6 +167,8 @@ export function useWeek() {
   return {
     loading, error, reload, saveError, starts, shown, setWhich, weekStart, recipes, input,
     week: current?.week ?? null,
+    /** The latest "Plan with Claude" request for the week shown. */
+    planRequest: (shown === 'next' ? data?.nextRequest : data?.thisRequest) ?? null,
     /** This week's Cookidoo sync (spec §10), or null before approval. */
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     baskets: (shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? [],
@@ -331,6 +336,24 @@ export function useWeek() {
         setData((d) => d && { ...d, [key]: { id: '', plan_week_id: current.week!.id, status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null } });
       } catch {
         setSaveError("Couldn't approve the week. Check your connection and try again.");
+      }
+    },
+    /** Looks again at an open request (quietly); once Claude has finished, the new week loads. */
+    async checkRequest() {
+      const key = shown === 'next' ? 'nextRequest' : 'thisRequest';
+      const req = await repo.getWeekPlanRequest(hid, weekStart).catch(() => null);
+      if (!req) return;
+      if (req.status === 'done') await reload();
+      else setData((d) => d && { ...d, [key]: req });
+    },
+    /** Asks Claude to plan (or replan) the week shown. */
+    async planWithClaude(note: string | null) {
+      setSaveError(null);
+      try {
+        const req = await repo.requestWeekPlan(hid, weekStart, note?.trim() || null);
+        setData((d) => d && { ...d, [shown === 'next' ? 'nextRequest' : 'thisRequest']: req });
+      } catch {
+        setSaveError("Couldn't ask Claude. Check your connection and try again.");
       }
     },
     async propose() {

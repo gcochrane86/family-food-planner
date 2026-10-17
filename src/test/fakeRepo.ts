@@ -1,4 +1,4 @@
-import type { FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep } from '../lib/types';
+import type { FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -72,6 +72,9 @@ export function fakeRepo() {
     saveSlots: vi.fn(async (_slots: MealSlot[]) => {}),
     approveWeek: vi.fn(async () => {}),
     proposeNow: vi.fn(async () => 'created'),
+    getWeekPlanRequest: vi.fn(async (_hid: string, _weekStart: string): Promise<WeekPlanRequest | null> => null),
+    requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null): Promise<WeekPlanRequest> => ({
+      id: 'q1', household_id: hid, week_start: weekStart, note, status: 'requested', requested_at: new Date().toISOString(), summary: null })),
     recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
     requestCookidooSync: vi.fn(async (_weekId: string) => {}),
