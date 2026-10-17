@@ -221,3 +221,36 @@ test("a roast dinner's sides are on the list too", async () => {
   render(<ShopList />, { wrapper: MemoryRouter });
   expect(await screen.findByText(/1\.4kg roasting potatoes/)).toBeInTheDocument();
 });
+
+describe('other shops', () => {
+  const settings = (weeks: string[] = []) => ({
+    weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2 as const, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
+    breakfasts: [], lunches: [], day_rules: [],
+    other_shops: [
+      { name: 'Fishmonger', buys: ['chicken breast'], day: 0, sometimes: false, weeks: [] },
+      { name: 'Farm shop', buys: ['lamb mince'], day: null, sometimes: true, weeks },
+    ],
+  });
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+  });
+
+  test("a shop with a day gets that day's things, off the Sainsbury's list", async () => {
+    h.repo.getSettings.mockResolvedValue(settings());
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const fish = await screen.findByRole('region', { name: 'Fishmonger (Monday)' });
+    expect(fish).toHaveTextContent(/chicken breast or thigh/);
+    expect(within(screen.getByRole('region', { name: 'Sunday delivery' })).queryByText(/chicken breast or thigh/)).not.toBeInTheDocument();
+  });
+
+  test('a some-weeks shop has a switch: on, its things move off Sainsbury\'s', async () => {
+    h.repo.getSettings.mockResolvedValue(settings());
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const tue = await screen.findByRole('region', { name: 'Tuesday delivery' });
+    expect(within(tue).getByText(/lamb mince/)).toBeInTheDocument();
+    await user().click(screen.getByRole('switch', { name: 'Going to the Farm shop this week' }));
+    expect(h.repo.saveSettings).toHaveBeenCalledWith('h1', expect.objectContaining({ other_shops: expect.arrayContaining([expect.objectContaining({ name: 'Farm shop', weeks: ['2026-10-19'] })]) }));
+    expect(await screen.findByRole('region', { name: 'Farm shop' })).toHaveTextContent(/lamb mince/);
+    expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).queryByText(/lamb mince/)).not.toBeInTheDocument();
+  });
+});

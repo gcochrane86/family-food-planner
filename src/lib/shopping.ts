@@ -2,7 +2,7 @@ import { parseRoastChoice } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
-import type { MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
+import type { OtherShop, MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
 export interface ShopItem {
   key: string;
@@ -12,6 +12,14 @@ export interface ShopItem {
   approx: boolean;
   forMeals: string[];
   neededBy: string;
+  /** Bought at another shop (the fishmonger, the farm shop) rather than Sainsbury's. */
+  shop?: string;
+}
+
+/** Whether an item is one of a shop's: every word of one of its "buys" is in the item's name. */
+function shopBuys(shop: OtherShop, name: string): boolean {
+  const have = new Set(words(name));
+  return shop.buys.some((b) => { const w = words(b); return w.length > 0 && w.every((x) => have.has(x)); });
 }
 
 /** A tick belongs to an item at a quantity: if the amount changes (guests, swaps), the line needs buying again.
@@ -37,7 +45,10 @@ const weekdayIndex = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay(
  */
 export function buildShoppingList(
   slots: MealSlot[], recipes: Map<string, RecipeDetail>, staples: Staple[], shopsPerWeek: 1 | 2, basics: WeeklyBasic[] = [],
-): { sun: ShopItem[]; tue: ShopItem[] } {
+  elsewhere: { shops: OtherShop[]; weekStart: string } = { shops: [], weekStart: '' },
+): { sun: ShopItem[]; tue: ShopItem[]; others: { name: string; day: number | null; items: ShopItem[] }[] } {
+  // Other shops in use this week: always, or (for "some weeks" shops) the weeks you've said you're going.
+  const shops = elsewhere.shops.filter((s) => !s.sometimes || s.weeks.includes(elsewhere.weekStart));
   // A staple that's also a weekly basic (e.g. eggs) is bought every week anyway, so recipes still add theirs.
   const basicNames = new Set(basics.map((b) => words(b.name).join(' ')));
   const have = staples.filter((s) => s.status === 'have' && !basicNames.has(words(s.name).join(' ')));
@@ -51,11 +62,13 @@ export function buildShoppingList(
       const inBatch = !!batch && isBatchIngredient(recipe, ing);
       if (inBatch && (slot.batch === 'frozen' || slot.batch === 'frozen_ok')) continue;
       const times = inBatch && slot.batch === 'make' ? batch!.makes : 1;
-      const key = `${words(ing.name).join(' ')}|${ing.unit}`;
+      // A shop with a day (the fishmonger on Thursday) takes that day's dinners' things.
+      const dayShop = shops.find((s) => s.day !== null && s.day === weekdayIndex(slot.date) && shopBuys(s, ing.name));
+      const key = `${dayShop ? `${dayShop.name}:` : ''}${words(ing.name).join(' ')}|${ing.unit}`;
       const qty = ing.qty === null ? null : ing.qty * factor * times;
       const existing = items.get(key);
       if (!existing) {
-        items.set(key, { key, name: ing.name, qty, unit: ing.unit, approx: ing.qty_approx, forMeals: [meal], neededBy: slot.date });
+        items.set(key, { key, name: ing.name, qty, unit: ing.unit, approx: ing.qty_approx, forMeals: [meal], neededBy: slot.date, ...(dayShop ? { shop: dayShop.name } : {}) });
         continue;
       }
       existing.qty = existing.qty === null || qty === null ? existing.qty ?? qty : existing.qty + qty;
@@ -124,5 +137,15 @@ export function buildShoppingList(
       forMeals: [note], neededBy: '',
     });
   }
-  return { sun, tue };
+  // Shops with no fixed day (the farm shop) take their things from either delivery, basics and staples included.
+  const others = shops.map((shop) => ({ name: shop.name, day: shop.day, items: [] as ShopItem[] }));
+  for (const list of [sun, tue]) {
+    for (const item of [...list]) {
+      const shop = item.shop ? shops.find((s) => s.name === item.shop) : shops.find((s) => s.day === null && shopBuys(s, item.name));
+      if (!shop) continue;
+      list.splice(list.indexOf(item), 1);
+      others.find((o) => o.name === shop.name)!.items.push({ ...item, shop: shop.name });
+    }
+  }
+  return { sun, tue, others: others.filter((o) => o.items.length) };
 }

@@ -6,7 +6,8 @@ import { repo } from '../../lib/repo';
 import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../../lib/shopping';
 import SparList from './SparList';
 import { packsNeeded } from '../../lib/packs';
-import type { BasketRun, MealSlot, PreparedItem, Product, RecipeDetail } from '../../lib/types';
+import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
+import { switchClasses } from '../../lib/prepAhead';
 import { parseBatch } from '../../lib/batch';
 import { parseRoastChoice } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
@@ -36,10 +37,11 @@ export default function ShopList() {
     }
     const details = (await Promise.all(ids.map((id) => repo.getRecipe(id)))).filter((r): r is RecipeDetail => !!r);
     const recipes = new Map(details.map((r) => [r.id, r]));
-    const build = (slots: MealSlot[]) => buildShoppingList(slots, recipes, staples, settings.shops_per_week, basics);
+    const build = (slots: MealSlot[], shops: OtherShop[] = settings.other_shops ?? []) =>
+      buildShoppingList(slots, recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start });
     const [tickRows, runs, freezer] = await Promise.all([repo.getTicks(chosen.week!.id), repo.getRuns(chosen.week!.id), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
     const ticks = new Map(tickRows.map((t) => [`${t.delivery}:${t.item_key}`, t.ticked]));
-    return { chosen, draft, list: build(chosen.slots), build, recipes, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };
+    return { chosen, draft, list: build(chosen.slots), build, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };
   }, [hid]);
   const [ticked, setTicked] = useState<Map<string, boolean>>(new Map());
   const [banner, setBanner] = useState<string | null>(null);
@@ -51,7 +53,21 @@ export default function ShopList() {
   const [freezerNow, setFreezer] = useState<PreparedItem[] | null>(null);
   const freezer = freezerNow ?? data?.freezer ?? [];
   const weekSlots = slots ?? data?.chosen?.slots ?? [];
-  const list = data?.build ? (slots ? data.build(slots) : data.list) : null;
+  // Other shops (the fishmonger, the farm shop), with this week's "going" switches as you change them.
+  const [otherShops, setOtherShops] = useState<OtherShop[] | null>(null);
+  const shopsNow = otherShops ?? data?.settings?.other_shops ?? [];
+  const list = data?.build ? (slots || otherShops ? data.build(slots ?? data.chosen!.slots, shopsNow) : data.list) : null;
+  const weekStart = data?.chosen?.week?.week_start ?? '';
+
+  async function goingThisWeek(shop: OtherShop) {
+    if (!data?.settings) return;
+    const going = shop.weeks.includes(weekStart);
+    const next = shopsNow.map((s) => (s.name === shop.name ? { ...s, weeks: going ? s.weeks.filter((w) => w !== weekStart) : [...s.weeks, weekStart] } : s));
+    const before = otherShops;
+    setOtherShops(next);
+    setBanner(null);
+    try { await repo.saveSettings(hid, { ...data.settings, other_shops: next }); } catch { setOtherShops(before); setBanner(SAVE_ERROR); }
+  }
   const unchecked = weekSlots.filter((s) => s.slot === 'dinner' && s.batch === 'frozen');
 
   /** "It's there": takes one portion (soonest in-date use-by first) and marks the dinner checked. "Not there": the
@@ -140,6 +156,30 @@ export default function ShopList() {
           })}
         </section>
       )}
+      {shopsNow.filter((s) => s.sometimes).map((shop) => {
+        const on = shop.weeks.includes(weekStart);
+        return list && (
+          <div key={shop.name} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-2.5 text-sm">
+            <span>Going to the {shop.name} this week? <span className="text-muted">({shop.buys.join(', ')})</span></span>
+            <button type="button" role="switch" aria-checked={on} aria-label={`Going to the ${shop.name} this week`} onClick={() => void goingThisWeek(shop)} className={switchClasses(on)}>
+              <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        );
+      })}
+      {list?.others.map((o) => {
+        const title = `${o.name}${o.day !== null ? ` (${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][o.day]})` : ''}`;
+        return (
+          <section key={o.name} aria-label={title} className="grid gap-2">
+            <h2 className="text-xl font-bold">{title}</h2>
+            <ul className="m-0 list-none divide-y divide-line rounded-2xl border border-line bg-surface p-0">
+              {o.items.map((item) => (
+                <li key={item.key} className="px-4 py-2.5"><b>{formatQty(item.qty, item.unit, item.approx)} {item.name}</b> <span className="text-sm text-muted">for {item.forMeals.join(', ')}</span></li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
       {list && (data?.shops === 2 ? (
         <>
           <Section d="sun" title="Sunday delivery" items={list.sun} isTicked={isTicked} toggle={toggle} run={runFor('sun')} onReady={ready} products={data.products} blocked={unchecked.length > 0} />

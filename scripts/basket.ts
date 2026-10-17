@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
+import { validateSettings } from '../src/lib/household';
 import { parseFinish, parseProduct, parseSpar } from './basketInput';
 import { parseRoastChoice } from '../src/lib/roastModel';
 import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
@@ -80,7 +81,10 @@ async function list() {
     await db.from('shopping_ticks').select('item_key').eq('plan_week_id', week.id).eq('delivery', delivery).eq('ticked', true), 'Reading ticks').map((t) => t.item_key));
 
   const shops = settings?.data?.shops_per_week === 1 ? 1 : 2;
-  const list = buildShoppingList(slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })), details, staples, shops, basics);
+  // Things bought at other shops (the fishmonger, the farm shop in weeks you go) aren't for the Sainsbury's trolley.
+  const otherShops = validateSettings(settings?.data).other_shops;
+  const list = buildShoppingList(slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })), details, staples, shops, basics,
+    { shops: otherShops, weekStart: week.week_start });
   const items = list[delivery].map((item) => {
     const p = products.get(item.key);
     return {

@@ -214,3 +214,34 @@ test('a roast dinner buys every part it was built from, scaled to the people', (
   expect(items.find((i) => i.name === 'cauliflower')?.qty).toBe(2.5);
   expect(items.find((i) => i.name === 'roasting potatoes')?.forMeals).toEqual(['Sun roast: roasties']);
 });
+
+describe('other shops', () => {
+  const fishPie = { ...recipe('fish', 4, [['salmon fillets', 400, 'g'], ['onion', 1, ''], ['milk', 300, 'ml']]), protein: 'fish' as const };
+  const map = new Map([['fish', fishPie], ['stew', stew]]);
+  const fishmonger = { name: 'Fishmonger', buys: ['salmon', 'cod'], day: 3, sometimes: false, weeks: [] };
+  const farm = { name: 'Farm shop', buys: ['milk', 'eggs'], day: null, sometimes: true, weeks: ['2026-10-19'] };
+  const eggs = { id: 'b1', household_id: 'h1', position: 1, name: 'Eggs', qty: 12, unit: '', delivery: 'sun' as const, approx: false };
+
+  test("the fishmonger buys Thursday's fish; Sainsbury's gets the rest", () => {
+    const list = buildShoppingList([dinner('2026-10-22', 'fish', 4)], map, [], 2, [], { shops: [fishmonger], weekStart: '2026-10-19' });
+    expect([...list.sun, ...list.tue].map((i) => i.name)).not.toContain('salmon fillets');
+    expect([...list.sun, ...list.tue].map((i) => i.name)).toContain('onion');
+    expect(list.others).toEqual([{ name: 'Fishmonger', day: 3, items: [expect.objectContaining({ name: 'salmon fillets', qty: 400 })] }]);
+  });
+
+  test('fish for another day still comes from Sainsbury\'s', () => {
+    const list = buildShoppingList([dinner('2026-10-20', 'fish', 4)], map, [], 2, [], { shops: [fishmonger], weekStart: '2026-10-19' });
+    expect(list.sun.map((i) => i.name)).toContain('salmon fillets');
+    expect(list.others).toEqual([]);
+  });
+
+  test('the farm shop takes eggs and dairy only in weeks you go, weekly basics included', () => {
+    const going = buildShoppingList([dinner('2026-10-22', 'fish', 4)], map, [], 2, [eggs], { shops: [farm], weekStart: '2026-10-19' });
+    expect([...going.sun, ...going.tue].map((i) => i.name)).not.toContain('milk');
+    expect([...going.sun, ...going.tue].map((i) => i.name)).not.toContain('Eggs');
+    expect(going.others[0].items.map((i) => i.name).sort()).toEqual(['Eggs', 'milk']);
+    const notGoing = buildShoppingList([dinner('2026-10-22', 'fish', 4)], map, [], 2, [eggs], { shops: [farm], weekStart: '2026-10-26' });
+    expect(notGoing.others).toEqual([]);
+    expect([...notGoing.sun, ...notGoing.tue].map((i) => i.name)).toEqual(expect.arrayContaining(['milk', 'Eggs']));
+  });
+});
