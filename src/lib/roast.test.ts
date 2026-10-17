@@ -104,3 +104,10 @@ test('the kit timeline lists each appliance in time order', () => {
   expect(plan.kit['Oven 1'].map((k) => k.time)).toEqual(['11:55', '12:15', '12:36', '12:42']);
   expect(Object.keys(plan.kit)).toEqual(expect.arrayContaining(['Oven 1', 'Oven 2', 'Oven 3', 'APO', 'TM7']));
 });
+
+test("prep and serve times that don't fit together are pointed out", () => {
+  const late = planRoast({ ...beef, serve: '13:30', prepAt: '12:30' }, parts);
+  expect(late.warnings.join(' ')).toMatch(/Morning prep runs into the lunchtime countdown/);
+  const early = planRoast({ main: 'lamb', sides: [], people: 6, serve: '10:00', prepAt: '08:45' }, parts);
+  expect(early.warnings.join(' ')).toMatch(/starts at 07:30, before your prep at 08:45/);
+});

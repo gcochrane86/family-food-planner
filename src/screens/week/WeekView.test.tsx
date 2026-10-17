@@ -755,3 +755,14 @@ test('a roast dinner says so on its tile and opens the builder with that combina
   const link = within(day(/Sunday/)).getByRole('link', { name: /Sunday roast · beef · 6 people · 13:30/ });
   expect(link).toHaveAttribute('href', '/recipes/roast?main=beef&sides=goose-fat-roasties%2Croast-gravy&people=6&serve=13%3A30');
 });
+
+test('changing a roast dinner (out tonight, swap) drops the roast, so its sides are no longer bought', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { ...NEXT_WEEK, slots: NEXT_WEEK.slots.map((s) => (s.slot === 'dinner' && s.date === '2026-10-24'
+      ? { ...s, roast: { main: 'beef', sides: ['goose-fat-roasties'], people: 6, serve: '13:30' } } : s)) }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Sat');
+  await user().click(within(day(/Saturday/)).getByRole('button', { name: 'Out tonight' }));
+  expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-24' && s.slot === 'dinner')).toMatchObject({ mode: 'out', roast: null });
+});

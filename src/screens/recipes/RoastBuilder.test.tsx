@@ -69,3 +69,10 @@ test('opened from a planned roast, it starts with that combination', async () =>
   expect(screen.getByLabelText('Eat at')).toHaveValue('14:00');
   expect(screen.getByText('8')).toBeInTheDocument();
 });
+
+test("with no serve time there's no plan, and nothing to add", async () => {
+  render(<RoastBuilder />, { wrapper: MemoryRouter });
+  await screen.findByRole('region', { name: 'Service countdown' });
+  await user().clear(screen.getByLabelText('Eat at'));
+  expect(screen.getByRole('button', { name: 'Add to the week' })).toBeDisabled();
+});

@@ -26,7 +26,7 @@ const PER_TRAY = 8;         // a step's trays are per 8 people
 const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
 const fmt = (min: number) => { const m = ((Math.round(min) % 1440) + 1440) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 
-interface Slot { step: RoastStep; part: RoastPartRecipe; start: number; end: number; phase: RoastPhaseName; trays: number; place: string; label: string; quick: boolean }
+interface Slot { step: RoastStep; part: RoastPartRecipe; start: number; end: number; phase: RoastPhaseName; trays: number; place: string; label: string; quick: boolean; hold: boolean }
 
 export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<string, RoastPartRecipe>): RoastPlan {
   const warnings: string[] = [];
@@ -53,12 +53,13 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
       else start = serve - step.before;
       // A morning step that runs on into lunchtime (the brisket holding) ends at the same point before serving.
       const endsBefore = step.before - step.minutes;
-      const end = step.when !== 'service' && endsBefore <= SERVICE_WINDOW ? serve - endsBefore : start + step.minutes;
+      const hold = step.when !== 'service' && endsBefore <= SERVICE_WINDOW;
+      const end = hold ? serve - endsBefore : start + step.minutes;
       const phase: RoastPhaseName = step.when === 'night' ? 'Night before' : step.when === 'morning' ? 'Morning prep'
         : step.before > SERVICE_WINDOW ? 'Out and about' : 'Service countdown';
       const trays = Math.ceil(((step.trays ?? 1) * choice.people) / PER_TRAY);
       const quick = (step.kit === 'oven' || step.kit === 'apo' || step.kit === 'hy24') && step.minutes >= 45;
-      slots.push({ step, part, start, end, phase, trays, place: '', label: '', quick });
+      slots.push({ step, part, start, end, phase, trays, place: '', label: '', quick, hold });
     }
   }
   slots.sort((a, b) => a.start - b.start || b.step.before - a.step.before);
@@ -109,6 +110,16 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
     if (s.place) continue;
     if (s.step.kit === 'hy24') { s.place = 'Air-fryer'; s.label = `Air-fryer · ${s.step.temp ?? 200}°C`; continue; }
     [s.place, s.label] = LABEL[s.step.kit] ?? ['', ''];
+  }
+
+  // Prep and serve times have to leave room for each other.
+  const countdown = slots.filter((x) => x.phase === 'Service countdown').map((x) => x.start);
+  const firstService = countdown.length ? Math.min(...countdown) : serve;
+  if (slots.some((x) => x.phase === 'Morning prep' && !x.hold && x.end > firstService)) {
+    warnings.push('Morning prep runs into the lunchtime countdown: prep from earlier, or eat later.');
+  }
+  for (const x of slots) {
+    if (x.step.when !== 'night' && x.phase !== 'Morning prep' && x.start < prep) warnings.push(`${x.part.title}: ${x.step.title.toLowerCase()} starts at ${fmt(x.start)}, before your prep at ${fmt(prep)}.`);
   }
 
   // The owner's workflow: between morning prep and the countdown, only hands-off kit.

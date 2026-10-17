@@ -40,7 +40,9 @@ function merge(slots: MealSlot[], plan: ProposedSlot[]): { next: MealSlot[]; cha
     };
     // A batch plan belongs to that dinner: a different recipe, or no cooking, drops it.
     if (s.batch && (updated.recipe_id !== s.recipe_id || updated.mode !== 'cook')) updated.batch = null;
-    const differs = (['recipe_id', 'mode', 'portions', 'guests', 'locked', 'reason', 'source_date', 'batch'] as const).some((k) => updated[k] !== s[k]);
+    // So does a roast: a different dinner, or none, isn't the roast any more.
+    if (s.roast && (updated.recipe_id !== s.recipe_id || updated.mode !== 'cook')) updated.roast = null;
+    const differs = (['recipe_id', 'mode', 'portions', 'guests', 'locked', 'reason', 'source_date', 'batch', 'roast'] as const).some((k) => updated[k] !== s[k]);
     if (differs) changed.push(updated);
     return updated;
   });

@@ -49,7 +49,7 @@ export default function RoastBuilder() {
 
   async function addToDay() {
     const m = mainPart(main);
-    if (!m) return;
+    if (!m || !plan) return;
     setProblem(null);
     try {
       await repo.addRoast(hid, day, { main, sides: sides.filter((s) => sideParts.some((p) => p.slug === s)), people, serve }, m.id);
@@ -158,7 +158,7 @@ export default function RoastBuilder() {
                 {days.map((d) => <option key={d} value={d}>{dayName(d)}</option>)}
               </select>
             </label>
-            <button type="button" onClick={() => void addToDay()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink">Add to the week</button>
+            <button type="button" disabled={!plan} onClick={() => void addToDay()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50">Add to the week</button>
             <button type="button" onClick={() => window.print()} className="rounded-lg border border-line bg-surface px-4 py-2 font-semibold">Print</button>
             {added && <p role="status" className="m-0 w-full text-sm font-semibold text-accent">Added to {dayName(added)}. The shopping list includes every part.</p>}
             {problem && <p role="alert" className="m-0 w-full text-sm font-semibold text-warn">{problem}</p>}
