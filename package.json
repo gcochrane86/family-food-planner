@@ -14,7 +14,8 @@
     "basket": "tsx scripts/basket.ts",
     "cookidoo": "tsx scripts/cookidoo.ts",
     "recipes": "tsx scripts/recipes.ts",
-    "pantry": "tsx scripts/pantry.ts"
+    "pantry": "tsx scripts/pantry.ts",
+    "week": "tsx scripts/week.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

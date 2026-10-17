@@ -4,7 +4,8 @@
 //  - by a signed-in member from the app ("Propose now"): only for their own household.
 // Deployed with --no-verify-jwt, because the scheduler has no user; both paths are checked here.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4';
-import { buildPlannerInput, slotRows } from '../_shared/planInput.ts';
+import { loadPlannerInput } from '../_shared/loadPlan.ts';
+import { slotRows } from '../_shared/planInput.ts';
 import { proposeWeek } from '../_shared/planner.ts';
 import { londonParts, nextMonday, shouldPropose } from '../_shared/schedule.ts';
 
@@ -17,42 +18,13 @@ const reply = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 const url = Deno.env.get('SUPABASE_URL')!;
 
-function addDays(iso: string, n: number) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
 /** Makes and saves the proposal for one household. Returns 'exists' if that week already has a plan. */
 async function proposeFor(db: SupabaseClient, householdId: string, weekStart: string): Promise<'created' | 'exists'> {
   const { data: existing, error: e0 } = await db.from('plan_weeks').select('id').eq('household_id', householdId).eq('week_start', weekStart).maybeSingle();
   if (e0) throw e0;
   if (existing) return 'exists';
 
-  const [settings, members, recipes, weeks] = await Promise.all([
-    db.from('settings').select('data').eq('household_id', householdId).maybeSingle(),
-    db.from('members').select('id, kind, portion_weight').eq('household_id', householdId),
-    db.from('recipes').select('id, title, kind, status, protein, finish_minutes, reheats_well, base_portions, rating, tags').eq('household_id', householdId),
-    db.from('plan_weeks').select('id').eq('household_id', householdId).gte('week_start', addDays(weekStart, -14)).lt('week_start', weekStart),
-  ]);
-  for (const r of [settings, members, recipes, weeks]) if (r.error) throw r.error;
-  const memberIds = (members.data ?? []).map((m) => m.id);
-  const weekIds = (weeks.data ?? []).map((w) => w.id);
-  const [pattern, recent] = await Promise.all([
-    memberIds.length ? db.from('member_week_pattern').select('member_id, weekday, office').in('member_id', memberIds) : { data: [], error: null },
-    weekIds.length ? db.from('meal_slots').select('recipe_id').in('plan_week_id', weekIds).eq('slot', 'dinner').eq('mode', 'cook') : { data: [], error: null },
-  ]);
-  if (pattern.error) throw pattern.error;
-  if (recent.error) throw recent.error;
-
-  // In-date batch portions in the freezer (none if the table isn't there yet, so the menu still arrives).
-  const frozen = await db.from('prepared_items').select('recipe_id, portions').eq('household_id', householdId).eq('location', 'freezer')
-    .gt('portions', 0).or(`use_by.is.null,use_by.gte.${weekStart}`);
-  const input = buildPlannerInput({
-    weekStart, householdId, settings: settings.data?.data ?? null, members: members.data ?? [], pattern: pattern.data ?? [],
-    recipes: recipes.data ?? [], recentDinnerRecipeIds: (recent.data ?? []).map((r) => r.recipe_id),
-    ...(frozen.error ? {} : { frozen: frozen.data ?? [] }),
-  });
+  const input = await loadPlannerInput(db, householdId, weekStart);
   const plan = proposeWeek(input);
 
   const { data: week, error: e1 } = await db.from('plan_weeks')
