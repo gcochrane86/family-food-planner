@@ -116,7 +116,7 @@ test('out tonight on the cook-once dinner sends the next lunch back to its routi
   await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
   expect(within(day(/Monday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'lunch')!.mode).toBe('routine');
 });
@@ -330,6 +330,7 @@ describe('the day pop-up', () => {
     const thu = () => day(/Thursday/);
     expect(within(thu()).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
     expect(within(thu()).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
     expect(within(thu()).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
     await user().click(within(thu()).getByRole('button', { name: 'Poke bowl' }));
     expect(within(thu()).getByRole('button', { name: 'Poke bowl' })).toHaveAttribute('aria-pressed', 'true');
@@ -545,6 +546,7 @@ describe('breakfast and lunch options', () => {
     expect(screen.getByRole('alertdialog', { name: "Can't remove Overnight oats" })).toBeInTheDocument();
     await user().click(screen.getByRole('button', { name: 'OK' }));
     const lunchRow = within(thu()).getByRole('group', { name: 'Lunch options' });
+    await user().click(within(lunchRow).getByRole('button', { name: 'Sandwich' }));
     fireEvent.contextMenu(within(lunchRow).getByRole('button', { name: 'Egg sandwich' }));
     await user().click(within(screen.getByRole('alertdialog', { name: 'Remove Egg sandwich?' })).getByRole('button', { name: 'Remove' }));
     expect(h.repo.saveSettings.mock.calls.at(-1)![1].lunches).toEqual(['Chicken sandwich']);
@@ -777,4 +779,17 @@ test('a dinner can trade places with another day', async () => {
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-beef', locked: true });
   expect(saved.find((s) => s.date === '2026-10-21' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-salmon', locked: true });
   expect(within(day(/Tuesday/)).getByRole('link', { name: /Soy & Ginger Beef/ })).toBeInTheDocument();
+});
+
+test('the fillings stay folded away until you tap the card, even when a sandwich is picked', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Thu');
+  const thu = () => day(/Thursday/);
+  expect(within(thu()).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(thu()).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+  await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
+  expect(within(thu()).getByRole('group', { name: 'Sandwich fillings' })).toBeInTheDocument();
+  expect(h.repo.saveSlots).not.toHaveBeenCalled();
+  await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
+  expect(within(thu()).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
 });

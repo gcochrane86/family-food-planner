@@ -40,8 +40,8 @@ export default function MealOptions({ label, options, picked, onPick, onAdd, onR
   const short = (o: MealOption) => { const g = groupOf(o); return g ? o.name.replace(tail(g), '') : o.name; };
   /** The member you've had least, first in the list on a tie. */
   const suggest = (list: MealOption[]) => list.reduce((best, o) => ((usage[o.value] ?? 0) < (usage[best.value] ?? 0) ? o : best));
-  const pickedGroup = groups.find((g) => members(g).some((o) => o.value === picked));
-  const shownGroup = groups.find((g) => g.label === (openGroup ?? pickedGroup?.label) && members(g).length > 0);
+  // Folded away until you tap the card (the owner's choice), even when one of its fillings is picked.
+  const shownGroup = groups.find((g) => g.label === openGroup && members(g).length > 0);
 
   const cancelHold = () => { if (hold.current) clearTimeout(hold.current.timer); hold.current = null; };
   useEffect(() => cancelHold, []);
@@ -82,7 +82,11 @@ export default function MealOptions({ label, options, picked, onPick, onAdd, onR
             const chosen = list.find((m) => m.value === picked);
             const shown = chosen ?? suggest(list);
             return card(`group:${g.label}`, g.label, !!chosen, shown.recipe, {
-              onClick: () => { setOpenGroup(g.label); if (!chosen) onPick(suggest(list).value); },
+              onClick: () => {
+                if (openGroup === g.label) { setOpenGroup(null); return; }
+                setOpenGroup(g.label);
+                if (!chosen) onPick(suggest(list).value);
+              },
             }, chosen ? short(chosen) : undefined);
           }
           const on = picked === o.value;
