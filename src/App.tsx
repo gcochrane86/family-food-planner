@@ -7,6 +7,7 @@ import CookMode from './screens/recipes/CookMode';
 import WeekView from './screens/week/WeekView';
 import ShopList from './screens/shop/ShopList';
 import RecipeEditor from './screens/recipes/RecipeEditor';
+import PlanningRules from './screens/settings/PlanningRules';
 import RecipeCard from './screens/recipes/RecipeCard';
 import RecipeLibrary from './screens/recipes/RecipeLibrary';
 import Household from './screens/settings/Household';
@@ -53,6 +54,7 @@ export function AppRoutes() {
         <Route path="week" element={<WeekPattern />} />
         <Route path="kitchen" element={<Kitchen />} />
         <Route path="rules" element={<HouseRules />} />
+        <Route path="planning" element={<PlanningRules />} />
         <Route path="shopping" element={<Shopping />} />
         <Route path="staples" element={<Staples />} />
         <Route path="basics" element={<Basics />} />

@@ -7,6 +7,7 @@ const SECTIONS = [
   { to: 'week', title: 'Office days', text: 'Packed lunches and quick dinners' },
   { to: 'kitchen', title: 'Kitchen', text: 'Thermomix, ovens, pans' },
   { to: 'rules', title: 'House rules', text: 'Swaps, preferences, things to avoid' },
+  { to: 'planning', title: 'Planning rules', text: 'How the Friday menu is planned' },
   { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots, dinner time limit' },
   { to: 'staples', title: 'Cupboard staples', text: 'Have / low / out' },
   { to: 'basics', title: 'Weekly basics', text: 'Breakfast and lunch things bought every week' },
