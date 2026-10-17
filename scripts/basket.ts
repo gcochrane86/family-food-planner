@@ -56,6 +56,11 @@ async function list() {
     ...r, base_portions: Number(r.base_portions), steps: [],
     ingredients: ingredients.filter((i) => i.recipe_id === r.id).map((i) => ({ ...i, qty: i.qty === null ? null : Number(i.qty) })),
   } as RecipeDetail]));
+  // A dinner planned from the freezer leaves its paste off the list; never buy on that guess until someone has checked.
+  const unchecked = slots.filter((s) => s.slot === 'dinner' && s.batch === 'frozen');
+  if (unchecked.length) {
+    fail(`Check the freezer in the app first: ${unchecked.map((s) => details.get(s.recipe_id ?? '')?.title ?? 'a dinner').join(', ')} ${unchecked.length === 1 ? 'is' : 'are'} planned from the freezer.`);
+  }
   const pantry = must<{ id: string; ingredient_id: string; staple_status: Staple['status']; ingredients: { name: string } | { name: string }[] }[]>(
     await db.from('pantry_items').select('id, ingredient_id, staple_status, ingredients(name)').eq('household_id', householdId).not('staple_status', 'is', null),
     'Reading staples');

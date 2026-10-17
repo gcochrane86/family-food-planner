@@ -1,3 +1,4 @@
+import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
 import type { MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
@@ -48,10 +49,15 @@ export function buildShoppingList(
     // A dinner that reheats well is cooked bigger when the next day's lunch is its leftovers.
     const factor = ((slot.portions ?? recipe.base_portions) + leftoverLunchPortions(slot, slots, recipes)) / recipe.base_portions;
     const meal = `${SHORT[weekdayIndex(slot.date)]} ${recipe.title}`;
+    const batch = parseBatch(recipe.batch);
     for (const ing of recipe.ingredients) {
       if (pantryLabel(ing.name, have) === 'In pantry') continue;
+      // The batch part comes from the freezer, or is made several times over to freeze the rest.
+      const inBatch = !!batch && isBatchIngredient(recipe, ing);
+      if (inBatch && (slot.batch === 'frozen' || slot.batch === 'frozen_ok')) continue;
+      const times = inBatch && slot.batch === 'make' ? batch!.makes : 1;
       const key = `${words(ing.name).join(' ')}|${ing.unit}`;
-      const qty = ing.qty === null ? null : ing.qty * factor;
+      const qty = ing.qty === null ? null : ing.qty * factor * times;
       const existing = items.get(key);
       if (!existing) {
         items.set(key, { key, name: ing.name, qty, unit: ing.unit, approx: ing.qty_approx, forMeals: [meal], neededBy: slot.date });

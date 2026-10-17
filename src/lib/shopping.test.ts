@@ -170,3 +170,34 @@ describe('leftover lunches', () => {
     expect(beef([dinner('2026-10-20', 'stew', 3), lunch('2026-10-21', { mode: 'packed' })])).toBe(450);
   });
 });
+
+describe('batch plans', () => {
+  const pasted = recipe('katsu', 4, [['chicken', 600, 'g'], ['curry powder', 20, 'g'], ['coconut milk', 400, 'ml']]);
+  pasted.ingredients[1].group_name = 'The paste';
+  pasted.ingredients[2].group_name = 'The paste';
+  pasted.batch = { name: 'Curry paste', group: 'The paste', steps: [], makes: 4, freezer_days: 90 };
+  const map = new Map([['katsu', pasted]]);
+  const list = (batch: MealSlot['batch'], portions = 4) =>
+    buildShoppingList([{ ...dinner('2026-10-20', 'katsu', portions), batch }], map, [], 2).sun;
+  const qty = (items: ReturnType<typeof list>, name: string) => items.find((i) => i.name === name)?.qty;
+
+  test('a dinner from the freezer skips its paste ingredients but buys the rest', () => {
+    for (const plan of ['frozen', 'frozen_ok'] as const) {
+      expect(qty(list(plan), 'curry powder')).toBeUndefined();
+      expect(qty(list(plan), 'coconut milk')).toBeUndefined();
+      expect(qty(list(plan), 'chicken')).toBe(600);
+    }
+  });
+
+  test('making a batch buys the paste for every portion it makes, scaled with the dinner', () => {
+    expect(qty(list('make', 6), 'curry powder')).toBe(120); // 20 × 1.5 × 4
+    expect(qty(list('make', 6), 'chicken')).toBe(900); // 600 × 1.5
+  });
+
+  test('made, no plan, or a recipe without a batch: just the dinner', () => {
+    expect(qty(list('made'), 'curry powder')).toBe(20);
+    expect(qty(list(null), 'curry powder')).toBe(20);
+    const plain = buildShoppingList([{ ...dinner('2026-10-20', 'curry', 6), batch: 'frozen' }], recipes, [], 2).sun;
+    expect(plain.find((i) => i.name === 'onions')?.qty).toBe(2);
+  });
+});
