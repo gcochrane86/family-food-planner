@@ -474,3 +474,27 @@ test("0011: a Sainsbury's order is recorded once per household", async () => {
   expect(await fails(OWNER, `insert into pantry_orders (household_id, order_ref) values ('${hid}', '123456')`)).toMatch(/duplicate key/);
   expect(await as(STRANGER, 'select * from pantry_orders')).toHaveLength(0);
 });
+
+test('0012: start_fresh clears the plans and Spar list, and leaves Claude\'s My Week entries for the Cookidoo task to remove', async () => {
+  const { hid, rid, wid } = await cookidooWeek(OWNER);
+  await as(OWNER, `update recipes set cookidoo_url = 'https://cookidoo.co.uk/created-recipes/en-GB/01X' where id = '${rid}'`);
+  await as(OWNER, `update meal_slots set cookidoo_recipe_id = '${rid}' where plan_week_id = '${wid}' and slot = 'dinner'`);
+  await as(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', 'Coriander')`);
+  const id = await one(OWNER, `select start_fresh('${hid}')`);
+  expect(await as(OWNER, 'select * from plan_weeks')).toHaveLength(0);
+  expect(await as(OWNER, 'select * from meal_slots')).toHaveLength(0);
+  expect(await as(OWNER, 'select * from quick_shop_items')).toHaveLength(0);
+  const [req] = await as(OWNER, `select trolley_status, cookidoo_status, my_week from fresh_starts where id = '${id}'`);
+  expect(req.trolley_status).toBe('requested');
+  expect(req.cookidoo_status).toBe('requested');
+  expect(req.my_week).toEqual([expect.objectContaining({ url: 'https://cookidoo.co.uk/created-recipes/en-GB/01X' })]);
+  expect(await as(OWNER, 'select title from recipes')).toHaveLength(1);
+});
+
+test("0012: a stranger can't start fresh for another household or see its requests", async () => {
+  const { hid } = await cookidooWeek(OWNER);
+  expect(await fails(STRANGER, `select start_fresh('${hid}')`)).toMatch(/not_a_member|row-level security/);
+  await one(OWNER, `select start_fresh('${hid}')`);
+  expect(await as(STRANGER, 'select * from fresh_starts')).toHaveLength(0);
+  expect(await as(OWNER, 'select * from plan_weeks')).toHaveLength(0);
+});

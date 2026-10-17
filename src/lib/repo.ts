@@ -3,7 +3,7 @@ import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
 import { slugify } from './mealPhotos';
 import type {
-  BasketRun, Equipment, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
+  BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework } from './types';
 
 type Result<T> = { data: T | null; error: { message: string } | null };
@@ -273,6 +273,14 @@ export const repo = {
       household_id: householdId, slug, title: name, kind: 'component', source: 'own_doc', base_portions: 2, tags: [tag],
       status: 'active', toddler_ok: true, finish_minutes: 10,
     }).select('*').single()));
+  },
+
+  /** Start fresh: clears the plans and Spar list now and leaves the trolley and My Week for the Mac's tasks. */
+  async startFresh(householdId: string): Promise<string> {
+    return must<string>(await db().rpc('start_fresh', { p_household: householdId }));
+  },
+  async getFreshStart(householdId: string): Promise<FreshStart | null> {
+    return must<FreshStart | null>(await db().from('fresh_starts').select('*').eq('household_id', householdId).order('requested_at', { ascending: false }).limit(1).maybeSingle());
   },
 
   /** What's in the freezer (and cooked things in the fridge), soonest use-by first. */
