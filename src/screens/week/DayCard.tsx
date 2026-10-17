@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { Link } from 'react-router-dom';
 import { routineRecipe } from '../../lib/mealPhotos';
@@ -72,6 +73,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const dinnerRecipe = recipe(dinner?.recipe_id);
   const lastNightRecipe = lunchLeftover(date, w.slots, w.recipes);
   const swap = onSwap ?? (() => {});
+  const [moving, setMoving] = useState(false);
 
   const breakfastName = breakfast?.routine_choice ?? breakfast?.reason ?? w.mealOptions.breakfast[0];
   const breakfastOptions = w.mealOptions.breakfast.map((n) => ({ value: n, name: n, recipe: routineRecipe(n, w.recipes), removable: true }));
@@ -180,6 +182,26 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
               <div className="flex items-center justify-between gap-3 px-4 py-3 font-semibold">
                 <span>Swap dinner<small className="block font-normal text-muted">Swipe through other ideas</small></span>
                 <button type="button" onClick={swap} className="rounded-xl border border-line bg-surface px-3.5 py-2 font-semibold">Swap</button>
+              </div>
+              <div className="grid gap-2 px-4 py-3 font-semibold">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Move to another day<small className="block font-normal text-muted">Trade dinners with another night</small></span>
+                  <button type="button" aria-expanded={moving} onClick={() => setMoving((m) => !m)} className="rounded-xl border border-line bg-surface px-3.5 py-2 font-semibold">Move to another day</button>
+                </div>
+                {moving && (
+                  <div role="group" aria-label="Swap with" className="grid gap-1.5">
+                    {w.slots.filter((s) => s.slot === 'dinner' && s.date !== date).sort((x, y) => x.date.localeCompare(y.date)).map((s) => {
+                      const r = recipe(s.recipe_id);
+                      const what = s.mode === 'out' ? 'Out' : s.mode === 'cook' && r ? r.title : 'Leftovers night';
+                      return (
+                        <button key={s.date} type="button" onClick={() => { setMoving(false); void w.swapDays(date, s.date); }}
+                          className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-left text-sm font-semibold">
+                          <span>{dayLabel(s.date).split(' ')[0]} · {what}</span><span className="text-muted">Swap</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </>
           )}

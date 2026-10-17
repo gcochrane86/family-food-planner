@@ -766,3 +766,15 @@ test('changing a roast dinner (out tonight, swap) drops the roast, so its sides 
   await user().click(within(day(/Saturday/)).getByRole('button', { name: 'Out tonight' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-24' && s.slot === 'dinner')).toMatchObject({ mode: 'out', roast: null });
 });
+
+test('a dinner can trade places with another day', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Move to another day' }));
+  const pick = within(day(/Tuesday/)).getByRole('group', { name: 'Swap with' });
+  await user().click(within(pick).getByRole('button', { name: /Wednesday.*Soy & Ginger Beef/ }));
+  const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-beef', locked: true });
+  expect(saved.find((s) => s.date === '2026-10-21' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-salmon', locked: true });
+  expect(within(day(/Tuesday/)).getByRole('link', { name: /Soy & Ginger Beef/ })).toBeInTheDocument();
+});

@@ -172,6 +172,20 @@ export function useWeek() {
     officeDays: input?.officeDays ?? [],
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
+    /** Trades two days' dinners (recipe, portions, guests, batch and roast plans), and keeps both where you put them. */
+    swapDays(a: string, b: string): Promise<boolean> {
+      const base = latest.current;
+      const da = base.find((s) => s.date === a && s.slot === 'dinner');
+      const db = base.find((s) => s.date === b && s.slot === 'dinner');
+      if (!da || !db || a === b) return Promise.resolve(false);
+      const move = (from: MealSlot, to: MealSlot): MealSlot => ({
+        ...to, recipe_id: from.recipe_id, mode: from.mode, portions: from.portions, guests: from.guests, reason: from.reason,
+        batch: from.batch ?? null, roast: from.roast ?? null, locked: true,
+      });
+      const na = move(db, da);
+      const nb = move(da, db);
+      return commit(base.map((s) => (s === da ? na : s === db ? nb : s)), [na, nb], base);
+    },
     out: (date: string) => change((p) => applyOut(p, date)),
     leftovers: (date: string) => change((p) => applyLeftovers(p, date)),
     /** Adds (+1) or removes (−1) a guest, counting from the latest state so quick taps all count. */
