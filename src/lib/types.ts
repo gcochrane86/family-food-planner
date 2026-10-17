@@ -302,3 +302,14 @@ export interface PantryEntry {
   unit: string | null;
   staple: StapleStatus | null;
 }
+
+/** A "Start fresh" from Settings: the app part is done at once; the trolley and My Week are done by the Mac's tasks. */
+export interface FreshStart {
+  id: string;
+  household_id: string;
+  requested_at: string;
+  my_week: { date: string; title: string; url: string | null }[];
+  trolley_status: 'requested' | 'done' | 'failed';
+  cookidoo_status: 'requested' | 'done' | 'failed';
+  summary: string | null;
+}

@@ -105,3 +105,14 @@ Household id: in **Settings → Household** in the app. Never guess it.
   whose title matches the one to remove. (Not needed yet as of the first sync.)
 - **TM7 guided cooking:** on the website, a created recipe's steps are stored as plain text ("13 min/100°C/speed 3"
   wasn't turned into a settings chip). Not yet checked on the TM7 itself whether it offers guided settings for them.
+
+## Start fresh (the household cleared the app)
+Settings → **Start fresh** clears the plans in the app and leaves a request listing the My Week entries Claude had
+added (`date`, `title`, `url`). Scheduled runs check this first:
+1. `npm run -s cookidoo -- fresh-pending --household <id>` (`[]` = nothing to do).
+2. For each entry: open My Week for that date (`/planning/en-GB/my-week?date=<date>`), and remove **only** the entry
+   on that day whose title matches, using its ⋮ → **Remove** (never Edit recipe). Anything else on My Week was added
+   by the household: leave it. Created Recipes are kept.
+3. `npm run -s cookidoo -- fresh-done --id <request id> --status done` (or `--status failed` with the reason in your
+   notification).
+

@@ -144,5 +144,22 @@ async function recordOwn() {
   console.log(`Linked ${o.slug} to its original in your Cookidoo.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { pending, claim, plan, 'record-recipe': recordRecipe, 'record-day': recordDay, finish, 'record-own': recordOwn };
-await (commands[command] ?? (() => fail('Use: pending | claim | plan | record-recipe | record-day | finish | record-own')))();
+/** "Start fresh" requests (Settings) still waiting for Claude's My Week entries to be removed, with those entries. */
+async function freshPending() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const rows = must<{ id: string; my_week: unknown }[]>(await db.from('fresh_starts').select('id, my_week')
+    .eq('household_id', householdId).eq('cookidoo_status', 'requested').order('requested_at'), 'Reading start-fresh requests');
+  console.log(JSON.stringify(rows.map((r) => ({ id: r.id, myWeek: r.my_week }))));
+}
+
+/** Marks a start-fresh request's My Week clean-up as done or failed. */
+async function freshDone() {
+  const id = arg('id') ?? fail('--id is required');
+  const status = arg('status');
+  if (status !== 'done' && status !== 'failed') fail('--status must be done or failed');
+  must(await db.from('fresh_starts').update({ cookidoo_status: status }).eq('id', id), 'Closing the request');
+  console.log(`My Week for start-fresh ${id}: ${status}.`);
+}
+
+const commands: Record<string, () => Promise<void>> = { pending, claim, plan, 'record-recipe': recordRecipe, 'record-day': recordDay, finish, 'record-own': recordOwn, 'fresh-pending': freshPending, 'fresh-done': freshDone };
+await (commands[command] ?? (() => fail('Use: pending | claim | plan | record-recipe | record-day | finish | record-own | fresh-pending | fresh-done')))();

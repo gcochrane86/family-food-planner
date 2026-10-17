@@ -162,5 +162,22 @@ async function spar() {
   console.log(`Added ${item.name} to the Spar list.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, spar };
-await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | spar')))();
+/** "Start fresh" requests (Settings) still waiting for the trolley to be emptied. */
+async function freshPending() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const rows = must<{ id: string; requested_at: string }[]>(await db.from('fresh_starts').select('id, requested_at')
+    .eq('household_id', householdId).eq('trolley_status', 'requested').order('requested_at'), 'Reading start-fresh requests');
+  console.log(JSON.stringify(rows));
+}
+
+/** Marks a start-fresh request's trolley as emptied (done) or not (failed). */
+async function freshDone() {
+  const id = arg('id') ?? fail('--id is required');
+  const status = arg('status');
+  if (status !== 'done' && status !== 'failed') fail('--status must be done or failed');
+  must(await db.from('fresh_starts').update({ trolley_status: status }).eq('id', id), 'Closing the request');
+  console.log(`Trolley for start-fresh ${id}: ${status}.`);
+}
+
+const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, spar, 'fresh-pending': freshPending, 'fresh-done': freshDone };
+await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | spar | fresh-pending | fresh-done')))();

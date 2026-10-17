@@ -11,6 +11,7 @@ const SECTIONS = [
   { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots, dinner time limit' },
   { to: 'staples', title: 'Cupboard staples', text: 'Have / low / out' },
   { to: 'basics', title: 'Weekly basics', text: 'Breakfast and lunch things bought every week' },
+  { to: 'fresh', title: 'Start fresh', text: 'Clear the plans, lists, trolley and My Week' },
 ];
 
 export default function SettingsHome() {

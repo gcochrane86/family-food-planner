@@ -16,6 +16,8 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
 - **Top up only,** unless the run says `emptyFirst: true`. Never remove an item from the trolley and never lower a
   quantity. If the trolley already has some of an item, raise it to the packs needed only if it's below that. List
   anything already there in the summary.
+- **Start fresh** (Settings → Start fresh, which leaves a `fresh-pending` request) is the other exception: empty the
+  trolley, nothing more (see "Start fresh" below).
 - **Empty and refill** (`emptyFirst: true` in the `list` output, run right before emptying) is the one exception. The
   `pending` value is only a hint: if `list` says false, don't empty. The household asked
   for it with the **Empty and refill** button on the Shop tab, after an in-app warning that it removes everything,
@@ -96,6 +98,15 @@ A scheduled task in the Claude desktop app on the owner's Mac runs every 15 minu
    showing "filling".
 5. Send a push notification with the summary line and trolley total.
 If Chrome isn't connected or Sainsbury's isn't signed in, finish as failed with that reason.
+
+## Start fresh (the household cleared the app)
+Settings → **Start fresh** clears the plans in the app and asks for the trolley to be emptied. Scheduled runs check
+this first:
+1. `npm run -s basket -- fresh-pending --household <id>` (`[]` = nothing to do).
+2. For each request: open the trolley page, use **Empty trolley** and confirm Sainsbury's own prompt, and check it
+   shows 0 items. Don't add anything, and never touch orders, slots or checkout.
+3. `npm run -s basket -- fresh-done --id <request id> --status done` (or `--status failed` if it wouldn't empty, e.g.
+   signed out).
 
 ## After a delivery: update the pantry
 Run only when the owner asks, or from the scheduled task `sainsburys-pantry-update` (owner's choice, 17 Oct 2026).
