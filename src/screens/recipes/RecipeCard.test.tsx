@@ -230,16 +230,18 @@ test('a recipe in Cookidoo links to it, and says when an update is pending', asy
   expect(await screen.findByRole('link', { name: 'In Cookidoo (update pending)' })).toBeInTheDocument();
 });
 
-test('a recipe from Cookidoo is labelled From your Cookidoo', async () => {
-  h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'cookidoo' });
+test('the recipe page has no source or draft label above the title', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'claude', status: 'draft' });
   open('r-honey');
-  expect(await screen.findByText(/From your Cookidoo/)).toBeInTheDocument();
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(screen.queryByText(/written by Claude|From your Cookidoo|draft until you rate it/i)).not.toBeInTheDocument();
 });
 
 test('a recipe converted from the web says so and links to the original page', async () => {
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, source: 'web', source_url: 'https://www.bbcgoodfood.com/recipes/katsu' });
   open('r-honey');
-  expect(await screen.findByText('From the web, converted')).toBeInTheDocument();
+  expect(await screen.findByRole('link', { name: /Original recipe/ })).toBeInTheDocument();
+  expect(screen.queryByText(/From the web|written by Claude|Your recipe|draft/i)).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Original recipe (www.bbcgoodfood.com)' })).toHaveAttribute('href', 'https://www.bbcgoodfood.com/recipes/katsu');
 });
 

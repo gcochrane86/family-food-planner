@@ -116,7 +116,7 @@ test('out tonight on the cook-once dinner sends the next lunch back to its routi
   await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
   expect(within(day(/Monday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByText('Chicken sandwich')).toBeInTheDocument();
+  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'lunch')!.mode).toBe('routine');
 });
@@ -317,9 +317,8 @@ describe('the day pop-up', () => {
     await openDay('Thu');
     const thu = () => day(/Thursday/);
     const leftover = within(thu()).getByRole('button', { name: /Leftover Soy & Ginger Beef/ });
-    const sandwich = within(thu()).getByRole('button', { name: /Chicken sandwich/ });
     expect(leftover).toHaveAttribute('aria-pressed', 'true');
-    await user().click(sandwich);
+    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
     expect(within(thu()).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
     const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
     expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Chicken sandwich' });
@@ -535,7 +534,7 @@ describe('breakfast and lunch options', () => {
     await openDay('Thu');
     const baked = within(breakfastRow()).getByRole('button', { name: 'Baked oats' });
     fireEvent.pointerDown(baked, { clientX: 10, clientY: 10 });
-    fireEvent.scroll(breakfastRow());
+    fireEvent.scroll(breakfastRow().firstElementChild!);
     await act(async () => { vi.advanceTimersByTime(700); });
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
   });
@@ -559,4 +558,38 @@ test('a day tile marks breakfast, lunch and dinner with three different colours'
   render(<WeekView />, { wrapper: MemoryRouter });
   const dots = [...(await tile('Tuesday 20')).querySelectorAll('i')].map((d) => d.className.match(/\bbg-(\S+)/)?.[1]);
   expect(dots).toEqual(['yolk', 'lunch', 'accent']);
+});
+
+
+describe('sandwiches', () => {
+  const thu = () => day(/Thursday/);
+  beforeEach(() => { h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, { ...BEEF, reheats_well: true }, COD, CURRY]); });
+
+  test('the sandwiches are one card; choosing it lists the fillings to pick from', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    const row = within(thu()).getByRole('group', { name: 'Lunch options' });
+    expect(within(row).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: 'Egg sandwich' })).not.toBeInTheDocument();
+    await user().click(within(row).getByRole('button', { name: 'Sandwich' }));
+    const fillings = within(row).getByRole('group', { name: 'Sandwich fillings' });
+    expect(within(fillings).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Chicken', 'Roast beef', 'Egg', 'Tuna & sweetcorn', '+ Add a filling']);
+    await user().click(within(fillings).getByRole('button', { name: 'Egg sandwich' }));
+    expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ slot: 'lunch', routine_choice: 'Egg sandwich' });
+    expect(within(row).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(row).getByRole('button', { name: 'Mexican beef poke bowl' }));
+    expect(within(row).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+  });
+
+  test('a new filling is added as a sandwich', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
+    await user().click(within(thu()).getByRole('button', { name: /Add a filling/ }));
+    const form = screen.getByRole('dialog', { name: 'Add a filling' });
+    await user().type(within(form).getByRole('textbox', { name: 'Name' }), 'Halloumi');
+    await user().click(within(form).getByRole('button', { name: 'Add' }));
+    expect(h.repo.addMealRecipe).toHaveBeenCalledWith('h1', 'Halloumi sandwich', 'Lunch');
+  });
 });

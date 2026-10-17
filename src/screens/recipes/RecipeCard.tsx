@@ -22,7 +22,6 @@ function linkHost(url: string | null | undefined): string | null {
   try { return new URL(url).host || null; } catch { return null; }
 }
 
-const SOURCE = { own_doc: 'Your recipe', hellofresh: 'HelloFresh, converted', claude: 'New · written by Claude', cookidoo: 'From your Cookidoo', web: 'From the web, converted' } as const;
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
 
 /** A rough cost for n AI photos: about 3p each with Google's image model. */
@@ -237,7 +236,6 @@ export default function RecipeCard() {
       <ReworkRecipe recipeId={recipe.id} householdId={householdId!} asking={reworking} onClose={closeRework} />
       <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} width={PHOTO_LARGE} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">{SOURCE[recipe.source]}{recipe.status === 'draft' ? ' · draft until you rate it' : ''}</p>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
         {originalHost && (
