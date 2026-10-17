@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
 import PlanningRules from './PlanningRules';
@@ -39,7 +40,8 @@ test('every choice passes these checks, in this order of priority, starting with
   render(<PlanningRules />, { wrapper: MemoryRouter });
   const checks = within(await screen.findByRole('region', { name: 'Checks, in order of priority' })).getAllByRole('listitem').map((li) => li.textContent);
   expect(checks[0]).toMatch(/Meal specifications/);
-  expect(checks[1]).toMatch(/Protein balance: 2 chicken, 1 fish, 1 red meat and 1 veggie/);
+  expect(checks[1]).toMatch(/Your day rules/);
+  expect(checks[2]).toMatch(/Protein balance: 2 chicken, 1 fish, 1 red meat and 1 veggie/);
   expect(checks.join(' ')).toMatch(/25 minutes or less \(20 on office days\)/);
   const variety = checks.findIndex((c) => /Flavour variety/.test(c ?? ''));
   expect(checks[variety]).toMatch(/^Coming/);
@@ -50,4 +52,39 @@ test('every choice passes these checks, in this order of priority, starting with
 test('the page is called Planner specifications', async () => {
   render(<PlanningRules />, { wrapper: MemoryRouter });
   expect(await screen.findByRole('heading', { level: 1, name: 'Planner specifications' })).toBeInTheDocument();
+});
+
+describe('your requirements', () => {
+  const base = { weekday_dinner_max_min: 30, default_plan_days: 7 as const, shops_per_week: 2 as const, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1, breakfasts: [], lunches: [] };
+  beforeEach(() => {
+    h.repo.getSettings.mockResolvedValue({ ...base,
+      day_rules: [{ weekday: 3, protein: 'fish', note: 'Fishmonger in town' }],
+      other_shops: [{ name: 'Fishmonger', buys: ['salmon', 'cod'], day: 3, sometimes: false, weeks: [] }] });
+  });
+
+  test('lists your day rules and other shops', async () => {
+    render(<PlanningRules />, { wrapper: MemoryRouter });
+    const mine = await screen.findByRole('region', { name: 'Your requirements' });
+    expect(mine).toHaveTextContent('Thursday: a fish dinner · Fishmonger in town');
+    expect(mine).toHaveTextContent('Fishmonger, on Thursday: salmon, cod');
+  });
+
+  test('adds a day rule and a some-weeks shop, and removes one', async () => {
+    render(<PlanningRules />, { wrapper: MemoryRouter });
+    const mine = await screen.findByRole('region', { name: 'Your requirements' });
+    const dayForm = within(mine).getByRole('form', { name: 'Add a day rule' });
+    await userEvent.selectOptions(within(dayForm).getByRole('combobox', { name: 'Day' }), '6');
+    await userEvent.selectOptions(within(dayForm).getByRole('combobox', { name: 'Dinner' }), 'red_meat');
+    await userEvent.type(within(dayForm).getByRole('textbox', { name: 'Why (optional)' }), 'Roast day');
+    await userEvent.click(within(dayForm).getByRole('button', { name: 'Add' }));
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].day_rules!).toEqual([{ weekday: 3, protein: 'fish', note: 'Fishmonger in town' }, { weekday: 6, protein: 'red_meat', note: 'Roast day' }]);
+    const shopForm = within(mine).getByRole('form', { name: 'Add a shop' });
+    await userEvent.type(within(shopForm).getByRole('textbox', { name: 'Shop' }), 'Farm shop');
+    await userEvent.type(within(shopForm).getByRole('textbox', { name: 'What you buy there' }), 'eggs, milk, butter');
+    await userEvent.click(within(shopForm).getByRole('checkbox', { name: 'Only some weeks' }));
+    await userEvent.click(within(shopForm).getByRole('button', { name: 'Add' }));
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].other_shops!.at(-1)).toEqual({ name: 'Farm shop', buys: ['eggs', 'milk', 'butter'], day: null, sometimes: true, weeks: [] });
+    await userEvent.click(within(mine).getByRole('button', { name: 'Remove Fishmonger' }));
+    expect(h.repo.saveSettings.mock.calls.at(-1)![1].other_shops!.map((s: { name: string }) => s.name)).toEqual(['Farm shop']);
+  });
 });

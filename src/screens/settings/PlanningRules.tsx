@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { DEFAULT_BALANCE } from '../../../supabase/functions/_shared/planInput.ts';
 import { Badge, card, Page } from './ui';
+import Requirements from './Requirements';
 import { useAsync } from './useAsync';
 
 const OFFICE_MAX = 20; // the planner's limit on office days (supabase/functions/_shared/planner.ts)
@@ -10,7 +11,7 @@ const OFFICE_MAX = 20; // the planner's limit on office days (supabase/functions
 /** How the Friday menu is built, step by step, and the checks every choice passes. Steps not built yet say so. */
 export default function PlanningRules() {
   const { householdId } = useAuth();
-  const { data, error, loading, reload } = useAsync(() => repo.getSettings(householdId!), [householdId]);
+  const { data, setData, error, loading, reload } = useAsync(() => repo.getSettings(householdId!), [householdId]);
   const b = DEFAULT_BALANCE;
   const minutes = data?.weekday_dinner_max_min ?? 30;
   const adventure = data?.adventure ?? 1;
@@ -29,6 +30,7 @@ export default function PlanningRules() {
 
   const checks: { live: boolean; title: string; text: ReactNode }[] = [
     { live: true, title: 'Meal specifications', text: 'Every dinner meets them: protein, veg, carb and a sauce from scratch, toddler salt, no UPFs, sauces in the TM7… (Settings → Meal specifications).' },
+    { live: true, title: 'Your day rules', text: 'Days with a set dinner (Your requirements, above) are fixed first; the rest of the week is balanced around them.' },
     { live: true, title: 'Protein balance', text: `${b.chicken} chicken, ${b.fish} fish, ${b.red_meat} red meat and ${b.veggie} veggie dinners a week, never the same protein two nights running.` },
     { live: true, title: 'Weeknight time', text: `Monday to Friday dinners take ${minutes} minutes or less (${Math.min(OFFICE_MAX, minutes)} on office days). Weekends have no limit.` },
     { live: false, title: 'Flavour variety', text: 'No two dinners in a row from the same cuisine, at most two of one cuisine a week, and no flavour (spicy, creamy, tomato…) more than twice.' },
@@ -40,6 +42,7 @@ export default function PlanningRules() {
     <Page title="Planner specifications" intro="Every Friday at 7pm the app plans next week from your recipes. This is how it balances and optimises the week. What each single meal should be is in Meal specifications." loading={loading} error={error} onRetry={reload}>
       {data && (
         <>
+          <Requirements householdId={householdId!} settings={data} onSaved={setData} />
           <section aria-label="How the week is built" className="grid gap-2">
             <h2 className="text-lg font-bold">How the week is built</h2>
             <ol className={`${card} m-0 grid list-decimal gap-3 py-4 pl-9 pr-4 text-[15px] leading-snug`}>
