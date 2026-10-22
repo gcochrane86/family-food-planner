@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { routineRecipe } from '../../lib/mealPhotos';
 import { parseBatch } from '../../lib/batch';
-import { parseRoastChoice } from '../../lib/roastModel';
+import { parseRoastChoice, roastQuery } from '../../lib/roastModel';
 import { switchClasses } from '../../lib/prepAhead';
 import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib/weekSummary';
 import type { MealSlot, Recipe } from '../../lib/types';
@@ -107,10 +107,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   if (dinner) {
     const open = () => setSheet('dinner');
     if (dinner.mode === 'cook' && dinnerRecipe && roast) {
-      const to = `/recipes/roast?${new URLSearchParams({
-        ...(roast.occasion ? { occasion: roast.occasion } : {}), main: roast.main, ...(roast.mains ? { mains: roast.mains.join(',') } : {}),
-        sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve,
-        ...(roast.cut ? { cut: roast.cut } : {}), ...(roast.doneness ? { doneness: roast.doneness } : {}) })}`;
+      const to = `/recipes/roast?${roastQuery(roast)}`;
       const what = `${roast.occasion === 'christmas' ? 'Christmas dinner' : 'Sunday roast'} · ${(roast.mains ?? [roast.main]).join(' & ')} · ${roast.people} people · ${roast.serve}`;
       dinnerCard = (
         <HoldCard label={`Dinner: ${what}`} to={to} onHold={open}>

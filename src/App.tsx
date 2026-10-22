@@ -9,6 +9,7 @@ import RecipeEditor from './screens/recipes/RecipeEditor';
 import Pantry from './screens/pantry/Pantry';
 import OtherShops from './screens/settings/OtherShops';
 import PlanningRules from './screens/settings/PlanningRules';
+import RoastCook from './screens/recipes/RoastCook';
 import RoastBuilder from './screens/recipes/RoastBuilder';
 import StartFresh from './screens/settings/StartFresh';
 import RecipeCard from './screens/recipes/RecipeCard';
@@ -52,6 +53,7 @@ export function AppRoutes() {
       <Route path="/week" element={<WeekView />} />
       <Route path="/recipes" element={<RecipeLibrary />} />
       <Route path="/recipes/roast" element={<RoastBuilder />} />
+      <Route path="/recipes/roast/cook" element={<RoastCook />} />
       <Route path="/recipes/:id" element={<RecipeCard />} />
       <Route path="/recipes/:id/cook" element={<CookMode />} />
       <Route path="/recipes/:id/edit" element={<RecipeEditor />} />

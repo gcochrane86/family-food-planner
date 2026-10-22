@@ -119,3 +119,21 @@ export function parseRoastChoice(raw: unknown): RoastChoice | null {
   if (isDoneness(c.doneness)) choice.doneness = c.doneness;
   return choice;
 }
+
+/** A roast choice as a link's query (the builder and its cook view), with the prep time if given. */
+export function roastQuery(c: RoastChoice, prepAt?: string): string {
+  return new URLSearchParams({
+    ...(c.occasion ? { occasion: c.occasion } : {}), main: c.main, ...(c.mains ? { mains: c.mains.join(',') } : {}),
+    ...(c.extras ? { extras: c.extras.join(',') } : {}), sides: c.sides.join(','), people: String(c.people), serve: c.serve,
+    ...(c.cut ? { cut: c.cut } : {}), ...(c.doneness ? { doneness: c.doneness } : {}), ...(prepAt ? { prep: prepAt } : {}),
+  }).toString();
+}
+
+/** A roast choice from a link's query, or null. */
+export function choiceFromQuery(q: URLSearchParams): RoastChoice | null {
+  const list = (k: string) => (q.get(k) ?? '').split(',').filter(Boolean);
+  return parseRoastChoice({
+    occasion: q.get('occasion'), main: q.get('main'), mains: list('mains'), extras: list('extras'), sides: list('sides'),
+    people: Number(q.get('people')), serve: q.get('serve'), cut: q.get('cut'), doneness: q.get('doneness'),
+  });
+}

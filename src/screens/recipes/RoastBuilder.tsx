@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import { planRoast, type RoastPartRecipe } from '../../lib/roast';
-import { CHRISTMAS_MAINS, DONENESS, MAINS, parseRoastChoice, parseRoastPart, suits, type Doneness, type RoastChoice, type RoastMain } from '../../lib/roastModel';
+import { CHRISTMAS_MAINS, choiceFromQuery, DONENESS, MAINS, parseRoastPart, roastQuery, suits, type Doneness, type RoastChoice, type RoastMain } from '../../lib/roastModel';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
@@ -37,11 +37,7 @@ export default function RoastBuilder() {
   const parts = useMemo(() => new Map((data ?? []).filter((r: Recipe) => parseRoastPart(r.roast)).map((r: Recipe) => [r.slug, r as RoastPartRecipe & Recipe])), [data]);
   // Opened from a planned roast (the day sheet), it starts with that combination.
   const [params] = useSearchParams();
-  const start = parseRoastChoice({
-    occasion: params.get('occasion'), main: params.get('main'), mains: (params.get('mains') ?? '').split(',').filter(Boolean),
-    sides: (params.get('sides') ?? '').split(',').filter(Boolean), people: Number(params.get('people')), serve: params.get('serve'),
-    cut: params.get('cut'), doneness: params.get('doneness'),
-  });
+  const start = choiceFromQuery(params);
   const [cut, setCut] = useState<string | null>(start?.cut ?? null);
   const [doneness, setDoneness] = useState<Doneness | null>(start?.doneness ?? null);
   const [occasion, setOccasion] = useState<Occasion>(start?.occasion ?? 'sunday');
@@ -50,7 +46,7 @@ export default function RoastBuilder() {
   const [sides, setSides] = useState<string[]>(start?.sides ?? DEFAULT_SIDES.beef);
   const [people, setPeople] = useState(start?.people ?? 6);
   const [serve, setServe] = useState(start?.serve ?? '13:30');
-  const [prepAt, setPrepAt] = useState('08:45');
+  const [prepAt, setPrepAt] = useState(params.get('prep') ?? '08:45');
   const christmasDay = useMemo(() => `${new Date().getUTCFullYear()}-12-25`, []);
   const days = useMemo(() => {
     const next = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + i); return isoDay(d); });
@@ -241,6 +237,7 @@ export default function RoastBuilder() {
               </select>
             </label>
             <button type="button" disabled={!plan} onClick={() => void addToDay()} className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink disabled:opacity-50">Add to the week</button>
+            {plan && <Link to={`/recipes/roast/cook?${roastQuery(choice, prepAt)}`} className="rounded-lg border border-line bg-surface px-4 py-2 font-semibold text-ink no-underline">Cook view</Link>}
             <button type="button" onClick={() => window.print()} className="rounded-lg border border-line bg-surface px-4 py-2 font-semibold">Print</button>
             {added && <p role="status" className="m-0 w-full text-sm font-semibold text-accent">Added to {dayName(added)}. The shopping list includes every part.</p>}
             {problem && <p role="alert" className="m-0 w-full text-sm font-semibold text-warn">{problem}</p>}

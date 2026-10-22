@@ -140,3 +140,9 @@ describe('beef cuts', () => {
     expect(h.repo.addRoast).toHaveBeenCalledWith('h1', '2026-10-25', expect.objectContaining({ main: 'beef', cut: 'roast-ribeye', doneness: 'medium_rare' }), 'r-roast-ribeye');
   });
 });
+
+test('Cook view opens the plan step by step, with this exact roast', async () => {
+  render(<RoastBuilder />, { wrapper: MemoryRouter });
+  await user().click(within(await screen.findByRole('group', { name: 'Cut' })).getByRole('button', { name: 'Ribeye' }));
+  expect(screen.getByRole('link', { name: 'Cook view' }).getAttribute('href')).toMatch(/^\/recipes\/roast\/cook\?main=beef&sides=.*&cut=roast-ribeye&doneness=medium&prep=08%3A45$/);
+});

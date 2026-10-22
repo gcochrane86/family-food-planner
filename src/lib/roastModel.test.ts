@@ -1,4 +1,4 @@
-import { parseRoastPart, parseRoastChoice, roastPartSlugs, suits } from './roastModel';
+import { choiceFromQuery, parseRoastPart, parseRoastChoice, roastPartSlugs, roastQuery, suits } from './roastModel';
 
 const step = { title: 'Roasties in', before: 48, minutes: 44, kit: 'oven', temp: 210, fan: true, trays: 2, when: 'service' };
 
@@ -65,4 +65,12 @@ test('a roast choice keeps its cut and doneness', () => {
   expect(parseRoastChoice({ main: 'beef', cut: 'roast-ribeye', doneness: 'medium_rare', sides: [], people: 6, serve: '13:30' }))
     .toMatchObject({ cut: 'roast-ribeye', doneness: 'medium_rare' });
   expect(parseRoastChoice({ main: 'beef', doneness: 'blue', sides: [], people: 6, serve: '13:30' })!.doneness).toBeUndefined();
+});
+
+test('a roast choice goes to and from a link the same', () => {
+  const c = { occasion: 'christmas' as const, main: 'turkey' as const, mains: ['turkey', 'ham'] as ('turkey' | 'ham')[], extras: ['christmas-ham'], sides: ['roast-gravy'], people: 10, serve: '14:00' };
+  expect(choiceFromQuery(new URLSearchParams(roastQuery(c)))).toEqual(c);
+  const beef = { main: 'beef' as const, cut: 'roast-ribeye', doneness: 'medium_rare' as const, sides: [], people: 6, serve: '13:30' };
+  expect(choiceFromQuery(new URLSearchParams(roastQuery(beef)))).toEqual(beef);
+  expect(new URLSearchParams(roastQuery(beef, '09:15')).get('prep')).toBe('09:15');
 });
