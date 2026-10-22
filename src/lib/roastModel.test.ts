@@ -51,3 +51,18 @@ test('until it names them, a side suits turkey when it suits chicken, and ham wh
   expect(suits(side(['lamb']), 'ham')).toBe(false);
   expect(suits(side(['turkey']), 'turkey')).toBe(true);
 });
+
+test('a main can name its cut, a default doneness, and step times for each doneness', () => {
+  const part = parseRoastPart({ part: 'main', mains: ['beef'], cut: 'Ribeye', doneness: 'medium', steps: [
+    { title: 'Roast', before: 100, minutes: 80, kit: 'oven', temp: 180, when: 'service', byDoneness: { rare: 60, medium: 80, well_done: 110, burnt: 999 } }] })!;
+  expect(part).toMatchObject({ cut: 'Ribeye', doneness: 'medium' });
+  expect(part.steps[0].byDoneness).toEqual({ rare: 60, medium: 80, well_done: 110 });
+  expect(parseRoastPart({ part: 'main', mains: ['beef'], cut: 'Brisket', steps: [] })).toMatchObject({ cut: 'Brisket' });
+  expect(parseRoastPart({ part: 'main', mains: ['beef'], cut: 'Brisket', steps: [] })!.doneness).toBeUndefined();
+});
+
+test('a roast choice keeps its cut and doneness', () => {
+  expect(parseRoastChoice({ main: 'beef', cut: 'roast-ribeye', doneness: 'medium_rare', sides: [], people: 6, serve: '13:30' }))
+    .toMatchObject({ cut: 'roast-ribeye', doneness: 'medium_rare' });
+  expect(parseRoastChoice({ main: 'beef', doneness: 'blue', sides: [], people: 6, serve: '13:30' })!.doneness).toBeUndefined();
+});

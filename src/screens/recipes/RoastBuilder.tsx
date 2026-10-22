@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import { planRoast, type RoastPartRecipe } from '../../lib/roast';
-import { CHRISTMAS_MAINS, MAINS, parseRoastChoice, parseRoastPart, suits, type RoastChoice, type RoastMain } from '../../lib/roastModel';
+import { CHRISTMAS_MAINS, DONENESS, MAINS, parseRoastChoice, parseRoastPart, suits, type Doneness, type RoastChoice, type RoastMain } from '../../lib/roastModel';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
@@ -40,7 +40,10 @@ export default function RoastBuilder() {
   const start = parseRoastChoice({
     occasion: params.get('occasion'), main: params.get('main'), mains: (params.get('mains') ?? '').split(',').filter(Boolean),
     sides: (params.get('sides') ?? '').split(',').filter(Boolean), people: Number(params.get('people')), serve: params.get('serve'),
+    cut: params.get('cut'), doneness: params.get('doneness'),
   });
+  const [cut, setCut] = useState<string | null>(start?.cut ?? null);
+  const [doneness, setDoneness] = useState<Doneness | null>(start?.doneness ?? null);
   const [occasion, setOccasion] = useState<Occasion>(start?.occasion ?? 'sunday');
   const [mains, setMains] = useState<RoastMain[]>(start?.mains ?? [start?.main ?? 'beef']);
   const main = mains[0];
@@ -61,15 +64,21 @@ export default function RoastBuilder() {
   const sideParts = [...parts.values()].filter((p) => { const r = parseRoastPart(p.roast)!; return r.part === 'side' && mains.some((m) => suits(r, m)); });
   const validTime = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
   const extras = mains.slice(1).map((m) => mainPart(m)?.slug).filter((s): s is string => !!s);
+  // The meat's cuts (brisket, silverside, ribeye…): each a main of its own. The first is the default.
+  const cuts = [...parts.values()].filter((p) => { const r = parseRoastPart(p.roast)!; return r.part === 'main' && r.mains.includes(main); });
+  const cutPart = cuts.find((p) => p.slug === cut) ?? cuts[0];
+  const cutDesc = cutPart ? parseRoastPart(cutPart.roast) : null;
+  const how: Doneness | null = cutDesc?.doneness ? doneness ?? cutDesc.doneness : null;
   const choice: RoastChoice = {
     main, sides: sides.filter((s) => sideParts.some((p) => p.slug === s)), people, serve,
     ...(occasion === 'christmas' ? { occasion } : {}), ...(mains.length > 1 ? { mains, extras } : {}),
+    ...(cuts.length > 1 && cutPart ? { cut: cutPart.slug } : {}), ...(how ? { doneness: how } : {}),
   };
   const plan = validTime(serve) && validTime(prepAt) ? planRoast({ ...choice, prepAt }, parts) : null;
   const phaseName = (n: string) => (occasion === 'christmas' ? CHRISTMAS_PHASE[n] ?? n : n);
 
   function pickMain(m: RoastMain) {
-    if (occasion === 'sunday') { setMains([m]); setSides(DEFAULT_SIDES[m]); return; }
+    if (occasion === 'sunday') { setMains([m]); setSides(DEFAULT_SIDES[m]); setCut(null); setDoneness(null); return; }
     // Christmas: any of the meats, at least one.
     setMains((list) => (list.includes(m) ? (list.length > 1 ? list.filter((x) => x !== m) : list) : [...list, m]));
   }
@@ -84,7 +93,7 @@ export default function RoastBuilder() {
   const toggle = (slug: string) => setSides((list) => (list.includes(slug) ? list.filter((s) => s !== slug) : [...list, slug]));
 
   async function addToDay() {
-    const m = mainPart(main);
+    const m = cutPart ?? mainPart(main);
     if (!m || !plan) return;
     setProblem(null);
     try {
@@ -129,6 +138,35 @@ export default function RoastBuilder() {
               })}
             </div>
           </div>
+
+          {occasion === 'sunday' && cuts.length > 1 && (
+            <div className="grid gap-2 print:hidden">
+              <div role="group" aria-label="Cut" className="flex flex-wrap gap-1.5">
+                {cuts.map((p) => {
+                  const on = p === cutPart;
+                  return (
+                    <button key={p.slug} type="button" aria-pressed={on} onClick={() => { setCut(p.slug); setDoneness(null); }}
+                      className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold ${on ? 'border-accent bg-accent text-accent-ink' : 'border-line bg-surface'}`}>
+                      {parseRoastPart(p.roast)!.cut ?? p.title}
+                    </button>
+                  );
+                })}
+              </div>
+              {how ? (
+                <div role="radiogroup" aria-label="How do you like it?" className="flex flex-wrap items-center gap-1.5 text-sm">
+                  <span className="font-semibold">How do you like it?</span>
+                  {DONENESS.filter((d) => cutDesc!.steps.some((st) => st.byDoneness?.[d.value] !== undefined) || d.value === cutDesc!.doneness).map((d) => (
+                    <label key={d.value} className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 ${how === d.value ? 'border-accent bg-accent-soft font-semibold' : 'border-line bg-surface'}`}>
+                      <input type="radio" name="doneness" aria-label={d.label} className="sr-only" checked={how === d.value} onChange={() => setDoneness(d.value)} />
+                      {d.label} <span className="text-xs text-muted">{d.core}°C</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="m-0 text-sm text-muted">Slow-cooked</p>
+              )}
+            </div>
+          )}
 
           <div role="group" aria-label="Sides" className="grid gap-2 print:hidden">
             <h2 className="text-lg font-bold">Sides</h2>

@@ -143,3 +143,33 @@ describe('Christmas dinner', () => {
     expect(plan.phases.flatMap((ph) => ph.steps).some((s) => s.part === 'goose-fat-roasties')).toBe(true);
   });
 });
+
+describe('beef cuts', () => {
+  const CUTS = new Map([...PARTS,
+    p('roast-silverside', 'main', ['beef'], 8, [{ title: 'Slow-cook', before: 600, minutes: 540, kit: 'apo', temp: 75, when: 'night' }]),
+    p('roast-ribeye', 'main', ['beef'], 8, [
+      { title: 'Roast', before: 100, minutes: 80, kit: 'oven', temp: 180, fan: true, trays: 0.5, when: 'service', byDoneness: { rare: 60, medium: 80, well_done: 110 } },
+      { title: 'Rest', before: 20, minutes: 20, kit: 'counter', when: 'service' }]),
+  ].map((x) => [x.slug, x]));
+  // The ribeye's part says it can be cooked to taste, medium unless you say.
+  (CUTS.get('roast-ribeye')!.roast as Record<string, unknown>).doneness = 'medium';
+  (CUTS.get('roast-ribeye')!.roast as Record<string, unknown>).cut = 'Ribeye';
+  const choice = { main: 'beef' as const, sides: [], people: 8, serve: '13:30' };
+
+  test('the chosen cut is the main that gets planned', () => {
+    const plan = planRoast({ ...choice, cut: 'roast-silverside' }, CUTS);
+    const parts = new Set(plan.phases.flatMap((ph) => ph.steps).map((s) => s.part));
+    expect(parts.has('roast-silverside')).toBe(true);
+    expect(parts.has('roast-brisket')).toBe(false);
+  });
+
+  test('doneness changes how long it roasts, so when it goes in, and the MEATER target', () => {
+    const at = (doneness?: 'rare' | 'medium' | 'well_done') => find(planRoast({ ...choice, cut: 'roast-ribeye', ...(doneness ? { doneness } : {}) }, CUTS), 'roast-ribeye', 'Roast');
+    expect(at().time).toBe('11:50');
+    expect(at().kit).toMatch(/to 58°C/);
+    expect(at('rare').time).toBe('12:10');
+    expect(at('rare').kit).toMatch(/to 50°C/);
+    expect(at('well_done')).toMatchObject({ time: '11:20', minutes: 110 });
+    expect(find(planRoast({ ...choice, cut: 'roast-ribeye', doneness: 'well_done' }, CUTS), 'roast-ribeye', 'Rest').time).toBe('13:10');
+  });
+});

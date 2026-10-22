@@ -9,6 +9,12 @@ export const ROAST_PARTS: Recipe[] = [
   part('roast-brisket', 'Overnight-Braised Brisket', 'main', ['beef'], [
     { title: 'Overnight braise', before: 900, minutes: 600, kit: 'apo', temp: 80, when: 'night' },
     { title: 'Carve', before: 4, minutes: 8, kit: 'counter', when: 'service' }]),
+  { ...part('roast-silverside', 'Slow-Cooked Silverside', 'main', ['beef'], [
+    { title: 'Slow-cook', before: 600, minutes: 540, kit: 'apo', temp: 75, when: 'night' }]), roast: { part: 'main', mains: ['beef'], cut: 'Silverside', steps: [
+    { title: 'Slow-cook', before: 600, minutes: 540, kit: 'apo', temp: 75, when: 'night' }] } },
+  { ...part('roast-ribeye', 'Roast Rib-Eye of Beef', 'main', ['beef'], []), roast: { part: 'main', mains: ['beef'], cut: 'Ribeye', doneness: 'medium', steps: [
+    { title: 'Roast', before: 100, minutes: 80, kit: 'oven', temp: 180, fan: true, trays: 0.5, when: 'service', byDoneness: { rare: 60, medium_rare: 70, medium: 80, well_done: 110 } },
+    { title: 'Rest', before: 20, minutes: 20, kit: 'counter', when: 'service' }] } },
   part('roast-lamb', 'Roast Leg of Lamb', 'main', ['lamb'], [
     { title: 'Roast', before: 150, minutes: 110, kit: 'apo', temp: 180, when: 'service' }]),
   part('christmas-turkey', 'Roast Turkey Crown', 'main', ['turkey'], [

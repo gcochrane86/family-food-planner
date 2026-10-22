@@ -112,3 +112,31 @@ describe('Christmas dinner', () => {
     expect(screen.getByText('12')).toBeInTheDocument();
   });
 });
+
+describe('beef cuts', () => {
+  const cuts = () => screen.getByRole('group', { name: 'Cut' });
+
+  test('beef offers each cut; slow cuts are slow-cooked, and a roasting cut asks how you like it, medium first', async () => {
+    render(<RoastBuilder />, { wrapper: MemoryRouter });
+    expect(within(await screen.findByRole('group', { name: 'Cut' })).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Overnight-Braised Brisket', 'Silverside', 'Ribeye']);
+    expect(within(cuts()).getByRole('button', { name: 'Overnight-Braised Brisket' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Slow-cooked')).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'How do you like it?' })).not.toBeInTheDocument();
+    await user().click(within(cuts()).getByRole('button', { name: 'Ribeye' }));
+    const how = screen.getByRole('radiogroup', { name: 'How do you like it?' });
+    expect(within(how).getByRole('radio', { name: 'Medium' })).toBeChecked();
+    expect(within(screen.getByRole('region', { name: 'Out and about' })).getByRole('listitem', { name: /11:50 Roast Rib-Eye of Beef: Roast/ })).toHaveTextContent(/to 58°C/);
+    await user().click(within(how).getByRole('radio', { name: 'Well done' }));
+    expect(within(screen.getByRole('region', { name: 'Out and about' })).getByRole('listitem', { name: /11:20 Roast Rib-Eye of Beef: Roast/ })).toHaveTextContent(/to 68°C/);
+  });
+
+  test('adds the chosen cut and doneness to the day', async () => {
+    render(<RoastBuilder />, { wrapper: MemoryRouter });
+    await user().click(within(await screen.findByRole('group', { name: 'Cut' })).getByRole('button', { name: 'Ribeye' }));
+    await user().click(screen.getByRole('radio', { name: 'Medium rare' }));
+    await user().selectOptions(screen.getByRole('combobox', { name: 'Day' }), '2026-10-25');
+    await user().click(screen.getByRole('button', { name: 'Add to the week' }));
+    expect(h.repo.addRoast).toHaveBeenCalledWith('h1', '2026-10-25', expect.objectContaining({ main: 'beef', cut: 'roast-ribeye', doneness: 'medium_rare' }), 'r-roast-ribeye');
+  });
+});

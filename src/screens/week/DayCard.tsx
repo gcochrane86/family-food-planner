@@ -109,7 +109,8 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
     if (dinner.mode === 'cook' && dinnerRecipe && roast) {
       const to = `/recipes/roast?${new URLSearchParams({
         ...(roast.occasion ? { occasion: roast.occasion } : {}), main: roast.main, ...(roast.mains ? { mains: roast.mains.join(',') } : {}),
-        sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve })}`;
+        sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve,
+        ...(roast.cut ? { cut: roast.cut } : {}), ...(roast.doneness ? { doneness: roast.doneness } : {}) })}`;
       const what = `${roast.occasion === 'christmas' ? 'Christmas dinner' : 'Sunday roast'} · ${(roast.mains ?? [roast.main]).join(' & ')} · ${roast.people} people · ${roast.serve}`;
       dinnerCard = (
         <HoldCard label={`Dinner: ${what}`} to={to} onHold={open}>

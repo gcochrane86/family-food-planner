@@ -5,6 +5,17 @@ export type RoastKit = 'oven' | 'grill' | 'warm' | 'apo' | 'tm7' | 'hob' | 'hy24
 // day2 and day1: two days and one day ahead (23 December and Christmas Eve), at a set clock time (`at`).
 export type RoastWhen = 'day2' | 'day1' | 'night' | 'morning' | 'service';
 
+/** How a joint is cooked, with the MEATER's target (it rises a few degrees more as it rests). */
+export type Doneness = 'rare' | 'medium_rare' | 'medium' | 'medium_well' | 'well_done';
+export const DONENESS: { value: Doneness; label: string; core: number }[] = [
+  { value: 'rare', label: 'Rare', core: 50 },
+  { value: 'medium_rare', label: 'Medium rare', core: 54 },
+  { value: 'medium', label: 'Medium', core: 58 },
+  { value: 'medium_well', label: 'Medium well', core: 63 },
+  { value: 'well_done', label: 'Well done', core: 68 },
+];
+const isDoneness = (v: unknown): v is Doneness => DONENESS.some((d) => d.value === v);
+
 export interface RoastStep {
   title: string;
   before: number;   // minutes before serving that it starts
@@ -15,13 +26,20 @@ export interface RoastStep {
   trays?: number;   // oven shelves it takes per 8 people (0.5 = half a shelf)
   when: RoastWhen;
   at?: string;      // HH:MM, for day2 and day1 steps
+  byDoneness?: Partial<Record<Doneness, number>>; // minutes for each doneness (the joint's roast)
 }
-export interface RoastPart { part: 'main' | 'side'; mains: RoastMain[]; steps: RoastStep[] }
+export interface RoastPart {
+  part: 'main' | 'side'; mains: RoastMain[]; steps: RoastStep[];
+  cut?: string;          // a main's cut, e.g. "Ribeye" (several mains for one meat are a choice of cut)
+  doneness?: Doneness;   // a joint cooked to taste starts here; slow-cooked cuts have none
+}
 export interface RoastChoice {
   main: RoastMain; sides: string[]; people: number; serve: string;
   occasion?: 'christmas';
   mains?: RoastMain[];  // every main, when there's more than one (turkey and ham)
   extras?: string[];    // the slugs of the main parts after the first, so shopping buys them too
+  cut?: string;         // the first main's part (slug), when the meat has a choice of cuts
+  doneness?: Doneness;  // for a cut cooked to taste
 }
 
 /** The Sunday roast's mains; Christmas dinner has its own. */
@@ -59,6 +77,10 @@ function parseStep(raw: unknown): RoastStep | null {
   if ((when === 'day2' || when === 'day1') && !(typeof s.at === 'string' && HHMM.test(s.at))) return null;
   const step: RoastStep = { title: s.title, before, minutes, kit: s.kit as RoastKit, trays: Math.max(0.25, num(s.trays) ?? 1), when };
   if (typeof s.at === 'string' && HHMM.test(s.at)) step.at = s.at;
+  if (s.byDoneness && typeof s.byDoneness === 'object') {
+    const by = Object.fromEntries(Object.entries(s.byDoneness as Record<string, unknown>).filter(([k, v]) => isDoneness(k) && (num(v) ?? -1) > 0));
+    if (Object.keys(by).length) step.byDoneness = by as Partial<Record<Doneness, number>>;
+  }
   const temp = num(s.temp);
   if (temp !== undefined) step.temp = temp;
   if (typeof s.fan === 'boolean') step.fan = s.fan;
@@ -74,7 +96,10 @@ export function parseRoastPart(raw: unknown): RoastPart | null {
   const steps = r.steps.map(parseStep);
   if (steps.some((s) => !s)) return null;
   const mains = Array.isArray(r.mains) ? r.mains.filter((m): m is RoastMain => ALL_MAINS.includes(m as RoastMain)) : [];
-  return { part: r.part, mains: mains.length ? mains : [...MAINS], steps: steps as RoastStep[] };
+  const part: RoastPart = { part: r.part, mains: mains.length ? mains : [...MAINS], steps: steps as RoastStep[] };
+  if (typeof r.cut === 'string' && r.cut.trim()) part.cut = r.cut.trim();
+  if (isDoneness(r.doneness)) part.doneness = r.doneness;
+  return part;
 }
 
 /** A dinner's roast: a main, its sides (part slugs), 1–40 people and a serve time. */
@@ -90,5 +115,7 @@ export function parseRoastChoice(raw: unknown): RoastChoice | null {
   if (mains.length > 1) choice.mains = [...new Set(mains)];
   const extras = Array.isArray(c.extras) ? c.extras.filter((s): s is string => typeof s === 'string') : [];
   if (extras.length) choice.extras = extras;
+  if (typeof c.cut === 'string' && c.cut) choice.cut = c.cut;
+  if (isDoneness(c.doneness)) choice.doneness = c.doneness;
   return choice;
 }
