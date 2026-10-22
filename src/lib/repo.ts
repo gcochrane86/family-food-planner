@@ -315,7 +315,7 @@ export const repo = {
       plan_week_id: week.id, date, slot: 'dinner', recipe_id: null, mode: 'cook', portions: null, guests: 0, locked: true, reason: null, source_date: null,
     } as MealSlot;
     await this.saveSlots([{ ...dinner, recipe_id: mainRecipeId, mode: 'cook', portions: choice.people, guests: 0, locked: true,
-      reason: `Sunday roast · ${choice.main} · ${choice.people} people · ${choice.serve}`, roast: choice, batch: null }]);
+      reason: `${choice.occasion === 'christmas' ? 'Christmas dinner' : 'Sunday roast'} · ${(choice.mains ?? [choice.main]).join(' & ')} · ${choice.people} people · ${choice.serve}`, roast: choice, batch: null }]);
   },
 
   /** Start fresh: clears the plans and Spar list now and leaves the trolley and My Week for the Mac's tasks. */

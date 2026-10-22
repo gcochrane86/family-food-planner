@@ -57,3 +57,9 @@ test('proteinBalance counts cooked dinners only', () => {
   expect(proteinBalance(NEXT_WEEK.slots, recipes)).toEqual({ chicken: 2, fish: 1, red_meat: 2, veggie: 1 });
   expect(proteinBalance(edit('2026-10-19', 'dinner', { mode: 'out' }), recipes)).toEqual({ chicken: 1, fish: 1, red_meat: 2, veggie: 1 });
 });
+
+test("a Christmas dinner's tile names its meats", () => {
+  const slots = [{ date: '2026-12-25', slot: 'dinner' as const, recipe_id: 'r1', mode: 'cook' as const, portions: 10, guests: 0, locked: true, reason: null, source_date: null,
+    roast: { occasion: 'christmas', main: 'turkey', mains: ['turkey', 'ham'], sides: [], people: 10, serve: '14:00' } }] as unknown as MealSlot[];
+  expect(daySummary('2026-12-25', slots, new Map(), []).dinner).toBe('Christmas · turkey & ham');
+});

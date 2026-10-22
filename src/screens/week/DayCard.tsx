@@ -107,11 +107,14 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   if (dinner) {
     const open = () => setSheet('dinner');
     if (dinner.mode === 'cook' && dinnerRecipe && roast) {
-      const to = `/recipes/roast?${new URLSearchParams({ main: roast.main, sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve })}`;
+      const to = `/recipes/roast?${new URLSearchParams({
+        ...(roast.occasion ? { occasion: roast.occasion } : {}), main: roast.main, ...(roast.mains ? { mains: roast.mains.join(',') } : {}),
+        sides: roast.sides.join(','), people: String(roast.people), serve: roast.serve })}`;
+      const what = `${roast.occasion === 'christmas' ? 'Christmas dinner' : 'Sunday roast'} · ${(roast.mains ?? [roast.main]).join(' & ')} · ${roast.people} people · ${roast.serve}`;
       dinnerCard = (
-        <HoldCard label={`Dinner: Sunday roast · ${roast.main} · ${roast.people} people · ${roast.serve}`} to={to} onHold={open}>
+        <HoldCard label={`Dinner: ${what}`} to={to} onHold={open}>
           <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
-          {caption(`Sunday roast · ${roast.main} · ${roast.people} people · ${roast.serve}`, `${dinnerRecipe.title} and ${roast.sides.length} side${roast.sides.length === 1 ? '' : 's'} · tap for the plan`)}
+          {caption(what, `${dinnerRecipe.title} and ${roast.sides.length} side${roast.sides.length === 1 ? '' : 's'} · tap for the plan`)}
         </HoldCard>
       );
     } else if (dinner.mode === 'cook' && dinnerRecipe) {

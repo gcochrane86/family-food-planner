@@ -76,3 +76,39 @@ test("with no serve time there's no plan, and nothing to add", async () => {
   await user().clear(screen.getByLabelText('Eat at'));
   expect(screen.getByRole('button', { name: 'Add to the week' })).toBeDisabled();
 });
+
+describe('Christmas dinner', () => {
+  test('offers turkey and ham, either or both, with sides that suit them, cooked over three days', async () => {
+    render(<RoastBuilder />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('tab', { name: 'Christmas dinner' }));
+    expect(screen.queryByRole('button', { name: 'Beef' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Turkey' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(screen.getByRole('button', { name: 'Ham' }));
+    expect(screen.getByRole('button', { name: 'Ham' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(sides()).queryByRole('button', { name: 'Fresh Mint Sauce' })).not.toBeInTheDocument();
+    expect(within(sides()).getByRole('button', { name: 'Goose-Fat Roasties' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('region', { name: '23 December' })).getByRole('listitem', { name: /18:00 Glazed Ham: Soak the gammon/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Christmas Eve' })).getByRole('listitem', { name: /18:00 Roast Turkey Crown: Dry-brine the turkey/ })).toBeInTheDocument();
+    // At least one meat stays picked.
+    await user().click(screen.getByRole('button', { name: 'Ham' }));
+    await user().click(screen.getByRole('button', { name: 'Turkey' }));
+    expect(screen.getByRole('button', { name: 'Turkey' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('adds it to Christmas Day with both meats', async () => {
+    render(<RoastBuilder />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('tab', { name: 'Christmas dinner' }));
+    await user().click(screen.getByRole('button', { name: 'Ham' }));
+    expect(screen.getByRole('combobox', { name: 'Day' })).toHaveValue('2026-12-25');
+    await user().click(screen.getByRole('button', { name: 'Add to the week' }));
+    expect(h.repo.addRoast).toHaveBeenCalledWith('h1', '2026-12-25',
+      expect.objectContaining({ occasion: 'christmas', main: 'turkey', mains: ['turkey', 'ham'], extras: ['christmas-ham'] }), 'r-christmas-turkey');
+  });
+
+  test('opened from a planned Christmas dinner, it starts with that combination', async () => {
+    render(<MemoryRouter initialEntries={['/recipes/roast?occasion=christmas&main=turkey&mains=turkey,ham&sides=goose-fat-roasties&people=12&serve=14:00']}><RoastBuilder /></MemoryRouter>);
+    expect(await screen.findByRole('tab', { name: 'Christmas dinner' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Ham' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('12')).toBeInTheDocument();
+  });
+});

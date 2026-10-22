@@ -4,18 +4,27 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
 import { planRoast, type RoastPartRecipe } from '../../lib/roast';
-import { MAINS, parseRoastChoice, parseRoastPart, type RoastMain } from '../../lib/roastModel';
+import { CHRISTMAS_MAINS, MAINS, parseRoastChoice, parseRoastPart, suits, type RoastChoice, type RoastMain } from '../../lib/roastModel';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 
-/** The sides each main starts with. Beef is the household's own roast (11 Oct 2026). */
+/** The sides each main starts with. Beef is the household's own roast (11 Oct 2026). Christmas starts with the
+ *  classics until the household adds Christmas sides of its own (22 Oct 2026). */
+const CHRISTMAS_SIDES = ['goose-fat-roasties', 'honey-citrus-carrots', 'braised-red-cabbage', 'greens-and-peas', 'sage-onion-stuffing-balls', 'bread-sauce', 'roast-gravy'];
 export const DEFAULT_SIDES: Record<RoastMain, string[]> = {
+  turkey: CHRISTMAS_SIDES,
+  ham: CHRISTMAS_SIDES,
   beef: ['goose-fat-roasties', 'yorkshire-puddings', 'roast-mash', 'honey-citrus-carrots', 'bay-parsnips', 'cauliflower-cheese', 'roast-gravy'],
   chicken: ['goose-fat-roasties', 'honey-citrus-carrots', 'bay-parsnips', 'greens-and-peas', 'sage-onion-stuffing-balls', 'bread-sauce', 'roast-gravy'],
   lamb: ['goose-fat-roasties', 'honey-citrus-carrots', 'greens-and-peas', 'braised-red-cabbage', 'mint-sauce', 'roast-gravy'],
 };
-const NAME: Record<RoastMain, string> = { beef: 'Beef', chicken: 'Chicken', lamb: 'Lamb' };
+const NAME: Record<RoastMain, string> = { beef: 'Beef', chicken: 'Chicken', lamb: 'Lamb', turkey: 'Turkey', ham: 'Ham' };
+type Occasion = 'sunday' | 'christmas';
+// Christmas phases go by the day.
+const CHRISTMAS_PHASE: Record<string, string> = {
+  'Two days before': '23 December', 'Day before': 'Christmas Eve', 'Morning prep': 'Christmas morning', 'Out and about': 'Late morning',
+};
 
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 const dayName = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
@@ -28,23 +37,50 @@ export default function RoastBuilder() {
   const parts = useMemo(() => new Map((data ?? []).filter((r: Recipe) => parseRoastPart(r.roast)).map((r: Recipe) => [r.slug, r as RoastPartRecipe & Recipe])), [data]);
   // Opened from a planned roast (the day sheet), it starts with that combination.
   const [params] = useSearchParams();
-  const start = parseRoastChoice({ main: params.get('main'), sides: (params.get('sides') ?? '').split(',').filter(Boolean), people: Number(params.get('people')), serve: params.get('serve') });
-  const [main, setMain] = useState<RoastMain>(start?.main ?? 'beef');
+  const start = parseRoastChoice({
+    occasion: params.get('occasion'), main: params.get('main'), mains: (params.get('mains') ?? '').split(',').filter(Boolean),
+    sides: (params.get('sides') ?? '').split(',').filter(Boolean), people: Number(params.get('people')), serve: params.get('serve'),
+  });
+  const [occasion, setOccasion] = useState<Occasion>(start?.occasion ?? 'sunday');
+  const [mains, setMains] = useState<RoastMain[]>(start?.mains ?? [start?.main ?? 'beef']);
+  const main = mains[0];
   const [sides, setSides] = useState<string[]>(start?.sides ?? DEFAULT_SIDES.beef);
   const [people, setPeople] = useState(start?.people ?? 6);
   const [serve, setServe] = useState(start?.serve ?? '13:30');
   const [prepAt, setPrepAt] = useState('08:45');
-  const days = useMemo(() => Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + i); return isoDay(d); }), []);
-  const [day, setDay] = useState(() => days.find((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 0) ?? days[0]);
+  const christmasDay = useMemo(() => `${new Date().getUTCFullYear()}-12-25`, []);
+  const days = useMemo(() => {
+    const next = Array.from({ length: 14 }, (_, i) => { const d = new Date(); d.setUTCDate(d.getUTCDate() + i); return isoDay(d); });
+    return occasion === 'christmas' && !next.includes(christmasDay) ? [...next, christmasDay] : next;
+  }, [occasion, christmasDay]);
+  const [day, setDay] = useState(() => (start?.occasion === 'christmas' ? christmasDay : days.find((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 0) ?? days[0]));
   const [added, setAdded] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const mainPart = (m: RoastMain) => [...parts.values()].find((p) => { const r = parseRoastPart(p.roast)!; return r.part === 'main' && r.mains.includes(m); });
-  const sideParts = [...parts.values()].filter((p) => { const r = parseRoastPart(p.roast)!; return r.part === 'side' && r.mains.includes(main); });
+  const sideParts = [...parts.values()].filter((p) => { const r = parseRoastPart(p.roast)!; return r.part === 'side' && mains.some((m) => suits(r, m)); });
   const validTime = (t: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
-  const plan = validTime(serve) && validTime(prepAt) ? planRoast({ main, sides: sides.filter((s) => sideParts.some((p) => p.slug === s)), people, serve, prepAt }, parts) : null;
+  const extras = mains.slice(1).map((m) => mainPart(m)?.slug).filter((s): s is string => !!s);
+  const choice: RoastChoice = {
+    main, sides: sides.filter((s) => sideParts.some((p) => p.slug === s)), people, serve,
+    ...(occasion === 'christmas' ? { occasion } : {}), ...(mains.length > 1 ? { mains, extras } : {}),
+  };
+  const plan = validTime(serve) && validTime(prepAt) ? planRoast({ ...choice, prepAt }, parts) : null;
+  const phaseName = (n: string) => (occasion === 'christmas' ? CHRISTMAS_PHASE[n] ?? n : n);
 
-  function pickMain(m: RoastMain) { setMain(m); setSides(DEFAULT_SIDES[m]); }
+  function pickMain(m: RoastMain) {
+    if (occasion === 'sunday') { setMains([m]); setSides(DEFAULT_SIDES[m]); return; }
+    // Christmas: any of the meats, at least one.
+    setMains((list) => (list.includes(m) ? (list.length > 1 ? list.filter((x) => x !== m) : list) : [...list, m]));
+  }
+  function pickOccasion(o: Occasion) {
+    if (o === occasion) return;
+    setOccasion(o);
+    const first = o === 'christmas' ? 'turkey' : 'beef';
+    setMains([first]);
+    setSides(DEFAULT_SIDES[first]);
+    if (o === 'christmas') { setDay(christmasDay); setServe('14:00'); setPeople((n) => Math.max(n, 8)); }
+  }
   const toggle = (slug: string) => setSides((list) => (list.includes(slug) ? list.filter((s) => s !== slug) : [...list, slug]));
 
   async function addToDay() {
@@ -52,7 +88,7 @@ export default function RoastBuilder() {
     if (!m || !plan) return;
     setProblem(null);
     try {
-      await repo.addRoast(hid, day, { main, sides: sides.filter((s) => sideParts.some((p) => p.slug === s)), people, serve }, m.id);
+      await repo.addRoast(hid, day, choice, m.id);
       setAdded(day);
     } catch (e) {
       setProblem(e instanceof Error && e.message === 'no_week' ? `There's no plan for the week of ${dayName(day)} yet. Plan that week first, then add the roast.` : "Couldn't add it. Check your connection and try again.");
@@ -64,7 +100,15 @@ export default function RoastBuilder() {
   return (
     <section className="grid gap-5 py-4">
       <Link to="/recipes" className="text-sm font-semibold text-muted no-underline print:hidden">← Recipes</Link>
-      <h1 className="text-3xl font-bold">Build a roast</h1>
+      <h1 className="text-3xl font-bold">{occasion === 'christmas' ? 'Christmas dinner' : 'Build a roast'}</h1>
+      <div role="tablist" aria-label="Occasion" className="flex w-max gap-1 rounded-xl bg-surface-2 p-1 print:hidden">
+        {(['sunday', 'christmas'] as const).map((o) => (
+          <button key={o} type="button" role="tab" aria-selected={occasion === o} onClick={() => pickOccasion(o)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${occasion === o ? 'bg-surface text-ink shadow-sm' : 'text-muted'}`}>
+            {o === 'sunday' ? 'Sunday roast' : 'Christmas dinner'}
+          </button>
+        ))}
+      </div>
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {loading && !data && <p className="text-muted">Loading…</p>}
       {data && parts.size === 0 && <p className="text-muted">No roast parts in your recipes yet.</p>}
@@ -72,12 +116,12 @@ export default function RoastBuilder() {
       {parts.size > 0 && (
         <>
           <div className="grid gap-2 print:hidden">
-            <h2 className="text-lg font-bold">The main</h2>
+            <h2 className="text-lg font-bold">{occasion === 'christmas' ? 'The meats (one or both)' : 'The main'}</h2>
             <div className="grid grid-cols-3 gap-2.5">
-              {MAINS.map((m) => {
+              {(occasion === 'christmas' ? CHRISTMAS_MAINS : MAINS).map((m) => {
                 const r = mainPart(m);
                 return (
-                  <button key={m} type="button" aria-label={NAME[m]} aria-pressed={main === m} disabled={!r} onClick={() => pickMain(m)} className={pill(main === m)}>
+                  <button key={m} type="button" aria-label={NAME[m]} aria-pressed={mains.includes(m)} disabled={!r} onClick={() => pickMain(m)} className={pill(mains.includes(m))}>
                     {r && <HeroImage recipe={r} className="aspect-[4/3] w-full" />}
                     <span className="block px-3 py-2 font-bold">{NAME[m]}{r ? <span className="block text-xs font-semibold text-muted">{r.title}</span> : null}</span>
                   </button>
@@ -117,8 +161,8 @@ export default function RoastBuilder() {
           )}
 
           {plan && plan.phases.map((ph) => (
-            <section key={ph.name} aria-label={ph.name} className="grid gap-2">
-              <h2 className="text-xl font-bold">{ph.name}</h2>
+            <section key={ph.name} aria-label={phaseName(ph.name)} className="grid gap-2">
+              <h2 className="text-xl font-bold">{phaseName(ph.name)}</h2>
               {ph.steps.length === 0 && <p className="m-0 text-muted">{ph.name === 'Out and about' ? 'Nothing to do: everything holds or waits in the fridge.' : 'Nothing at this point.'}</p>}
               <ol className="m-0 grid list-none gap-2 p-0">
                 {ph.steps.map((s) => {

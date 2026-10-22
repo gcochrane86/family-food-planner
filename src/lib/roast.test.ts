@@ -111,3 +111,35 @@ test("prep and serve times that don't fit together are pointed out", () => {
   const early = planRoast({ main: 'lamb', sides: [], people: 6, serve: '10:00', prepAt: '08:45' }, parts);
   expect(early.warnings.join(' ')).toMatch(/starts at 07:30, before your prep at 08:45/);
 });
+
+describe('Christmas dinner', () => {
+  const XMAS = new Map([...PARTS,
+    p('christmas-turkey', 'main', ['turkey'], 10, [
+      { title: 'Dry-brine the turkey', before: 0, minutes: 15, kit: 'counter', when: 'day1', at: '18:00' },
+      { title: 'Butter under the skin', before: 300, minutes: 15, kit: 'counter', when: 'morning' },
+      { title: 'Roast the turkey', before: 225, minutes: 150, kit: 'oven', temp: 180, fan: true, trays: 0.5, when: 'service' },
+      { title: 'Rest under foil', before: 75, minutes: 45, kit: 'counter', when: 'service' }]),
+    p('christmas-ham', 'main', ['ham'], 10, [
+      { title: 'Soak the gammon', before: 0, minutes: 5, kit: 'counter', when: 'day2', at: '18:00' },
+      { title: 'Simmer the gammon', before: 0, minutes: 150, kit: 'hob', when: 'day1', at: '10:00' },
+      { title: 'Bake the glaze', before: 70, minutes: 30, kit: 'oven', temp: 200, fan: true, trays: 0.5, when: 'service' }]),
+  ].map((x) => [x.slug, x]));
+  const xmas = { occasion: 'christmas' as const, main: 'turkey' as const, mains: ['turkey', 'ham'] as ('turkey' | 'ham')[], sides: ['goose-fat-roasties', 'mint-sauce'], people: 10, serve: '14:00', prepAt: '09:00' };
+
+  test('plans both meats across the 23rd, Christmas Eve and the day', () => {
+    const plan = planRoast(xmas, XMAS);
+    expect(plan.phases.map((ph) => ph.name).slice(0, 3)).toEqual(['Two days before', 'Day before', 'Morning prep']);
+    expect(find(plan, 'christmas-ham', 'Soak the gammon')).toMatchObject({ phase: 'Two days before', time: '18:00' });
+    expect(find(plan, 'christmas-ham', 'Simmer the gammon')).toMatchObject({ phase: 'Day before', time: '10:00', end: '12:30' });
+    expect(find(plan, 'christmas-turkey', 'Dry-brine the turkey')).toMatchObject({ phase: 'Day before', time: '18:00' });
+    expect(find(plan, 'christmas-turkey', 'Roast the turkey').time).toBe('10:15');
+    expect(find(plan, 'christmas-ham', 'Bake the glaze').time).toBe('12:50');
+    expect(plan.warnings.filter((w) => /No .* main/.test(w))).toEqual([]);
+  });
+
+  test("a side for lamb (mint sauce) isn't used with turkey or ham", () => {
+    const plan = planRoast(xmas, XMAS);
+    expect(plan.phases.flatMap((ph) => ph.steps).some((s) => s.part === 'mint-sauce')).toBe(false);
+    expect(plan.phases.flatMap((ph) => ph.steps).some((s) => s.part === 'goose-fat-roasties')).toBe(true);
+  });
+});

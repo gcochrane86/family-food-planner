@@ -1,4 +1,4 @@
-import { parseRoastPart, parseRoastChoice } from './roastModel';
+import { parseRoastPart, parseRoastChoice, roastPartSlugs, suits } from './roastModel';
 
 const step = { title: 'Roasties in', before: 48, minutes: 44, kit: 'oven', temp: 210, fan: true, trays: 2, when: 'service' };
 
@@ -26,4 +26,28 @@ test('a dinner\'s roast choice: main, sides, people 1–40, serve HH:MM', () => 
   expect(parseRoastChoice({ main: 'pork', sides: [], people: 4, serve: '13:30' })).toBeNull();
   expect(parseRoastChoice({ main: 'beef', sides: [], people: 0, serve: '13:30' })).toBeNull();
   expect(parseRoastChoice({ main: 'beef', sides: [], people: 4, serve: '25:00' })).toBeNull();
+});
+
+test('a step can be one or two days ahead, at a set time', () => {
+  const part = parseRoastPart({ part: 'main', mains: ['ham'], steps: [
+    { title: 'Soak the gammon', before: 0, minutes: 5, kit: 'counter', when: 'day2', at: '18:00' },
+    { title: 'Simmer', before: 0, minutes: 150, kit: 'hob', when: 'day1', at: '10:00' }] })!;
+  expect(part.mains).toEqual(['ham']);
+  expect(part.steps.map((s) => [s.when, s.at])).toEqual([['day2', '18:00'], ['day1', '10:00']]);
+  expect(parseRoastPart({ part: 'main', mains: ['ham'], steps: [{ title: 'x', before: 0, minutes: 5, kit: 'counter', when: 'day1' }] })).toBeNull();
+});
+
+test('a Christmas choice keeps every main and the extra main parts', () => {
+  const c = parseRoastChoice({ occasion: 'christmas', main: 'turkey', mains: ['turkey', 'ham'], extras: ['christmas-ham'], sides: ['roast-gravy'], people: 10, serve: '14:00' })!;
+  expect(c).toMatchObject({ occasion: 'christmas', main: 'turkey', mains: ['turkey', 'ham'], extras: ['christmas-ham'] });
+  expect(roastPartSlugs(c)).toEqual(['roast-gravy', 'christmas-ham']);
+});
+
+test('until it names them, a side suits turkey when it suits chicken, and ham when it suits beef', () => {
+  const side = (mains: string[]) => parseRoastPart({ part: 'side', mains, steps: [] })!;
+  expect(suits(side(['chicken']), 'turkey')).toBe(true);
+  expect(suits(side(['beef']), 'turkey')).toBe(false);
+  expect(suits(side(['beef']), 'ham')).toBe(true);
+  expect(suits(side(['lamb']), 'ham')).toBe(false);
+  expect(suits(side(['turkey']), 'turkey')).toBe(true);
 });

@@ -11,6 +11,12 @@ export const ROAST_PARTS: Recipe[] = [
     { title: 'Carve', before: 4, minutes: 8, kit: 'counter', when: 'service' }]),
   part('roast-lamb', 'Roast Leg of Lamb', 'main', ['lamb'], [
     { title: 'Roast', before: 150, minutes: 110, kit: 'apo', temp: 180, when: 'service' }]),
+  part('christmas-turkey', 'Roast Turkey Crown', 'main', ['turkey'], [
+    { title: 'Dry-brine the turkey', before: 0, minutes: 15, kit: 'counter', when: 'day1', at: '18:00' },
+    { title: 'Roast the turkey', before: 225, minutes: 150, kit: 'oven', temp: 180, fan: true, trays: 0.5, when: 'service' }]),
+  part('christmas-ham', 'Glazed Ham', 'main', ['ham'], [
+    { title: 'Soak the gammon', before: 0, minutes: 5, kit: 'counter', when: 'day2', at: '18:00' },
+    { title: 'Bake the glaze', before: 70, minutes: 30, kit: 'oven', temp: 200, fan: true, trays: 0.5, when: 'service' }]),
   part('roast-chicken', 'Roast Chicken', 'main', ['chicken'], [
     { title: 'Roast', before: 105, minutes: 80, kit: 'apo', temp: 200, when: 'service' }]),
   part('goose-fat-roasties', 'Goose-Fat Roasties', 'side', [], [

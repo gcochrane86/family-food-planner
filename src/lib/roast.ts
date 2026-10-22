@@ -1,10 +1,10 @@
 // The roast builder's scheduler: from a main, its sides, how many people and when to eat, one plan that works
 // backwards from serving. The owner's workflow (18 Oct 2026): prep at breakfast, go out, then about an hour of
 // hands-on work before lunch. Oven steps go to Oven 1 or Oven 2 at compatible temperatures; Oven 3 warms and grills.
-import { parseRoastPart, type RoastChoice, type RoastKit, type RoastMain, type RoastStep } from './roastModel';
+import { parseRoastPart, suits, type RoastChoice, type RoastKit, type RoastMain, type RoastStep } from './roastModel';
 
 export interface RoastPartRecipe { id: string; slug: string; title: string; hero_image_path: string | null; base_portions: number; roast: unknown }
-export type RoastPhaseName = 'Night before' | 'Morning prep' | 'Out and about' | 'Service countdown';
+export type RoastPhaseName = 'Two days before' | 'Day before' | 'Night before' | 'Morning prep' | 'Out and about' | 'Service countdown';
 export interface PlannedStep {
   time: string; end: string; title: string; part: string; partTitle: string; recipeId: string;
   phase: RoastPhaseName; kit: string; minutes: number; trays?: number;
@@ -32,14 +32,18 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
   const warnings: string[] = [];
   const serve = toMin(choice.serve);
   const prep = toMin(choice.prepAt ?? '08:45');
-  const main = [...parts.values()].find((p) => parseRoastPart(p.roast)?.part === 'main' && parseRoastPart(p.roast)!.mains.includes(choice.main as RoastMain));
-  const chosen: RoastPartRecipe[] = main ? [main] : [];
-  if (!main) warnings.push(`No ${choice.main} main in your roast recipes yet.`);
+  // Every main (Christmas can have turkey and ham), then the sides that go with at least one of them.
+  const mains: RoastMain[] = choice.mains?.length ? choice.mains : [choice.main];
+  const chosen: RoastPartRecipe[] = [];
+  for (const m of mains) {
+    const main = [...parts.values()].find((p) => parseRoastPart(p.roast)?.part === 'main' && parseRoastPart(p.roast)!.mains.includes(m));
+    if (main) chosen.push(main); else warnings.push(`No ${m} main in your roast recipes yet.`);
+  }
   for (const slug of choice.sides) {
     const p = parts.get(slug);
     const r = p ? parseRoastPart(p.roast) : null;
     if (!p || !r || r.part !== 'side') continue;
-    if (!r.mains.includes(choice.main)) { warnings.push(`${p.title} doesn't go with ${choice.main}, so it's left out.`); continue; }
+    if (!mains.some((m) => suits(r, m))) { warnings.push(`${p.title} doesn't go with ${mains.join(' or ')}, so it's left out.`); continue; }
     chosen.push(p);
   }
 
@@ -47,6 +51,13 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
   const slots: Slot[] = [];
   for (const part of chosen) {
     for (const step of parseRoastPart(part.roast)!.steps) {
+      // A day or two ahead (23 December, Christmas Eve): at its own clock time, on that day.
+      if (step.when === 'day2' || step.when === 'day1') {
+        const start = toMin(step.at!) - (step.when === 'day2' ? 2 : 1) * 1440;
+        const phase: RoastPhaseName = step.when === 'day2' ? 'Two days before' : 'Day before';
+        slots.push({ step, part, start, end: start + step.minutes, phase, trays: Math.ceil(((step.trays ?? 1) * choice.people) / PER_TRAY), place: '', label: '', quick: false, hold: false });
+        continue;
+      }
       let start: number;
       if (step.when === 'night') start = prep - (step.before - MORNING_REF);
       else if (step.when === 'morning') start = prep + (MORNING_REF - step.before);
@@ -119,7 +130,7 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
     warnings.push('Morning prep runs into the lunchtime countdown: prep from earlier, or eat later.');
   }
   for (const x of slots) {
-    if (x.step.when !== 'night' && x.phase !== 'Morning prep' && x.start < prep) warnings.push(`${x.part.title}: ${x.step.title.toLowerCase()} starts at ${fmt(x.start)}, before your prep at ${fmt(prep)}.`);
+    if (x.step.when !== 'night' && x.step.when !== 'day1' && x.step.when !== 'day2' && x.phase !== 'Morning prep' && x.start < prep) warnings.push(`${x.part.title}: ${x.step.title.toLowerCase()} starts at ${fmt(x.start)}, before your prep at ${fmt(prep)}.`);
   }
 
   // The owner's workflow: between morning prep and the countdown, only hands-off kit.
@@ -131,9 +142,10 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
     time: fmt(s.start), end: fmt(s.end), title: s.step.title, part: s.part.slug, partTitle: s.part.title, recipeId: s.part.id,
     phase: s.phase, kit: s.label, minutes: s.step.minutes, ...(s.step.kit === 'oven' ? { trays: s.trays } : {}), ...(s.quick ? { quick: true } : {}),
   }));
-  const names: RoastPhaseName[] = ['Night before', 'Morning prep', 'Out and about', 'Service countdown'];
+  const names: RoastPhaseName[] = ['Two days before', 'Day before', 'Night before', 'Morning prep', 'Out and about', 'Service countdown'];
+  const ahead: RoastPhaseName[] = ['Two days before', 'Day before', 'Night before'];
   const phases = names.map((name) => ({ name, steps: steps.filter((x) => x.phase === name) }))
-    .filter((ph) => ph.steps.length || ph.name !== 'Night before');
+    .filter((ph) => ph.steps.length || !ahead.includes(ph.name));
   const kit: RoastPlan['kit'] = {};
   for (const s of slots) {
     if (!s.place) continue;

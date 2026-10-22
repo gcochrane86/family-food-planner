@@ -1,4 +1,7 @@
-import { parseRoastChoice } from './roastModel';
+import { parseRoastChoice, type RoastChoice } from './roastModel';
+
+/** A roast's short name: "Roast · beef", or "Christmas · turkey & ham". */
+export const roastName = (r: RoastChoice) => `${r.occasion === 'christmas' ? 'Christmas' : 'Roast'} · ${(r.mains ?? [r.main]).join(' & ')}`;
 import { HOME_LUNCHES } from './mealPhotos';
 // What each day tile on the week grid shows (spec §6: Home is a grid of day tiles).
 import type { MealSlot, Recipe } from './types';
@@ -65,7 +68,7 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
     : l?.reason ?? (l?.mode === 'packed' ? 'Packed lunch' : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}` : 'Home lunch');
   const roast = d?.mode === 'cook' ? parseRoastChoice(d.roast) : null;
   const dinner = d?.mode === 'out' ? 'Out tonight'
-    : roast ? `Roast · ${roast.main}`
+    : roast ? roastName(roast)
     : d?.mode === 'cook' && title(d.recipe_id) ? title(d.recipe_id)!
       : 'Leftovers night';
 

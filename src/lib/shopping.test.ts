@@ -215,6 +215,16 @@ test('a roast dinner buys every part it was built from, scaled to the people', (
   expect(items.find((i) => i.name === 'roasting potatoes')?.forMeals).toEqual(['Sun roast: roasties']);
 });
 
+test('a Christmas dinner with two meats buys both', () => {
+  const turkey = { ...recipe('turkey', 10, [['turkey crown', 3000, 'g']]), slug: 'christmas-turkey' };
+  const ham = { ...recipe('ham', 10, [['smoked gammon joint', 2000, 'g']]), slug: 'christmas-ham' };
+  const map = new Map([['turkey', turkey], ['ham', ham]]);
+  const slot = { ...dinner('2026-10-25', 'turkey', 10), roast: { occasion: 'christmas', main: 'turkey', mains: ['turkey', 'ham'], extras: ['christmas-ham'], sides: [], people: 10, serve: '14:00' } };
+  const items = buildShoppingList([slot], map, [], 1).sun;
+  expect(items.find((i) => i.name === 'turkey crown')?.qty).toBe(3000);
+  expect(items.find((i) => i.name === 'smoked gammon joint')?.qty).toBe(2000);
+});
+
 describe('other shops', () => {
   const fishPie = { ...recipe('fish', 4, [['salmon fillets', 400, 'g'], ['onion', 1, ''], ['milk', 300, 'ml']]), protein: 'fish' as const };
   const map = new Map([['fish', fishPie], ['stew', stew]]);

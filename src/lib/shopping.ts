@@ -1,4 +1,4 @@
-import { parseRoastChoice } from './roastModel';
+import { parseRoastChoice, roastPartSlugs } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
@@ -82,11 +82,11 @@ export function buildShoppingList(
     const recipe = recipes.get(slot.recipe_id);
     if (!recipe) continue;
     const day = SHORT[weekdayIndex(slot.date)];
-    // A roast buys its main and every chosen side, each scaled to the people eating.
+    // A roast buys its main, any other mains (Christmas ham) and every chosen side, each scaled to the people eating.
     const roast = parseRoastChoice(slot.roast);
     if (roast) {
       const bySlug = new Map([...recipes.values()].map((r) => [r.slug, r]));
-      const parts = [recipe, ...roast.sides.map((s) => bySlug.get(s)).filter((r): r is RecipeDetail => !!r)];
+      const parts = [recipe, ...roastPartSlugs(roast).map((s) => bySlug.get(s)).filter((r): r is RecipeDetail => !!r)];
       for (const part of parts) add(part, roast.people / part.base_portions, `${day} roast: ${part.title.toLowerCase()}`, slot);
       continue;
     }

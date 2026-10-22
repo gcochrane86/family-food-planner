@@ -1,8 +1,9 @@
 // The roast builder's building blocks: a roast part (a main or a side) describes each of its steps by how long before
 // serving it starts, how long it takes, and which kit it needs. A dinner planned as a roast records the choice.
-export type RoastMain = 'beef' | 'chicken' | 'lamb';
+export type RoastMain = 'beef' | 'chicken' | 'lamb' | 'turkey' | 'ham';
 export type RoastKit = 'oven' | 'grill' | 'warm' | 'apo' | 'tm7' | 'hob' | 'hy24' | 'counter';
-export type RoastWhen = 'night' | 'morning' | 'service';
+// day2 and day1: two days and one day ahead (23 December and Christmas Eve), at a set clock time (`at`).
+export type RoastWhen = 'day2' | 'day1' | 'night' | 'morning' | 'service';
 
 export interface RoastStep {
   title: string;
@@ -13,11 +14,33 @@ export interface RoastStep {
   fan?: boolean;
   trays?: number;   // oven shelves it takes per 8 people (0.5 = half a shelf)
   when: RoastWhen;
+  at?: string;      // HH:MM, for day2 and day1 steps
 }
 export interface RoastPart { part: 'main' | 'side'; mains: RoastMain[]; steps: RoastStep[] }
-export interface RoastChoice { main: RoastMain; sides: string[]; people: number; serve: string }
+export interface RoastChoice {
+  main: RoastMain; sides: string[]; people: number; serve: string;
+  occasion?: 'christmas';
+  mains?: RoastMain[];  // every main, when there's more than one (turkey and ham)
+  extras?: string[];    // the slugs of the main parts after the first, so shopping buys them too
+}
 
+/** The Sunday roast's mains; Christmas dinner has its own. */
 export const MAINS: RoastMain[] = ['beef', 'chicken', 'lamb'];
+export const CHRISTMAS_MAINS: RoastMain[] = ['turkey', 'ham'];
+const ALL_MAINS: RoastMain[] = [...MAINS, ...CHRISTMAS_MAINS];
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+// Until a side names turkey or ham, it suits turkey when it suits chicken, and ham when it suits beef.
+const LIKE: Partial<Record<RoastMain, RoastMain>> = { turkey: 'chicken', ham: 'beef' };
+
+/** Whether a part goes with a main. */
+export function suits(part: RoastPart, main: RoastMain): boolean {
+  if (part.mains.includes(main)) return true;
+  const like = LIKE[main];
+  return !!like && !part.mains.some((m) => CHRISTMAS_MAINS.includes(m)) && part.mains.includes(like);
+}
+
+/** Every part a roast uses besides its first main (found by slug): the sides, then the other mains. */
+export const roastPartSlugs = (c: RoastChoice): string[] => [...c.sides, ...(c.extras ?? [])];
 const KITS: RoastKit[] = ['oven', 'grill', 'warm', 'apo', 'tm7', 'hob', 'hy24', 'counter'];
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
@@ -31,7 +54,11 @@ function parseStep(raw: unknown): RoastStep | null {
   const minutes = num(s.minutes);
   if (typeof s.title !== 'string' || !s.title.trim() || before === undefined || before < 0 || minutes === undefined || minutes < 0) return null;
   if (!KITS.includes(s.kit as RoastKit)) return null;
-  const step: RoastStep = { title: s.title, before, minutes, kit: s.kit as RoastKit, trays: Math.max(0.25, num(s.trays) ?? 1), when: (['night', 'morning', 'service'] as const).includes(s.when as RoastWhen) ? s.when as RoastWhen : defaultWhen(before) };
+  const when = (['day2', 'day1', 'night', 'morning', 'service'] as const).includes(s.when as RoastWhen) ? s.when as RoastWhen : defaultWhen(before);
+  // A step a day or two ahead happens at a clock time.
+  if ((when === 'day2' || when === 'day1') && !(typeof s.at === 'string' && HHMM.test(s.at))) return null;
+  const step: RoastStep = { title: s.title, before, minutes, kit: s.kit as RoastKit, trays: Math.max(0.25, num(s.trays) ?? 1), when };
+  if (typeof s.at === 'string' && HHMM.test(s.at)) step.at = s.at;
   const temp = num(s.temp);
   if (temp !== undefined) step.temp = temp;
   if (typeof s.fan === 'boolean') step.fan = s.fan;
@@ -46,7 +73,7 @@ export function parseRoastPart(raw: unknown): RoastPart | null {
   if (!Array.isArray(r.steps)) return null;
   const steps = r.steps.map(parseStep);
   if (steps.some((s) => !s)) return null;
-  const mains = Array.isArray(r.mains) ? r.mains.filter((m): m is RoastMain => MAINS.includes(m as RoastMain)) : [];
+  const mains = Array.isArray(r.mains) ? r.mains.filter((m): m is RoastMain => ALL_MAINS.includes(m as RoastMain)) : [];
   return { part: r.part, mains: mains.length ? mains : [...MAINS], steps: steps as RoastStep[] };
 }
 
@@ -55,7 +82,13 @@ export function parseRoastChoice(raw: unknown): RoastChoice | null {
   if (!raw || typeof raw !== 'object') return null;
   const c = raw as Record<string, unknown>;
   const people = num(c.people);
-  if (!MAINS.includes(c.main as RoastMain) || !Array.isArray(c.sides) || people === undefined || people < 1 || people > 40) return null;
-  if (typeof c.serve !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(c.serve)) return null;
-  return { main: c.main as RoastMain, sides: c.sides.filter((s): s is string => typeof s === 'string'), people: Math.round(people), serve: c.serve };
+  if (!ALL_MAINS.includes(c.main as RoastMain) || !Array.isArray(c.sides) || people === undefined || people < 1 || people > 40) return null;
+  if (typeof c.serve !== 'string' || !HHMM.test(c.serve)) return null;
+  const choice: RoastChoice = { main: c.main as RoastMain, sides: c.sides.filter((s): s is string => typeof s === 'string'), people: Math.round(people), serve: c.serve };
+  if (c.occasion === 'christmas') choice.occasion = 'christmas';
+  const mains = Array.isArray(c.mains) ? c.mains.filter((m): m is RoastMain => ALL_MAINS.includes(m as RoastMain)) : [];
+  if (mains.length > 1) choice.mains = [...new Set(mains)];
+  const extras = Array.isArray(c.extras) ? c.extras.filter((s): s is string => typeof s === 'string') : [];
+  if (extras.length) choice.extras = extras;
+  return choice;
 }
