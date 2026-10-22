@@ -71,3 +71,13 @@ test('asking Cookidoo to try again requests a sync for that week', async () => {
   await repo.requestCookidooSync('w-next');
   expect(h.rpcs).toEqual([{ fn: 'request_cookidoo_sync', args: { p_week: 'w-next' } }]);
 });
+
+test('a roast on a day the week does not plan (Sunday of a 5-day week) adds that dinner', async () => {
+  h.results.plan_weeks = [{ data: { id: 'w1', household_id: 'h1', week_start: '2026-10-19', days: 5, status: 'draft' }, error: null }];
+  h.results.meal_slots = [{ data: [{ plan_week_id: 'w1', date: '2026-10-19', slot: 'dinner', mode: 'cook', recipe_id: 'r1', portions: 3, guests: 0, locked: false, reason: null, source_date: null }], error: null }];
+  await repo.addRoast('h1', '2026-10-25', { main: 'beef', sides: ['roasties'], people: 8, serve: '13:30' }, 'r-brisket');
+  expect(h.upserts.at(-1)).toEqual([expect.objectContaining({
+    plan_week_id: 'w1', date: '2026-10-25', slot: 'dinner', mode: 'cook', recipe_id: 'r-brisket', portions: 8, locked: true,
+    roast: { main: 'beef', sides: ['roasties'], people: 8, serve: '13:30' },
+  })]);
+});

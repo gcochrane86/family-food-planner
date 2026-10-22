@@ -309,8 +309,11 @@ export const repo = {
     const d = new Date(`${date}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
     const { week, slots } = await this.getWeek(householdId, d.toISOString().slice(0, 10));
-    const dinner = slots.find((s) => s.date === date && s.slot === 'dinner');
-    if (!week || !dinner) throw new Error('no_week');
+    if (!week) throw new Error('no_week');
+    // A day the week doesn't plan (Sunday of a 5-day week) gets a dinner just for the roast.
+    const dinner: MealSlot = slots.find((s) => s.date === date && s.slot === 'dinner') ?? {
+      plan_week_id: week.id, date, slot: 'dinner', recipe_id: null, mode: 'cook', portions: null, guests: 0, locked: true, reason: null, source_date: null,
+    } as MealSlot;
     await this.saveSlots([{ ...dinner, recipe_id: mainRecipeId, mode: 'cook', portions: choice.people, guests: 0, locked: true,
       reason: `Sunday roast · ${choice.main} · ${choice.people} people · ${choice.serve}`, roast: choice, batch: null }]);
   },

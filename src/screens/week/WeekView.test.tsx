@@ -955,3 +955,13 @@ describe('the approved pop-up', () => {
     expect(screen.queryByRole('dialog', { name: /approved/ })).not.toBeInTheDocument();
   });
 });
+
+test('a 5-day week still shows a Sunday that has a dinner (a roast added from the builder)', async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+    ? { week: { ...NEXT_WEEK.week!, days: 5 as const }, slots: [...NEXT_WEEK.slots.filter((s) => s.date <= '2026-10-23'),
+      { ...NEXT_WEEK.slots.find((s) => s.date === '2026-10-25' && s.slot === 'dinner')!, recipe_id: 'r-doner', mode: 'cook' as const, roast: { main: 'beef', sides: [], people: 8, serve: '13:30' } }] }
+    : { week: null, slots: [] }));
+  render(<WeekView />, { wrapper: MemoryRouter });
+  expect(await tile('Sunday 25')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Saturday 24/ })).not.toBeInTheDocument();
+});

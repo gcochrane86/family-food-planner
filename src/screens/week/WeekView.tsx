@@ -15,7 +15,9 @@ export default function WeekView() {
   const [open, setOpen] = useState<string | null>(null);
   const [approvedOpen, setApprovedOpen] = useState(false);
   const tiles = useRef(new Map<string, HTMLButtonElement | null>());
-  const dates = Array.from({ length: w.week?.days ?? 7 }, (_, i) => addDays(w.weekStart, i));
+  // The planned days, plus any later day with a dinner of its own (a roast added to Sunday of a 5-day week).
+  const dates = [...new Set([...Array.from({ length: w.week?.days ?? 7 }, (_, i) => addDays(w.weekStart, i)),
+    ...w.slots.map((s) => s.date).filter((d) => d >= w.weekStart && d <= addDays(w.weekStart, 6))])].sort();
   const { weekday, hour, date: today } = w.starts.london;
 
   const close = useCallback(() => {
