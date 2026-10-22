@@ -23,8 +23,10 @@ export default function SwapStack({ date, dayName, w, onClose }: { date: string;
     const opener = document.activeElement as HTMLElement | null;
     (chooseBtn.current ?? closeBtn.current)?.focus();
     return () => {
-      if (opener?.isConnected) opener.focus();
-      else (document.querySelector('[role="dialog"] button[aria-label="Close"]') as HTMLElement | null)?.focus();
+      if (opener?.isConnected && opener !== document.body) opener.focus();
+      // The Swap button was in the dinner's options, which closed as the stack opened: back to the dinner's photo,
+      // else the day's Close.
+      else (document.querySelector<HTMLElement>('[role="dialog"] [aria-label^="Dinner:"]') ?? document.querySelector<HTMLElement>('[role="dialog"] button[aria-label="Close"]'))?.focus();
     };
   }, []);
 

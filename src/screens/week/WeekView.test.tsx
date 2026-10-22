@@ -24,9 +24,22 @@ const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 const day = (label: RegExp) => screen.getByRole('dialog', { name: label });
 const tile = async (name: string) => screen.findByRole('button', { name: new RegExp(`^${name}`) });
 
+/** A meal's photo card on an open day (a link to its recipe, or a button). */
+const mealCard = (d: HTMLElement, meal: string) =>
+  [...within(d).queryAllByRole('link'), ...within(d).queryAllByRole('button')].find((el) => el.getAttribute('aria-label')?.startsWith(`${meal}:`))!;
+
+/** Opens a meal's options on an open day, as holding its photo does, and returns them. */
+function opts(label: RegExp, meal: 'Breakfast' | 'Lunch' | 'Dinner') {
+  const d = day(label);
+  const open = within(d).queryByRole('dialog', { name: `${meal} options` });
+  if (open) return open;
+  fireEvent.contextMenu(mealCard(d, meal));
+  return within(d).getByRole('dialog', { name: `${meal} options` });
+}
+
 /** Opens a day's sheet from its tile, closing any day that's already open. */
 async function openDay(name: string) {
-  if (screen.queryByRole('dialog')) await user().keyboard('{Escape}');
+  for (let i = 0; i < 3 && screen.queryAllByRole('dialog').length; i++) await user().keyboard('{Escape}');
   await user().click(await tile(name));
 }
 
@@ -42,7 +55,7 @@ describe('swipe to swap', () => {
   async function openSwap() {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Tue');
-    await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Swap' }));
+    await user().click(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Swap' }));
     return screen.getByRole('dialog', { name: "Swap Tuesday's dinner" });
   }
   const top = (stack: HTMLElement) => within(stack).getAllByRole('group', { name: /^Suggestion/ }).at(-1)!;
@@ -113,10 +126,10 @@ describe('swipe to swap', () => {
 test('out tonight on the cook-once dinner sends the next lunch back to its routine', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Mon');
-  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
-  expect(within(day(/Monday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
+  await user().click(within(opts(/Monday/, 'Dinner')).getByRole('button', { name: 'Out tonight' }));
+  expect(within(opts(/Monday/, 'Dinner')).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Tue');
-  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(opts(/Tuesday/, 'Lunch')).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'lunch')!.mode).toBe('routine');
 });
@@ -124,8 +137,8 @@ test('out tonight on the cook-once dinner sends the next lunch back to its routi
 test('guests +2 shows the new portions', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Fri');
-  await user().click(within(day(/Friday/)).getByRole('button', { name: 'Add a guest' }));
-  await user().click(within(day(/Friday/)).getByRole('button', { name: 'Add a guest' }));
+  await user().click(within(opts(/Friday/, 'Dinner')).getByRole('button', { name: 'Add a guest' }));
+  await user().click(within(opts(/Friday/, 'Dinner')).getByRole('button', { name: 'Add a guest' }));
   expect(within(day(/Friday/)).getByText(/5.5 portions · 2 guests/)).toBeInTheDocument();
 });
 
@@ -149,7 +162,7 @@ test('tapping a day opens it with its options, and changes show on its tile', as
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Monday');
   const mon = day(/Monday 19 October/);
-  const more = within(mon).getByRole('region', { name: 'More options' });
+  const more = within(opts(/Monday 19 October/, 'Dinner')).getByRole('region', { name: 'More options' });
   for (const name of ['Swap', 'Out tonight', 'Add a guest', 'More portions']) expect(within(more).getByRole('button', { name })).toBeInTheDocument();
   expect(within(mon).queryByRole('button', { name: /Mark cooked|Keep/ })).not.toBeInTheDocument();
   expect(within(mon).queryByText(/Prep tonight/)).not.toBeInTheDocument();
@@ -161,13 +174,13 @@ test('tapping a day opens it with its options, and changes show on its tile', as
 test('portions can be changed in the day', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Tue');
-  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'More portions' }));
+  await user().click(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'More portions' }));
   let saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved[0]).toMatchObject({ date: '2026-10-20', slot: 'dinner', portions: 3.5 });
-  for (let i = 0; i < 8; i++) await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Fewer portions' }));
+  for (let i = 0; i < 8; i++) await user().click(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Fewer portions' }));
   saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved[0].portions).toBe(0.5);
-  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Fewer portions' })).toBeDisabled();
+  expect(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Fewer portions' })).toBeDisabled();
 });
 
 test('Escape closes the day and returns focus to its tile', async () => {
@@ -198,12 +211,11 @@ test('breakfast shows the planned choice and records what you had', async () => 
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Thu');
-  const thu = () => day(/Thursday/);
-  for (const name of ['Overnight oats', 'Baked oats', 'Eggs & porridge']) expect(within(thu()).getByRole('button', { name })).toBeInTheDocument();
-  expect(within(thu()).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'true');
-  await user().click(within(thu()).getByRole('button', { name: 'Eggs & porridge' }));
-  expect(within(thu()).getByRole('button', { name: 'Eggs & porridge' })).toHaveAttribute('aria-pressed', 'true');
-  expect(within(thu()).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'false');
+  for (const name of ['Overnight oats', 'Baked oats', 'Eggs & porridge']) expect(within(opts(/Thursday/, 'Breakfast')).getByRole('button', { name })).toBeInTheDocument();
+  expect(within(opts(/Thursday/, 'Breakfast')).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'true');
+  await user().click(within(opts(/Thursday/, 'Breakfast')).getByRole('button', { name: 'Eggs & porridge' }));
+  expect(within(opts(/Thursday/, 'Breakfast')).getByRole('button', { name: 'Eggs & porridge' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(opts(/Thursday/, 'Breakfast')).getByRole('button', { name: 'Baked oats' })).toHaveAttribute('aria-pressed', 'false');
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved[0]).toMatchObject({ slot: 'breakfast', routine_choice: 'Eggs & porridge' });
 });
@@ -294,12 +306,12 @@ test('a failed save only undoes its own change, and later changes still save', a
     .mockImplementation(async () => {});
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Mon');
-  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Add a guest' }));
+  await user().click(within(opts(/Monday/, 'Dinner')).getByRole('button', { name: 'Add a guest' }));
   await openDay('Tue');
-  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Out tonight' }));
+  await user().click(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Out tonight' }));
   await act(async () => { vi.advanceTimersByTime(200); });
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save that change");
-  expect(within(day(/Tuesday/)).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
+  expect(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Plan a dinner' })).toBeInTheDocument();
   await openDay('Mon');
   expect(within(day(/Monday/)).getByText(/^3(\.0)? portions/)).toBeInTheDocument();
   const last = h.repo.saveSlots.mock.calls.at(-1)![0];
@@ -309,7 +321,7 @@ test('a failed save only undoes its own change, and later changes still save', a
 test('two very quick taps both count and save in order', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Fri');
-  const add = within(day(/Friday/)).getByRole('button', { name: 'Add a guest' });
+  const add = within(opts(/Friday/, 'Dinner')).getByRole('button', { name: 'Add a guest' });
   act(() => { fireEvent.click(add); fireEvent.click(add); });
   expect(within(day(/Friday/)).getByText(/2 guests/)).toBeInTheDocument();
   await act(async () => { vi.advanceTimersByTime(50); });
@@ -361,6 +373,46 @@ describe('Cookidoo on the week tile', () => {
   });
 });
 
+describe('one photo per meal', () => {
+  test('dinner comes first, then lunch and breakfast, each one photo with no option rows showing', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    const tue = day(/Tuesday/);
+    const cards = [...within(tue).getAllByLabelText(/^(Dinner|Lunch|Breakfast):/)].map((b) => b.getAttribute('aria-label')!.split(':')[0]);
+    expect(cards).toEqual(['Dinner', 'Lunch', 'Breakfast']);
+    expect(within(tue).queryByRole('group', { name: 'Lunch options' })).not.toBeInTheDocument();
+    expect(within(tue).queryByRole('button', { name: 'Swap' })).not.toBeInTheDocument();
+    expect(within(mealCard(tue, 'Dinner'))).toBeTruthy();
+    expect(within(mealCard(tue, 'Dinner')).getByText('Hold for options')).toBeInTheDocument();
+    expect(within(mealCard(tue, 'Breakfast')).getByText('Hold for options')).toBeInTheDocument();
+  });
+
+  test('holding the dinner photo opens its options; tapping it opens the recipe', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    const card = within(day(/Tuesday/)).getByRole('link', { name: /^Dinner:/ });
+    expect(card).toHaveAttribute('href', '/recipes/r-salmon');
+    fireEvent.pointerDown(card, { clientX: 10, clientY: 10 });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    fireEvent.pointerUp(card);
+    const opts = within(day(/Tuesday/)).getByRole('dialog', { name: 'Dinner options' });
+    expect(within(opts).getByRole('button', { name: 'Swap' })).toBeInTheDocument();
+    expect(within(opts).getByRole('button', { name: 'Out tonight' })).toBeInTheDocument();
+    await user().click(within(opts).getByRole('button', { name: 'Done' }));
+    expect(within(day(/Tuesday/)).queryByRole('dialog', { name: 'Dinner options' })).not.toBeInTheDocument();
+  });
+
+  test('holding breakfast (or right-clicking) opens its choices, and the photo follows the pick', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Thu');
+    fireEvent.contextMenu(mealCard(day(/Thursday/), 'Breakfast'));
+    const opts = within(day(/Thursday/)).getByRole('dialog', { name: 'Breakfast options' });
+    await user().click(within(opts).getByRole('button', { name: 'Eggs & porridge' }));
+    await user().click(within(opts).getByRole('button', { name: 'Done' }));
+    expect(mealCard(day(/Thursday/), 'Breakfast')).toHaveAttribute('aria-label', 'Breakfast: Eggs & porridge');
+  });
+});
+
 describe('the day pop-up', () => {
   test('each meal shows its photo, or a placeholder while there is none', async () => {
     h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...SALMON, hero_image_path: 'h1/hero/salmon.jpg' }, PENNE, CHOW, BEEF, COD, CURRY,
@@ -381,11 +433,10 @@ describe('the day pop-up', () => {
     h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, { ...BEEF, reheats_well: true }, COD, CURRY]);
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
-    const thu = () => day(/Thursday/);
-    const leftover = within(thu()).getByRole('button', { name: /Leftover Soy & Ginger Beef/ });
+    const leftover = within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: /Leftover Soy & Ginger Beef/ });
     expect(leftover).toHaveAttribute('aria-pressed', 'true');
-    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
-    expect(within(thu()).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' }));
+    expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: /Chicken sandwich/ })).toHaveAttribute('aria-pressed', 'true');
     const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
     expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Chicken sandwich' });
   });
@@ -393,13 +444,12 @@ describe('the day pop-up', () => {
   test('a home lunch offers a Sandwich card and a Poke bowl card, chicken sandwich first, and saves the pick', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
-    const thu = () => day(/Thursday/);
-    expect(within(thu()).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
-    expect(within(thu()).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
-    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
-    expect(within(thu()).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
-    await user().click(within(thu()).getByRole('button', { name: 'Poke bowl' }));
-    expect(within(thu()).getByRole('button', { name: 'Poke bowl' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(opts(/Thursday/, 'Lunch')).queryByRole('button', { name: /Leftover/ })).not.toBeInTheDocument();
+    expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' }));
+    expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Chicken sandwich' })).toHaveAttribute('aria-pressed', 'true');
+    await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Poke bowl' }));
+    expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Poke bowl' })).toHaveAttribute('aria-pressed', 'true');
     expect(h.repo.saveSlots.mock.calls.at(-1)![0][0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', routine_choice: 'Tuna poke bowl' });
     await user().keyboard('{Escape}');
     expect(within(await tile('Thursday 22')).getByText('Tuna poke bowl')).toBeInTheDocument();
@@ -479,7 +529,7 @@ describe('review fixes', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     expect(within(await tile('Thursday 22')).getByText('Leftovers')).toBeInTheDocument();
     await openDay('Wed');
-    await user().click(within(day(/Wednesday/)).getByRole('button', { name: 'Out tonight' }));
+    await user().click(within(opts(/Wednesday/, 'Dinner')).getByRole('button', { name: 'Out tonight' }));
     await user().keyboard('{Escape}');
     expect(within(await tile('Thursday 22')).getByText('Chicken sandwich')).toBeInTheDocument();
     await openDay('Thu');
@@ -492,7 +542,7 @@ describe('review fixes', () => {
     h.repo.saveSlots.mockImplementationOnce(() => new Promise((_r, reject) => setTimeout(() => reject(new Error('offline')), 50)));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    await user().click(within(day(/Monday/)).getByRole('button', { name: 'Add a guest' }));
+    await user().click(within(opts(/Monday/, 'Dinner')).getByRole('button', { name: 'Add a guest' }));
     await user().keyboard('{Escape}');
     await user().click(screen.getByRole('tab', { name: 'This week' }));
     await act(async () => { vi.advanceTimersByTime(200); });
@@ -503,11 +553,11 @@ describe('review fixes', () => {
   test('the swap screen takes focus, and gives it back when closed', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Tue');
-    const swap = within(day(/Tuesday/)).getByRole('button', { name: 'Swap' });
+    const swap = within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Swap' });
     await user().click(swap);
     expect(screen.getByRole('button', { name: 'Choose' })).toHaveFocus();
     await user().keyboard('{Escape}');
-    expect(within(day(/Tuesday/)).getByRole('button', { name: 'Swap' })).toHaveFocus();
+    expect(mealCard(day(/Tuesday/), 'Dinner')).toHaveFocus();
   });
 });
 
@@ -547,8 +597,7 @@ describe('breakfast and lunch options', () => {
     weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
     breakfasts, lunches: lunches ?? ['Chicken sandwich', 'Egg sandwich'],
   });
-  const thu = () => day(/Thursday/);
-  const breakfastRow = () => within(thu()).getByRole('group', { name: 'Breakfast options' });
+  const breakfastRow = () => within(opts(/Thursday/, 'Breakfast')).getByRole('group', { name: 'Breakfast options' });
 
   test('breakfast is a row of photo cards from your own list', async () => {
     withOptions(['Overnight oats', 'Banana pancakes']);
@@ -611,7 +660,7 @@ describe('breakfast and lunch options', () => {
     fireEvent.contextMenu(within(breakfastRow()).getByRole('button', { name: 'Overnight oats' }));
     expect(screen.getByRole('alertdialog', { name: "Can't remove Overnight oats" })).toBeInTheDocument();
     await user().click(screen.getByRole('button', { name: 'OK' }));
-    const lunchRow = within(thu()).getByRole('group', { name: 'Lunch options' });
+    const lunchRow = within(opts(/Thursday/, 'Lunch')).getByRole('group', { name: 'Lunch options' });
     await user().click(within(lunchRow).getByRole('button', { name: 'Sandwich' }));
     fireEvent.contextMenu(within(lunchRow).getByRole('button', { name: 'Egg sandwich' }));
     await user().click(within(screen.getByRole('alertdialog', { name: 'Remove Egg sandwich?' })).getByRole('button', { name: 'Remove' }));
@@ -628,13 +677,12 @@ test('a day tile marks breakfast, lunch and dinner with three different colours'
 
 
 describe('sandwiches', () => {
-  const thu = () => day(/Thursday/);
   beforeEach(() => { h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, { ...BEEF, reheats_well: true }, COD, CURRY]); });
 
   test('the sandwiches are one card; choosing it lists the fillings to pick from', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
-    const row = within(thu()).getByRole('group', { name: 'Lunch options' });
+    const row = within(opts(/Thursday/, 'Lunch')).getByRole('group', { name: 'Lunch options' });
     expect(within(row).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: 'Egg sandwich' })).not.toBeInTheDocument();
     await user().click(within(row).getByRole('button', { name: 'Sandwich' }));
@@ -653,8 +701,8 @@ describe('sandwiches', () => {
   test('a new filling is added as a sandwich', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Thu');
-    await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
-    await user().click(within(thu()).getByRole('button', { name: /Add a filling/ }));
+    await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' }));
+    await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: /Add a filling/ }));
     const form = screen.getByRole('dialog', { name: 'Add a filling' });
     await user().type(within(form).getByRole('textbox', { name: 'Name' }), 'Halloumi');
     await user().click(within(form).getByRole('button', { name: 'Add' }));
@@ -671,9 +719,9 @@ test('the Poke bowl card suggests the one you have had least this week', async (
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Thu');
-  await user().click(within(day(/Thursday/)).getByRole('button', { name: 'Poke bowl' }));
+  await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Poke bowl' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-22' && s.slot === 'lunch')).toMatchObject({ routine_choice: 'Chicken poke bowl' });
-  expect(within(day(/Thursday/)).getByRole('button', { name: 'Chicken poke bowl' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Chicken poke bowl' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test("a dinner that is also tomorrow's lunch says so in the day", async () => {
@@ -690,7 +738,7 @@ describe('batch and freeze', () => {
   test('with nothing frozen, a batch dinner offers to make extra and freeze it', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    const make = within(day(/Monday/)).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' });
+    const make = within(opts(/Monday/, 'Dinner')).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' });
     expect(make).toHaveAttribute('aria-checked', 'false');
     await user().click(make);
     expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'make' });
@@ -700,7 +748,7 @@ describe('batch and freeze', () => {
     h.repo.listPrepared.mockResolvedValue(frozen(2));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    await user().click(within(day(/Monday/)).getByRole('switch', { name: 'Use honey chilli sauce from the freezer (2 left)' }));
+    await user().click(within(opts(/Monday/, 'Dinner')).getByRole('switch', { name: 'Use honey chilli sauce from the freezer (2 left)' }));
     expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ batch: 'frozen' });
   });
 
@@ -713,10 +761,10 @@ describe('batch and freeze', () => {
       : { week: null, slots: [] }));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    expect(within(day(/Monday/)).getByRole('switch', { name: /^Use honey chilli sauce from the freezer/ })).toHaveAttribute('aria-checked', 'true');
+    expect(within(opts(/Monday/, 'Dinner')).getByRole('switch', { name: /^Use honey chilli sauce from the freezer/ })).toHaveAttribute('aria-checked', 'true');
     await openDay('Thu');
-    expect(within(day(/Thursday/)).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' })).toBeInTheDocument();
-    expect(within(day(/Thursday/)).queryByRole('switch', { name: /^Use / })).not.toBeInTheDocument();
+    expect(within(opts(/Thursday/, 'Dinner')).getByRole('switch', { name: 'Make 4× the honey chilli sauce and freeze 3' })).toBeInTheDocument();
+    expect(within(opts(/Thursday/, 'Dinner')).queryByRole('switch', { name: /^Use / })).not.toBeInTheDocument();
   });
 });
 
@@ -740,7 +788,7 @@ test("changing a frozen-batch dinner (out tonight, swap) drops its batch plan, s
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Mon');
-  await user().click(within(day(/Monday/)).getByRole('button', { name: 'Out tonight' }));
+  await user().click(within(opts(/Monday/, 'Dinner')).getByRole('button', { name: 'Out tonight' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-19' && s.slot === 'dinner')).toMatchObject({ mode: 'out', batch: null });
 });
 
@@ -820,7 +868,7 @@ test('a roast dinner says so on its tile and opens the builder with that combina
   render(<WeekView />, { wrapper: MemoryRouter });
   expect(within(await tile('Sunday 25')).getByText('Roast · beef')).toBeInTheDocument();
   await openDay('Sun');
-  const link = within(day(/Sunday/)).getByRole('link', { name: /Sunday roast · beef · 6 people · 13:30/ });
+  const link = within(day(/Sunday/)).getByRole('link', { name: /^Dinner: Sunday roast · beef · 6 people · 13:30/ });
   expect(link).toHaveAttribute('href', '/recipes/roast?main=beef&sides=goose-fat-roasties%2Croast-gravy&people=6&serve=13%3A30');
 });
 
@@ -831,33 +879,32 @@ test('changing a roast dinner (out tonight, swap) drops the roast, so its sides 
     : { week: null, slots: [] }));
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Sat');
-  await user().click(within(day(/Saturday/)).getByRole('button', { name: 'Out tonight' }));
+  await user().click(within(opts(/Saturday/, 'Dinner')).getByRole('button', { name: 'Out tonight' }));
   expect(h.repo.saveSlots.mock.calls.at(-1)![0].find((s) => s.date === '2026-10-24' && s.slot === 'dinner')).toMatchObject({ mode: 'out', roast: null });
 });
 
 test('a dinner can trade places with another day', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Tue');
-  await user().click(within(day(/Tuesday/)).getByRole('button', { name: 'Move to another day' }));
-  const pick = within(day(/Tuesday/)).getByRole('group', { name: 'Swap with' });
+  await user().click(within(opts(/Tuesday/, 'Dinner')).getByRole('button', { name: 'Move to another day' }));
+  const pick = within(opts(/Tuesday/, 'Dinner')).getByRole('group', { name: 'Swap with' });
   await user().click(within(pick).getByRole('button', { name: /Wednesday.*Soy & Ginger Beef/ }));
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved.find((s) => s.date === '2026-10-20' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-beef', locked: true });
   expect(saved.find((s) => s.date === '2026-10-21' && s.slot === 'dinner')).toMatchObject({ recipe_id: 'r-salmon', locked: true });
-  expect(within(day(/Tuesday/)).getByRole('link', { name: /Soy & Ginger Beef/ })).toBeInTheDocument();
+  expect(within(day(/Tuesday/)).getByRole('link', { name: /^Dinner: Soy & Ginger Beef/ })).toBeInTheDocument();
 });
 
 test('the fillings stay folded away until you tap the card, even when a sandwich is picked', async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Thu');
-  const thu = () => day(/Thursday/);
-  expect(within(thu()).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
-  expect(within(thu()).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
-  await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
-  expect(within(thu()).getByRole('group', { name: 'Sandwich fillings' })).toBeInTheDocument();
+  expect(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(opts(/Thursday/, 'Lunch')).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+  await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' }));
+  expect(within(opts(/Thursday/, 'Lunch')).getByRole('group', { name: 'Sandwich fillings' })).toBeInTheDocument();
   expect(h.repo.saveSlots).not.toHaveBeenCalled();
-  await user().click(within(thu()).getByRole('button', { name: 'Sandwich' }));
-  expect(within(thu()).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
+  await user().click(within(opts(/Thursday/, 'Lunch')).getByRole('button', { name: 'Sandwich' }));
+  expect(within(opts(/Thursday/, 'Lunch')).queryByRole('group', { name: 'Sandwich fillings' })).not.toBeInTheDocument();
 });
 
 describe('the approved pop-up', () => {
