@@ -7,6 +7,7 @@ import WeekView from './screens/week/WeekView';
 import ShopList from './screens/shop/ShopList';
 import RecipeEditor from './screens/recipes/RecipeEditor';
 import Pantry from './screens/pantry/Pantry';
+import OtherShops from './screens/settings/OtherShops';
 import PlanningRules from './screens/settings/PlanningRules';
 import RoastBuilder from './screens/recipes/RoastBuilder';
 import StartFresh from './screens/settings/StartFresh';
@@ -63,6 +64,7 @@ export function AppRoutes() {
         <Route path="kitchen" element={<Kitchen />} />
         <Route path="rules" element={<HouseRules />} />
         <Route path="planning" element={<PlanningRules />} />
+        <Route path="shops" element={<OtherShops />} />
         <Route path="fresh" element={<StartFresh />} />
         <Route path="shopping" element={<Shopping />} />
         <Route path="staples" element={<Staples />} />

@@ -35,6 +35,8 @@ request itself. Claude chooses the **dinners**; the built-in planner then fills 
 4. **Plan the dinners**, in this order of priority (the Planner specifications page):
    1. Meal specifications and the private rules: every dinner meets them.
    2. The household's note, and the day rules (a fish dinner on Thursday).
+      Other shops (`otherShops`, set in Settings → Fishmonger & farm shop): on a shop's day, choose a dinner
+      built on what it sells (Thursday's fish from what the fishmonger has); a some-weeks shop only when it's on.
    3. Protein balance (`proteinBalance`), never the same protein two nights running.
    4. Time: Monday to Friday within `weekdayDinnerMaxMinutes`, office days within `officeDayMaxMinutes`; weekends free.
    5. Flavour variety: no two dinners in a row from the same cuisine, at most two of one cuisine a week, no flavour
