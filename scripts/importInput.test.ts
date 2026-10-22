@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
-import { parseImport, parseImportFailed, parseRework, parseReworkFailed } from './importInput';
+import { parseImport, parseImportFailed, parseRework, parseReworkFailed, vttToText, youTubeId } from './importInput';
 
 const example = JSON.parse(readFileSync('seed/recipes.example.json', 'utf8')).recipes[0];
 
@@ -44,5 +44,23 @@ describe('parseRework', () => {
 describe('parseReworkFailed', () => {
   it('reads the rework id and why', () => {
     expect(parseReworkFailed('{"rework":"w1","summary":"The request was unclear."}')).toEqual({ rework: 'w1', summary: 'The request was unclear.' });
+  });
+});
+
+describe('YouTube links', () => {
+  it('finds the video id in the usual link shapes, and nothing else', () => {
+    expect(youTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s')).toBe('dQw4w9WgXcQ');
+    expect(youTubeId('https://youtu.be/dQw4w9WgXcQ?si=abc')).toBe('dQw4w9WgXcQ');
+    expect(youTubeId('https://m.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(youTubeId('https://www.bbcgoodfood.com/recipes/x')).toBeNull();
+    expect(youTubeId('https://youtube.com.evil.test/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(youTubeId('https://www.youtube.com/watch?v=bad;rm -rf')).toBeNull();
+  });
+  it('turns subtitles into plain text, without timings, tags or the repeats auto-captions have', () => {
+    const vtt = ['WEBVTT', 'Kind: captions', 'Language: en', '',
+      '00:00:01.000 --> 00:00:03.000 align:start position:0%', 'so<00:00:01.500><c> first</c> fry the onions', '',
+      '00:00:03.000 --> 00:00:05.000', 'so first fry the onions', 'then add 2 tbsp of tomato paste &amp; stir', '',
+      '00:00:05.000 --> 00:00:06.000', 'then add 2 tbsp of tomato paste &amp; stir'].join('\n');
+    expect(vttToText(vtt)).toBe('so first fry the onions then add 2 tbsp of tomato paste & stir');
   });
 });

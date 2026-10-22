@@ -63,6 +63,7 @@ export default function AddRecipe({ householdId }: { householdId: string }) {
             <input type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…"
               className="rounded-lg border border-line bg-bg px-3 py-2 text-base font-normal" />
           </label>
+          <p className="-mt-1 m-0 text-xs text-muted">A recipe page, or a YouTube video (Claude reads its description, then its subtitles).</p>
           <label className="grid gap-1 text-sm font-semibold">
             Anything to change? (optional)
             <input type="text" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. no mushrooms, make it milder"

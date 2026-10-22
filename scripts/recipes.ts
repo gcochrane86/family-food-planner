@@ -9,9 +9,14 @@
 //   npx tsx scripts/recipes.ts context --household <id>          members, equipment, house rules and existing recipes
 //   npx tsx scripts/recipes.ts add --import <id> < recipe.json   {"recipe": {seed format}, "summary": "..."}
 //   npx tsx scripts/recipes.ts failed < failed.json              {"import": "<id>", "summary": "why"}
+//   npx tsx scripts/recipes.ts youtube --import <id>            a YouTube link's subtitles as plain text (needs yt-dlp)
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { MEAL_SPEC } from '../src/lib/mealSpec';
-import { parseImport, parseImportFailed, parseRework, parseReworkFailed } from './importInput';
+import { execFile } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { parseImport, parseImportFailed, parseRework, parseReworkFailed, vttToText, youTubeId } from './importInput';
 // @ts-expect-error plain JS helper
 import { contentRows, recipeRow, seedFromDetail } from './recipeSeed.mjs';
 
@@ -155,7 +160,40 @@ async function reworkFailed() {
   console.log(`Rework ${f.rework} marked failed.`);
 }
 
+/** Where yt-dlp is: YTDLP in the environment, the household's own install, or on the PATH. */
+function ytDlp(): string {
+  const own = join(homedir(), '.local/share/ffp-yt-dlp/bin/yt-dlp');
+  try { readFileSync(own); return process.env.YTDLP ?? own; } catch { return process.env.YTDLP ?? 'yt-dlp'; }
+}
+
+/** A claimed YouTube import's subtitles, as plain text on stdout. The link is rebuilt from the checked video id, and
+ *  yt-dlp runs without a shell, fetching subtitles only (never the video). */
+async function youtube() {
+  const id = arg('import') ?? fail('--import is required');
+  const imp = must<{ url: string; status: string } | null>(await db.from('recipe_imports').select('url, status').eq('id', id).maybeSingle(), 'Finding the link')
+    ?? fail(`No link with ID ${id}.`);
+  if (imp.status !== 'importing') fail(`That link is ${imp.status}, not importing. Claim it first.`);
+  const video = youTubeId(imp.url) ?? fail('That link is not a YouTube video.');
+  const dir = mkdtempSync(join(tmpdir(), 'ffp-yt-'));
+  try {
+    await new Promise<void>((done, reject) => execFile(ytDlp(), [
+      '--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', 'en.*,en', '--sub-format', 'vtt',
+      '--no-playlist', '-o', join(dir, '%(id)s.%(ext)s'), `https://www.youtube.com/watch?v=${video}`,
+    ], { timeout: 120_000 }, (err) => (err ? reject(err) : done())));
+    // Prefer subtitles someone wrote (en) over automatic ones (en-orig, en-…).
+    const files = readdirSync(dir).filter((f) => f.endsWith('.vtt')).sort((a, b) => Number(/\.en\.vtt$/.test(b)) - Number(/\.en\.vtt$/.test(a)));
+    if (!files.length) fail('That video has no English subtitles.');
+    console.log(vttToText(readFileSync(join(dir, files[0]), 'utf8')));
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException;
+    fail(err.code === 'ENOENT' ? 'yt-dlp is not installed on this Mac (see docs/playbooks/recipe-import.md).' : `Reading the subtitles: ${err.message}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const commands: Record<string, () => Promise<void>> = {
+  youtube,
   pending, claim, context, add, failed, 'claim-rework': claimRework, show, rework, 'rework-failed': reworkFailed,
 };
-await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed | claim-rework | show | rework | rework-failed')))();
+await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed | youtube | claim-rework | show | rework | rework-failed')))();
