@@ -94,3 +94,28 @@ export function groupIngredients(list: RecipeIngredient[]): { group: string; ite
   }
   return groups;
 }
+
+const MADE = new Set(['sauce', 'glaze', 'dressing', 'marinade', 'paste', 'mixture', 'mix', 'batter', 'filling', 'topping', 'seasoning', 'salad']);
+
+/**
+ * The ingredients a step uses: each **bold** name in its method, matched to the recipe's ingredients, in the order
+ * the step mentions them and once each. A name matches an ingredient whose words include all of its words ("salt"
+ * is "fine sea salt"); when one ingredient has exactly those words, only it counts ("onion" isn't "spring onion").
+ */
+export function stepIngredients<T extends RecipeIngredient>(body: string, ingredients: T[]): T[] {
+  const found: T[] = [];
+  for (const m of body.matchAll(/\*\*([^*]+)\*\*/g)) {
+    let term = words(m[1]);
+    // "The sauce", "the glaze": something the recipe makes, not an ingredient to weigh out.
+    if (!term.length || (term.length === 1 && MADE.has(term[0]))) continue;
+    const match = (t: string[]) => ingredients.filter((i) => { const w = words(i.name); return t.every((x) => w.includes(x)); });
+    let hits = match(term);
+    // "Lemon zest" comes from the lemon.
+    if (!hits.length && term.length > 1 && PARTS.has(term[term.length - 1])) { term = term.slice(0, -1); hits = match(term); }
+    // "Rib-eye" is "ribeye" (only for hyphenated names, so "sauce" never finds "soy sauce").
+    if (!hits.length && m[1].includes('-')) hits = ingredients.filter((i) => words(i.name).join('').includes(term.join('')));
+    const exact = hits.filter((i) => { const w = words(i.name); return w.length === term.length; });
+    for (const i of exact.length ? exact : hits) if (!found.includes(i)) found.push(i);
+  }
+  return found;
+}

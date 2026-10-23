@@ -1,4 +1,4 @@
-import { formatQty, groupIngredients, machineLabel, pantryLabel, scaleFactor, toddlerSaltNote } from './recipes';
+import { formatQty, groupIngredients, machineLabel, pantryLabel, scaleFactor, stepIngredients, toddlerSaltNote } from './recipes';
 import type { RecipeIngredient, Staple } from './types';
 
 describe('formatQty', () => {
@@ -101,4 +101,28 @@ test('groupIngredients keeps recipe order and names ungrouped items "Ingredients
       { group: 'Ingredients', items: [i('salt', null, 2)] },
       { group: 'The carb', items: [i('rice', 'The carb', 3)] },
     ]);
+});
+
+describe('stepIngredients', () => {
+  const ing = (name: string, qty: number | null = 100, unit = 'g') => ({ position: 0, group_name: null, name, qty, unit, note: null, qty_approx: false });
+  const list = [ing('whole chicken', 2000), ing('butter', 30), ing('fine sea salt', 5), ing('onion', 1, ''), ing('spring onion', 4, ''), ing('basmati rice', 400)];
+
+  test("finds the step's bold ingredients, in order, once each", () => {
+    expect(stepIngredients('Rub the **chicken** with **butter**, then more **butter** and the **salt**.', list).map((i) => i.name))
+      .toEqual(['whole chicken', 'butter', 'fine sea salt']);
+  });
+  test('an exact name wins over one that only shares a word', () => {
+    expect(stepIngredients('Soften the **onion**.', list).map((i) => i.name)).toEqual(['onion']);
+    expect(stepIngredients('Scatter the **spring onions**.', list).map((i) => i.name)).toEqual(['spring onion']);
+  });
+  test('zest or juice comes from the fruit, and spelling with or without a hyphen matches', () => {
+    const more = [...list, ing('lemon', 1, ''), ing('ribeye of beef', 2000)];
+    expect(stepIngredients('Add the **lemon zest** and the **lemon juice**.', more).map((i) => i.name)).toEqual(['lemon']);
+    expect(stepIngredients('Season the **rib-eye**.', more).map((i) => i.name)).toEqual(['ribeye of beef']);
+  });
+  test('a step with nothing in bold, or nothing that matches, lists nothing', () => {
+    expect(stepIngredients('Rest for 10 min.', list)).toEqual([]);
+    expect(stepIngredients('Add the **sauce**.', list)).toEqual([]);
+    expect(stepIngredients('Toss with the warm **sauce**.', [...list, ing('soy sauce', 30, 'ml')])).toEqual([]);
+  });
 });

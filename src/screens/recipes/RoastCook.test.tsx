@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -19,8 +19,8 @@ beforeEach(() => {
   h.repo.listRecipes.mockResolvedValue([HONEY, TACOS, ...ROAST_PARTS]);
   h.repo.getRecipe.mockImplementation(async (id: string) => {
     const r = ROAST_PARTS.find((p) => p.id === id)!;
-    return { ...r, ingredients: [], steps: id === 'r-roast-ribeye'
-      ? [{ id: 's1', recipe_id: id, phase: 'finish', position: 1, at_minute: 0, title: 'Roast', body: 'Roast until the MEATER reads your target.', machine: 'oven', settings: null, timer_minutes: 70, image_path: null }]
+    return { ...r, ingredients: [{ position: 1, group_name: null, name: 'rib-eye of beef', qty: 1500, unit: 'g', note: 'boneless', qty_approx: false }], steps: id === 'r-roast-ribeye'
+      ? [{ id: 's1', recipe_id: id, phase: 'finish', position: 1, at_minute: 0, title: 'Roast', body: 'Roast the **rib-eye** until the MEATER reads your target.', machine: 'oven', settings: null, timer_minutes: 70, image_path: null }]
       : [] } as unknown as RecipeDetail;
   });
 });
@@ -42,7 +42,9 @@ test('goes through the plan one step at a time, in time order, with what to do',
   expect(step).toHaveTextContent('11:50');
   expect(step).toHaveTextContent('Roast Rib-Eye of Beef: Roast');
   expect(step).toHaveTextContent(/APO · 180°C · to 58°C|Oven 1 · 180°C fan · to 58°C/);
-  expect(step).toHaveTextContent('Roast until the MEATER reads your target.');
+  expect(step).toHaveTextContent('Roast the rib-eye until the MEATER reads your target.');
+  // The part is written for 6; this roast is for 8.
+  expect(within(step).getByRole('list', { name: 'For this step' })).toHaveTextContent('2kgrib-eye of beef · boneless');
   await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('region', { name: /^Step 2 of/ })).toHaveTextContent('Rest');
   await user().click(screen.getByRole('button', { name: 'Back' }));

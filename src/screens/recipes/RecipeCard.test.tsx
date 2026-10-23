@@ -83,7 +83,7 @@ test('both phases, machine badges and bold ingredients are shown', async () => {
   expect(within(finish).getAllByText('TM7')[0]).toBeInTheDocument();
   expect(within(finish).getByText('20 min · 100°C · speed 4')).toBeInTheDocument();
   expect(within(finish).getByText('rice', { selector: 'b' })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Cook mode' })).toHaveAttribute('href', '/recipes/r-honey/cook');
+  expect(screen.getByRole('link', { name: 'Cook mode' })).toHaveAttribute('href', '/recipes/r-honey/cook?portions=3');
 });
 
 test('the toddler salt note appears when the toddler share is over 0.5g', async () => {

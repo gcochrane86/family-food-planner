@@ -1,6 +1,6 @@
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { resizeImage } from '../../lib/image';
@@ -14,6 +14,7 @@ import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
 import { useTimers } from '../../lib/cookTimers';
+import StepUses from './StepUses';
 
 export default function CookMode() {
   const { id = '' } = useParams();
@@ -32,6 +33,9 @@ export default function CookMode() {
   const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
   const close = () => navigate(`/recipes/${id}`);
+  // The portions picked on the recipe page, so each step's amounts match the ingredients list.
+  const [params] = useSearchParams();
+  const portions = Number(params.get('portions'));
   const shell = 'fixed inset-0 z-50 flex flex-col bg-lcd text-[#EEF3EF]';
   const pad = {
     paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
@@ -175,6 +179,7 @@ export default function CookMode() {
               </div>
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
+            <StepUses body={step.body} ingredients={recipe.ingredients} factor={portions > 0 ? portions / recipe.base_portions : 1} />
             {step.timer_minutes ? (() => {
               const key = `${step.phase}-${step.id ?? index}`;
               const running = timers.find((t) => t.key === key);

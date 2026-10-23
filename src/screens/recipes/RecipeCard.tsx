@@ -224,7 +224,7 @@ export default function RecipeCard() {
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (
-            <Link to={`/recipes/${recipe.id}/cook`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
+            <Link to={`/recipes/${recipe.id}/cook?portions=${target}`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
           )}
         </div>
       </div>

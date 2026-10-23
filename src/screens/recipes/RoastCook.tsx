@@ -7,11 +7,12 @@ import { repo } from '../../lib/repo';
 import { planRoast, type RoastPartRecipe } from '../../lib/roast';
 import { choiceFromQuery, parseRoastPart, roastQuery } from '../../lib/roastModel';
 import { remaining } from '../../lib/timer';
-import type { Recipe, RecipeStep } from '../../lib/types';
+import type { Recipe, RecipeDetail, RecipeStep } from '../../lib/types';
 import { useWakeLock } from '../../lib/wakeLock';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import { StepText } from './MachineBadge';
+import StepUses from './StepUses';
 
 const CHRISTMAS_PHASE: Record<string, string> = {
   'Two days before': '23 December', 'Day before': 'Christmas Eve', 'Morning prep': 'Christmas morning', 'Out and about': 'Late morning',
@@ -35,7 +36,8 @@ export default function RoastCook() {
     const details = await Promise.all(used.map((id) => repo.getRecipe(id).catch(() => null)));
     const how = new Map<string, RecipeStep>();
     for (const d of details) for (const st of d?.steps ?? []) how.set(`${d!.id}|${st.title.toLowerCase()}`, st);
-    return { parts, plan, how };
+    const detail = new Map(details.filter((d): d is RecipeDetail => !!d).map((d) => [d.id, d]));
+    return { parts, plan, how, detail };
   }, [hid, choice, prepAt]);
   const steps = useMemo(() => data?.plan?.phases.flatMap((ph) => ph.steps) ?? [], [data]);
   const key = `roast-cook:${params.toString()}`;
@@ -85,6 +87,11 @@ export default function RoastCook() {
               <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{label}</h1>
               {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}{step.trays ? ` · ${step.trays} shel${step.trays === 1 ? 'f' : 'ves'}` : ''}</span>}
               {how?.body && <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={how.body} /></p>}
+              {how?.body && (() => {
+                // Each part is written for its own portions; the roast is for `people`.
+                const d = data!.detail.get(step.recipeId);
+                return d && choice ? <StepUses body={how.body} ingredients={d.ingredients} factor={choice.people / d.base_portions} /> : null;
+              })()}
               {step.minutes >= 2 && (running ? (
                 <span aria-hidden="true" className="font-mono text-5xl tabular-nums">{running.done ? 'Done' : remaining(running.endAt, now)}</span>
               ) : (

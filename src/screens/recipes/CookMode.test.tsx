@@ -13,9 +13,9 @@ vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../.
 beforeEach(() => { h.repo = fakeRepo(); sessionStorage.clear(); localStorage.setItem('ffp.prepAhead', 'on'); });
 afterEach(() => { vi.useRealTimers(); });
 
-function open() {
+function open(query = '') {
   return render(
-    <MemoryRouter initialEntries={['/recipes/r-honey/cook']}>
+    <MemoryRouter initialEntries={[`/recipes/r-honey/cook${query}`]}>
       <Routes>
         <Route path="/recipes/:id/cook" element={<CookMode />} />
         <Route path="/recipes/:id" element={<h1>Recipe card</h1>} />
@@ -190,4 +190,19 @@ test('with prep ahead off, cook mode walks every step in order, and the switch s
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
   await userEvent.click(screen.getByRole('switch', { name: 'Prep ahead' }));
   expect(screen.getByRole('tab', { name: 'On the night' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test("each step lists what it uses, scaled to the portions you picked on the recipe", async () => {
+  open('?portions=3');
+  await screen.findByRole('heading', { name: 'Rice on' });
+  const uses = screen.getByRole('list', { name: 'For this step' });
+  expect(within(uses).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['200gbasmati rice']);
+  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.queryByRole('list', { name: 'For this step' })).not.toBeInTheDocument();
+});
+
+test('without portions it uses the recipe as written', async () => {
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(within(screen.getByRole('list', { name: 'For this step' })).getByRole('listitem')).toHaveTextContent('400gbasmati rice');
 });
