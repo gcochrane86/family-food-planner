@@ -177,9 +177,13 @@ async function youtube() {
   const dir = mkdtempSync(join(tmpdir(), 'ffp-yt-'));
   try {
     await new Promise<void>((done, reject) => execFile(ytDlp(), [
-      '--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', 'en.*,en', '--sub-format', 'vtt',
+      // English as written or spoken only: "en.*" also asks for YouTube's machine translations, which it rate-limits.
+      '--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', 'en,en-GB,en-US,en-orig', '--sub-format', 'vtt',
       '--no-playlist', '-o', join(dir, '%(id)s.%(ext)s'), `https://www.youtube.com/watch?v=${video}`,
-    ], { timeout: 120_000 }, (err) => (err ? reject(err) : done())));
+    ], { timeout: 120_000 }, (err) => {
+      // A failure after some subtitles arrived (one track refused) still leaves something to read.
+      if (err && !readdirSync(dir).some((f) => f.endsWith('.vtt'))) reject(err); else done();
+    }));
     // Prefer subtitles someone wrote (en) over automatic ones (en-orig, en-…).
     const files = readdirSync(dir).filter((f) => f.endsWith('.vtt')).sort((a, b) => Number(/\.en\.vtt$/.test(b)) - Number(/\.en\.vtt$/.test(a)));
     if (!files.length) fail('That video has no English subtitles.');
