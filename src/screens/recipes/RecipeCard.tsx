@@ -16,6 +16,7 @@ import RecipeMenu from './RecipeMenu';
 import { parseBatch } from '../../lib/batch';
 import ReworkRecipe from './ReworkRecipe';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
+import StoredPhoto from '../../components/StoredPhoto';
 
 /** The original page's host for a web recipe, or null when there's no usable http(s) link. */
 function linkHost(url: string | null | undefined): string | null {
@@ -66,7 +67,7 @@ function Steps({ steps, label, minutes, timeline, markAhead, batch }: {
               )}
             </div>
             {s.image_path && (
-              <img src={repo.heroUrl(s.image_path, PHOTO_LARGE)} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
+              <StoredPhoto path={s.image_path} width={PHOTO_LARGE} alt={`Step ${i + 1}: ${s.title}`} loading="lazy" className="aspect-[4/3] w-full rounded-xl object-cover" />
             )}
           </li>
         ))}

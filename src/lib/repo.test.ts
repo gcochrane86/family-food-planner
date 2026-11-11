@@ -85,7 +85,10 @@ test('a roast on a day the week does not plan (Sunday of a 5-day week) adds that
   })]);
 });
 
-test("photos load as stored: Supabase's resizing isn't on this project, so a size never asks for it", () => {
-  expect(repo.heroUrl('h1/hero/a.jpg', 600)).toBe('object/h1/hero/a.jpg');
+test('cards load the small copy we store beside each photo; large views and no size load the original', () => {
+  expect(repo.heroUrl('h1/hero/a.jpg', 600)).toBe('object/h1/hero/a-sm.jpg');
+  expect(repo.heroUrl('h1/hero/a.jpg', 300)).toBe('object/h1/hero/a-sm.jpg');
+  expect(repo.heroUrl('h1/hero/a.jpg', 1200)).toBe('object/h1/hero/a-sm.jpg');
+  expect(repo.heroUrl('h1/hero/a.jpg', 2000)).toBe('object/h1/hero/a.jpg');
   expect(repo.heroUrl('h1/hero/a.jpg')).toBe('object/h1/hero/a.jpg');
 });

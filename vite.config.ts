@@ -19,9 +19,10 @@ export default defineConfig({
             urlPattern: /\/storage\/v1\/(object|render\/image)\/public\/recipe-images\//,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'recipe-images-v2', // v2: the old cache may hold refused resize answers (11 Nov 2026)
+              // v3 (11 Nov 2026): photos load with CORS, so only real photos (200) are kept, never a missing small copy.
+              cacheName: 'recipe-images-v3',
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
+              cacheableResponse: { statuses: [200] },
             },
           },
           {

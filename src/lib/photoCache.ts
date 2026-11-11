@@ -2,7 +2,7 @@
 // keeps a photo once it has been shown; this fetches the rest in the background, a few at a time.
 
 /** The service worker's photo store (vite.config.ts, runtimeCaching), which it reads before the network. */
-export const PHOTO_CACHE = 'recipe-images-v2';
+export const PHOTO_CACHE = 'recipe-images-v3';
 
 /** Downloads the photos not already on the device into the photo store. Returns how many it added. */
 export async function keepPhotos(urls: string[], concurrency = 3): Promise<number> {
@@ -14,9 +14,9 @@ export async function keepPhotos(urls: string[], concurrency = 3): Promise<numbe
   const worker = async () => {
     for (let u = todo.shift(); u; u = todo.shift()) {
       try {
-        // An <img> asks without CORS, so store the same (opaque) answer the service worker would.
-        const res = await fetch(u, { mode: 'no-cors' });
-        if (res.type === 'opaque' || res.ok) { await cache.put(u, res); added++; }
+        // Photos load with CORS (StoredPhoto), so a missing small copy shows as missing and is never kept.
+        const res = await fetch(u, { mode: 'cors' });
+        if (res.ok) { await cache.put(u, res); added++; }
       } catch { /* offline or refused: it loads normally when shown */ }
     }
   };

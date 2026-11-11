@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { PHOTO_SMALL } from '../../lib/photoSizes';
-import { repo } from '../../lib/repo';
+import StoredPhoto from '../../components/StoredPhoto';
 import type { Recipe } from '../../lib/types';
 
 const TONES = ['bg-yolk-soft', 'bg-teal-soft', 'bg-accent-soft', 'bg-evening-soft', 'bg-warn-soft'];
@@ -14,8 +14,8 @@ export default function HeroImage({ recipe, className = '', width = PHOTO_SMALL 
   return (
     <div className={`relative grid place-items-center overflow-hidden ${toneFor(recipe.slug)} ${className}`}>
       {showPhoto ? (
-        <img src={repo.heroUrl(recipe.hero_image_path!, width)} alt={recipe.title} loading="lazy"
-          className="h-full w-full object-cover" onError={() => setFailed(true)} />
+        <StoredPhoto path={recipe.hero_image_path!} width={width} alt={recipe.title} loading="lazy"
+          className="h-full w-full object-cover" onFail={() => setFailed(true)} />
       ) : (
         <span aria-hidden="true" className="font-display text-4xl font-bold text-ink/40">{initials(recipe.title)}</span>
       )}

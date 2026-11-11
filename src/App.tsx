@@ -24,6 +24,7 @@ import Staples from './screens/settings/Staples';
 import WeekPattern from './screens/settings/WeekPattern';
 import { isTablet, useWakeLock } from './lib/wakeLock';
 import { askToKeepStorage, keepPhotos } from './lib/photoCache';
+import { PHOTO_LARGE } from './lib/photoSizes';
 import { repo } from './lib/repo';
 import { useEffect } from 'react';
 
@@ -40,7 +41,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       void (async () => {
         try {
           await askToKeepStorage();
-          await keepPhotos((await repo.photoPaths(householdId)).map((p) => repo.heroUrl(p)));
+          await keepPhotos((await repo.photoPaths(householdId)).map((p) => repo.heroUrl(p, PHOTO_LARGE)));
         } catch { /* offline: photos still load as they're shown */ }
       })();
     }, 4000);

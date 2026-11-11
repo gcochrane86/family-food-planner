@@ -7,6 +7,10 @@ import type {
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest } from './types';
 import { CANCELLED } from './types';
+import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
+import { resizeImage } from './image';
+
+const madeCopies = new Set<string>();
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
@@ -407,10 +411,24 @@ export const repo = {
     return [...heroes.map((r) => r.hero_image_path), ...steps.map((s) => s.image_path)].filter((p): p is string => !!p);
   },
 
-  /** A photo's link. `width` is the size it shows at; Supabase's image resizing is a paid-plan feature that isn't on
-   *  for this project (it answers "feature not enabled", 11 Nov 2026), so photos load as stored. */
-  heroUrl(path: string, _width?: number): string {
-    return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
+  /** A photo's link: its small copy when it shows at a given `width` (up to 1200px), else the photo as stored.
+   *  (Supabase's own resizing isn't on for this project; see src/lib/photos.ts.) */
+  heroUrl(path: string, width?: number): string {
+    const file = width && width <= COPY_UP_TO ? smallPath(path) : path;
+    return getSupabase().storage.from('recipe-images').getPublicUrl(file).data.publicUrl;
+  },
+
+  /** Makes a photo's small copy from the original, on this device, when it has none yet. Once per photo per visit;
+   *  quietly does nothing if it can't (offline, or the copy already exists). */
+  async makeSmallCopy(path: string): Promise<void> {
+    if (madeCopies.has(path)) return;
+    madeCopies.add(path);
+    try {
+      const res = await fetch(this.heroUrl(path), { mode: 'cors' });
+      if (!res.ok) return;
+      const small = await resizeImage(await res.blob(), SMALL_EDGE, 0.72);
+      await getSupabase().storage.from('recipe-images').upload(smallPath(path), small, { upsert: false, contentType: 'image/jpeg' });
+    } catch { /* it loads the original meanwhile */ }
   },
 
   /** Saves a photo for a step (replacing any earlier one on the card) and returns its storage path. */

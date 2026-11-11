@@ -23,8 +23,8 @@ test('downloads only the photos not already on the device, into the photo store'
 
 test('a photo that fails to download is skipped, and the rest still come', async () => {
   fakeCaches([]);
-  vi.stubGlobal('fetch', vi.fn(async (u: string) => { if (u.endsWith('bad.jpg')) throw new Error('offline'); return new Response('img'); }));
-  expect(await keepPhotos(['https://img/bad.jpg', 'https://img/ok.jpg'])).toBe(1);
+  vi.stubGlobal('fetch', vi.fn(async (u: string) => { if (u.endsWith('bad.jpg')) throw new Error('offline'); return new Response('img', { status: u.endsWith('gone.jpg') ? 404 : 200 }); }));
+  expect(await keepPhotos(['https://img/bad.jpg', 'https://img/gone.jpg', 'https://img/ok.jpg'])).toBe(1);
 });
 
 test('without a photo store (an old browser) it does nothing', async () => {

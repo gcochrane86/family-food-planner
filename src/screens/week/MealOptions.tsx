@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { repo } from '../../lib/repo';
+import StoredPhoto from '../../components/StoredPhoto';
 import type { Recipe } from '../../lib/types';
 import MealPhoto from './MealPhoto';
 
@@ -103,7 +103,7 @@ export default function MealOptions({ label, options, picked, onPick, onAdd, onR
               <button key={o.value} type="button" aria-label={o.name} aria-pressed={on} {...pressProps(o, () => { if (!on) onPick(o.value); })}
                 className="flex select-none items-center gap-3 px-3 py-2 text-left [-webkit-touch-callout:none]">
                 {o.recipe?.hero_image_path
-                  ? <img src={repo.heroUrl(o.recipe.hero_image_path, 300)} alt="" draggable={false} className="h-11 w-14 shrink-0 rounded-lg object-cover" />
+                  ? <StoredPhoto path={o.recipe.hero_image_path} width={300} alt="" draggable={false} className="h-11 w-14 shrink-0 rounded-lg object-cover" />
                   : <span aria-hidden className="h-11 w-14 shrink-0 rounded-lg bg-surface-2" />}
                 <span className="flex-1 font-semibold">{short(o)}</span>
                 <span aria-hidden className={`h-5 w-5 shrink-0 rounded-full ${on ? 'border-[6px] border-accent' : 'border-2 border-line'}`} />
