@@ -24,17 +24,20 @@ Household id: in **Settings → Household** in the app. Never guess it.
    - `run.approved`: if it's `false`, finish as failed with "This week isn't approved" and stop.
    - `send`: recipes to create or edit (only their TM7 steps and those steps' ingredients; recipes with no TM7
      step never appear). Each has `why` (`new` or `changed`), its `url` if it exists, and `text`:
-     `title`, `portions` (whole servings), `ingredients[]` (one line each), and `steps[]` (one step each, TM
-     settings already in Cookidoo notation, prep steps starting "The night before:"). Imported recipes never
-     appear here: their original is the household's own and is never edited.
+     `title`, `portions` (whole servings), `ingredients[]` (one line each), `steps[]` (one step each, TM
+     settings already in Cookidoo notation, prep steps starting "The night before:"), and `stepsHtml[]`: the
+     same steps with the TM settings as Cookidoo's settings chips (see **Settings chips** below). Imported
+     recipes never appear here: their original is the household's own and is never edited.
    - `myWeek.remove` and `myWeek.add`: `{date, recipeId, title, url}`.
 4. For each item in `send`:
    - **`new`:** Created Recipes, then **Create recipe**. Enter the title, the portions exactly as given, device
-     TM7, the ingredients one per line, and the steps one per step. Save. Then record it: write `{"recipeId":
+     TM7, the ingredients one per line, and the steps one per step, then put in the settings chips (below)
+     before saving. Save. Then record it: write `{"recipeId":
      "...", "url": "https://cookidoo.co.uk/created-recipes/en-GB/...", "portions": <text.portions>}` to a file
      and run `npm run -s cookidoo -- record-recipe --household <id> < file`.
    - **`changed`:** open its `url` and **edit that recipe**. Never make a second copy. Replace the portions,
-     ingredients and steps with the new text, save, then run `record-recipe` the same way.
+     ingredients and steps with the new text, put in the settings chips, save, then run `record-recipe` the same
+     way.
    - **The `url` no longer opens** (the household deleted it): create it as `new` instead, record the new URL, and
      say so in the summary.
    - If a recipe can't be saved, stop here and finish as failed. Don't go on to My Week.
@@ -103,8 +106,28 @@ Household id: in **Settings → Household** in the app. Never guess it.
   The My Week page shows 5 days at a time, so check later days with `?date=`.
 - Removing an entry from My Week: use the ⋮ on that entry's card in My Week for that day, and only remove the entry
   whose title matches the one to remove. (Not needed yet as of the first sync.)
-- **TM7 guided cooking:** on the website, a created recipe's steps are stored as plain text ("13 min/100°C/speed 3"
-  wasn't turned into a settings chip). Not yet checked on the TM7 itself whether it offers guided settings for them.
+- **Settings chips (TM7 guided cooking, 11 Nov 2026).** Typed settings ("13 min/100°C/speed 3") stay plain text,
+  so the TM7 can't guide them. Each step field in the editor (`cr-step-text-field cr-text-field`, with an `index`
+  attribute 0, 1, 2…) holds HTML, and a settings chip is a tag in it, exactly as Cookidoo stores the household's
+  own recipes:
+  - `<cr-tts time="300" time-unit="s" temperature="120" temperature-unit="C" speed="1" direction="CCW">…</cr-tts>`
+    (temperature and direction only when there are any; spoon speed is `speed="soft"`; reverse is
+    `direction="CCW"`)
+  - Varoma: `<cr-mode time="1320" time-unit="s" speed="2" direction="CW" name="steaming" accessory="Varoma">…</cr-mode>`
+
+  `stepsHtml` already has them. On the steps page, once every step is typed:
+  1. With the javascript tool, for each step `i`, find the field with `index="i"`, check its text starts like
+     `steps[i]` (stop if not: it's the wrong field), then set its `innerHTML` to `stepsHtml[i]` and dispatch an
+     `input` event (bubbles, composed). The `stepsHtml` text comes from the app, never from the page.
+  2. Read the fields back: each should have as many `cr-tts`/`cr-mode` chips as its `stepsHtml` has. The editor
+     shows them green and underlined.
+  3. **Confirm**: there are two links named Confirm. Click the visible one at the top right (by its screen
+     position, after a screenshot), which goes to the overview. Then **Done**.
+  4. Reopen the steps page and read the chips back. A step with fewer chips than `stepsHtml` means it didn't save:
+     say so in the summary.
+  Tested on the Chickpea & Spinach Curry, 11 Nov 2026: the chips survive a reload and the recipe stays TM7. If
+  this ever stops working (the page changes), save the typed steps as they are and say "settings chips didn't
+  work" in the summary.
 
 ## Start fresh (the household cleared the app)
 Settings → **Start fresh** clears the plans in the app and leaves a request listing the My Week entries Claude had

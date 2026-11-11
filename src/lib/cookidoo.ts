@@ -5,7 +5,55 @@ import { leftoverLunchPortions } from './weekSummary';
 
 const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
 
-export interface CookidooText { title: string; portions: number; ingredients: string[]; steps: string[] }
+export interface CookidooText {
+  title: string; portions: number; ingredients: string[]; steps: string[];
+  stepsHtml: string[]; // the same steps for Cookidoo's step editor, with settings chips the TM7 can guide
+}
+
+const escape = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** One setting ("5 min · 120°C · ↺ speed 1") as Cookidoo's step editor stores it (checked against the household's
+ *  own Cookidoo recipes, 11 Nov 2026): a <cr-tts> chip for time, temperature and speed, a <cr-mode name="steaming">
+ *  chip for Varoma, spoon speed as speed "soft", reverse as direction "CCW". One it can't chip (dough mode,
+ *  butterfly) stays as words. */
+function chip(segment: string): string {
+  const all = segment.split(' · ').map((x) => x.trim()).filter(Boolean);
+  // A note after the settings ("MC off", "basket on lid") stays as words after the chip.
+  const settingWord = (x: string) => /^(↺\s*)?(\d+(\.\d+)?\s*(min|sec)(\s+\d+\s*sec)?|\d+°C|Varoma|speed \d+(\.\d+)?|spoon speed|soft|speed soft)$/.test(x);
+  let cut = all.length;
+  while (cut > 0 && !settingWord(all[cut - 1])) cut--;
+  const split = cut > 0 && cut < all.length && all.slice(0, cut).every(settingWord);
+  const parts = split ? all.slice(0, cut) : all;
+  const note = split ? ` ${escape(all.slice(cut).join(', '))}` : '';
+  const label = parts.join('/').replace(/↺ /g, '↺/');
+  let seconds: number | null = null;
+  let temp: string | null = null;
+  let speed: string | null = null;
+  let varoma = false;
+  const reverse = parts.some((x) => x.includes('↺'));
+  for (const raw of parts) {
+    const x = raw.replace('↺', '').trim();
+    const t = x.match(/^(\d+(?:\.\d+)?)\s*(min|sec)(?:\s+(\d+)\s*sec)?$/);
+    if (t) { seconds = Math.round(Number(t[1]) * (t[2] === 'min' ? 60 : 1) + Number(t[3] ?? 0)); continue; }
+    const c = x.match(/^(\d+)°C$/);
+    if (c) { temp = c[1]; continue; }
+    if (x === 'Varoma') { varoma = true; continue; }
+    const sp = x.match(/^speed (\d+(?:\.\d+)?)$/);
+    if (sp) { speed = sp[1]; continue; }
+    // Spoon speed is Cookidoo's "soft".
+    if (x === 'spoon speed' || x === 'soft' || x === 'speed soft') { speed = 'soft'; continue; }
+    if (!x) continue;
+    return escape(all.join('/').replace(/↺ /g, '↺/')); // something without a chip
+  }
+  if (seconds === null || speed === null) return escape(all.join('/').replace(/↺ /g, '↺/'));
+  if (varoma) return `<cr-mode time="${seconds}" time-unit="s" speed="${speed}" direction="${reverse ? 'CCW' : 'CW'}" name="steaming" accessory="Varoma">${escape(label)}</cr-mode>${note}`;
+  return `<cr-tts time="${seconds}" time-unit="s"${temp ? ` temperature="${temp}" temperature-unit="C"` : ''} speed="${speed}"${reverse ? ' direction="CCW"' : ''}>${escape(label)}</cr-tts>${note}`;
+}
+
+/** A step's settings ("3 sec · speed 7 → 4 sec · speed 5") as chips, joined by "then". */
+export function settingsHtml(settings: string): string {
+  return settings.split(' → ').map(chip).join(', then ');
+}
 
 /** Only the Thermomix parts of a recipe go to Cookidoo (the owner's choice, 17 Oct 2026). */
 export function hasTm7Steps(recipe: Pick<RecipeDetail, 'steps'>): boolean {
@@ -50,8 +98,12 @@ export function cookidooRecipe(recipe: RecipeDetail, portions: number): Cookidoo
     const qty = formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx);
     return [qty, i.name].filter(Boolean).join(' ') + (i.note ? `, ${i.note}` : '');
   });
-  const steps = [...tm7]
-    .sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position)
+  const ordered = [...tm7].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position);
+  const stepsHtml = ordered.map((s) => {
+    const before = s.phase === 'prep_8pm' ? 'The night before: ' : '';
+    return `${escape(before + s.body.replace(/\*\*/g, ''))}${s.settings ? ` ${settingsHtml(s.settings)}` : ''}`;
+  });
+  const steps = ordered
     .map((s) => {
       const body = s.body.replace(/\*\*/g, '');
       // Cookidoo writes TM settings as "13 min/100°C/speed 3"; other machines are named in words.
@@ -59,7 +111,7 @@ export function cookidooRecipe(recipe: RecipeDetail, portions: number): Cookidoo
         : ` (${s.machine ? machineLabel(s.machine) : 'Settings'}: ${s.settings})`;
       return `${s.phase === 'prep_8pm' ? 'The night before: ' : ''}${body}${settings}`;
     });
-  return { title: recipe.title, portions, ingredients, steps };
+  return { title: recipe.title, portions, ingredients, steps, stepsHtml };
 }
 
 type Day = { date: string; recipeId: string };

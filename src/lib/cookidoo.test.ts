@@ -1,5 +1,5 @@
 import { HONEY, NEXT_WEEK } from '../test/fixtures';
-import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, textHash, whyToSend } from './cookidoo';
+import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, settingsHtml, textHash, whyToSend } from './cookidoo';
 import { formatQty } from './recipes';
 
 test('only the TM7 steps are sent, with just the ingredients they use, scaled', () => {
@@ -94,5 +94,28 @@ describe('which ingredients a TM7 step uses', () => {
     expect(used('Add the **lemon zest**.', ['lemon', 'orange'])).toEqual(['lemon']);
     expect(used('Add the **tomatoes**.', ['cherry tomato'])).toEqual(['cherry tomato']);
     expect(used('Add the **chillies**.', ['red chilli'])).toEqual(['red chilli']);
+  });
+});
+
+describe('settings chips', () => {
+  test('time, temperature and speed become a settings chip the TM7 can guide', () => {
+    expect(settingsHtml('5 min · 120°C · speed 1')).toBe('<cr-tts time="300" time-unit="s" temperature="120" temperature-unit="C" speed="1">5 min/120°C/speed 1</cr-tts>');
+    expect(settingsHtml('4 min 30 sec · 120°C · ↺ speed 0.5')).toBe('<cr-tts time="270" time-unit="s" temperature="120" temperature-unit="C" speed="0.5" direction="CCW">4 min 30 sec/120°C/↺/speed 0.5</cr-tts>');
+    expect(settingsHtml('3 sec · speed 7')).toBe('<cr-tts time="3" time-unit="s" speed="7">3 sec/speed 7</cr-tts>');
+  });
+  test('Varoma is the steaming mode, as Cookidoo stores it', () => {
+    expect(settingsHtml('22 min · Varoma · speed 2')).toBe('<cr-mode time="1320" time-unit="s" speed="2" direction="CW" name="steaming" accessory="Varoma">22 min/Varoma/speed 2</cr-mode>');
+    expect(settingsHtml('10 min · Varoma · ↺ speed 2')).toContain('direction="CCW"');
+  });
+  test('several settings in a row each get a chip, and anything without one stays as words', () => {
+    expect(settingsHtml('3 sec · speed 7 → 4 sec · speed 5')).toBe('<cr-tts time="3" time-unit="s" speed="7">3 sec/speed 7</cr-tts>, then <cr-tts time="4" time-unit="s" speed="5">4 sec/speed 5</cr-tts>');
+    expect(settingsHtml('4 min · dough mode')).toBe('4 min/dough mode');
+    expect(settingsHtml('8 min · Varoma · speed 1 · MC off')).toBe('<cr-mode time="480" time-unit="s" speed="1" direction="CW" name="steaming" accessory="Varoma">8 min/Varoma/speed 1</cr-mode> MC off');
+    expect(settingsHtml('2 min · 100°C · ↺ spoon speed')).toBe('<cr-tts time="120" time-unit="s" temperature="100" temperature-unit="C" speed="soft" direction="CCW">2 min/100°C/↺/spoon speed</cr-tts>');
+    expect(settingsHtml('45 sec · ↺ soft')).toContain('speed="soft"');
+  });
+  test("each step's text keeps its words, escaped, with the chips after", () => {
+    const c = cookidooRecipe({ ...HONEY, steps: [{ ...HONEY.steps[1], body: 'Rinse the **rice** & start <now>.', settings: '20 min · 100°C · speed 4' }] }, 3);
+    expect(c.stepsHtml).toEqual(['Rinse the rice &amp; start &lt;now&gt;. <cr-tts time="1200" time-unit="s" temperature="100" temperature-unit="C" speed="4">20 min/100°C/speed 4</cr-tts>']);
   });
 });
