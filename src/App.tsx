@@ -1,5 +1,5 @@
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './auth/AuthProvider';
+import { AuthProvider, useAuth } from './auth/AuthProvider';
 import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
 import CookMode from './screens/recipes/CookMode';
@@ -23,12 +23,29 @@ import Shopping from './screens/settings/Shopping';
 import Staples from './screens/settings/Staples';
 import WeekPattern from './screens/settings/WeekPattern';
 import { isTablet, useWakeLock } from './lib/wakeLock';
+import { askToKeepStorage, keepPhotos } from './lib/photoCache';
+import { repo } from './lib/repo';
+import { useEffect } from 'react';
 
 // On the iPad (it stands in the kitchen) the screen stays on while the app is open; phones lock as usual.
 const TABLET = isTablet();
 
 function Shell({ children }: { children: React.ReactNode }) {
   useWakeLock(TABLET);
+  // A few seconds after opening, every photo not yet on the device downloads quietly, so pages show them at once.
+  const { householdId } = useAuth();
+  useEffect(() => {
+    if (!householdId) return;
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          await askToKeepStorage();
+          await keepPhotos((await repo.photoPaths(householdId)).map((p) => repo.heroUrl(p)));
+        } catch { /* offline: photos still load as they're shown */ }
+      })();
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [householdId]);
   return (
     <div className="mx-auto max-w-5xl pb-28">
       <header

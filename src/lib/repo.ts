@@ -400,6 +400,13 @@ export const repo = {
   },
 
   /** A photo's address. With a width, a smaller copy (about a tenth of the size), resized by Supabase. */
+  /** Every stored photo the household has: recipe photos and step photos (to keep them on the device). */
+  async photoPaths(householdId: string): Promise<string[]> {
+    const heroes = must<{ hero_image_path: string | null }[]>(await db().from('recipes').select('hero_image_path').eq('household_id', householdId).not('hero_image_path', 'is', null));
+    const steps = must<{ image_path: string | null }[]>(await db().from('recipe_steps').select('image_path, recipes!inner(household_id)').eq('recipes.household_id', householdId).not('image_path', 'is', null));
+    return [...heroes.map((r) => r.hero_image_path), ...steps.map((s) => s.image_path)].filter((p): p is string => !!p);
+  },
+
   /** A photo's link. `width` is the size it shows at; Supabase's image resizing is a paid-plan feature that isn't on
    *  for this project (it answers "feature not enabled", 11 Nov 2026), so photos load as stored. */
   heroUrl(path: string, _width?: number): string {
