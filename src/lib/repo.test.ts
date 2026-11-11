@@ -15,7 +15,10 @@ const h = vi.hoisted(() => ({
 vi.mock('./supabase', () => ({
   getSupabase: () => ({
     rpc: async (fn: string, args: unknown) => { h.rpcs.push({ fn, args }); return { data: null, error: null }; },
-    storage: { from: () => ({ upload: async (path: string) => { h.uploads.push(path); return { error: null }; } }) },
+    storage: { from: () => ({
+      upload: async (path: string) => { h.uploads.push(path); return { error: null }; },
+      getPublicUrl: (path: string, opts?: { transform?: unknown }) => ({ data: { publicUrl: `${opts?.transform ? 'render' : 'object'}/${path}` } }),
+    }) },
     from(table: string) {
       const builder: Record<string, unknown> = {};
       for (const m of ['select', 'upsert', 'update', 'delete', 'eq', 'not', 'order', 'limit', 'single', 'maybeSingle']) {
@@ -80,4 +83,9 @@ test('a roast on a day the week does not plan (Sunday of a 5-day week) adds that
     plan_week_id: 'w1', date: '2026-10-25', slot: 'dinner', mode: 'cook', recipe_id: 'r-brisket', portions: 8, locked: true,
     roast: { main: 'beef', sides: ['roasties'], people: 8, serve: '13:30' },
   })]);
+});
+
+test("photos load as stored: Supabase's resizing isn't on this project, so a size never asks for it", () => {
+  expect(repo.heroUrl('h1/hero/a.jpg', 600)).toBe('object/h1/hero/a.jpg');
+  expect(repo.heroUrl('h1/hero/a.jpg')).toBe('object/h1/hero/a.jpg');
 });

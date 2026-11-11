@@ -400,9 +400,10 @@ export const repo = {
   },
 
   /** A photo's address. With a width, a smaller copy (about a tenth of the size), resized by Supabase. */
-  heroUrl(path: string, width?: number): string {
-    const transform = width ? { transform: { width, resize: 'contain' as const, quality: 70 } } : undefined;
-    return getSupabase().storage.from('recipe-images').getPublicUrl(path, transform).data.publicUrl;
+  /** A photo's link. `width` is the size it shows at; Supabase's image resizing is a paid-plan feature that isn't on
+   *  for this project (it answers "feature not enabled", 11 Nov 2026), so photos load as stored. */
+  heroUrl(path: string, _width?: number): string {
+    return getSupabase().storage.from('recipe-images').getPublicUrl(path).data.publicUrl;
   },
 
   /** Saves a photo for a step (replacing any earlier one on the card) and returns its storage path. */

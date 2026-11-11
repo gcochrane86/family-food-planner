@@ -19,7 +19,7 @@ export default defineConfig({
             urlPattern: /\/storage\/v1\/(object|render\/image)\/public\/recipe-images\//,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'recipe-images',
+              cacheName: 'recipe-images-v2', // v2: the old cache may hold refused resize answers (11 Nov 2026)
               expiration: { maxEntries: 600, maxAgeSeconds: 60 * 24 * 60 * 60 },
               cacheableResponse: { statuses: [0, 200] },
             },
