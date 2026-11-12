@@ -67,25 +67,38 @@ export function useHandsFree(h: { onNext: () => void; onBack: () => void; text: 
   const rec = useRef<Rec | null>(null);
   const want = useRef(false);
   const quickEnds = useRef(0);
+  const live = useRef(true);
+  const retry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reasons = useRef<string[]>([]);
+
+  const halt = (message?: string) => {
+    want.current = false;
+    if (retry.current) clearTimeout(retry.current);
+    retry.current = null;
+    rec.current = null;
+    setOn(false);
+    if (message) setError(message);
+  };
 
   const stop = useCallback(() => {
-    want.current = false;
-    setOn(false);
-    rec.current?.stop();
-    rec.current = null;
+    const r = rec.current;
+    halt();
+    r?.stop();
     window.speechSynthesis?.cancel();
   }, []);
 
-  const start = useCallback(() => {
+  /** One listening session, on a fresh listener each time (Safari won't reliably reuse one). */
+  const listen = useCallback(() => {
     const C = Ctor();
-    if (!C) return;
+    if (!C || !want.current) return;
     const r = new C();
     const tracker = makeTracker();
-    r.continuous = true; r.interimResults = true; r.lang = 'en-GB';
-    let began = Date.now();
+    r.continuous = true; r.interimResults = live.current; r.lang = 'en-GB';
+    const began = Date.now();
+    let reason = '';
     r.onresult = (e) => {
       for (const c of tracker.fresh(e.resultIndex, e.results)) {
-        if (!want.current) return;
+        if (!want.current || rec.current !== r) return;
         if (c === 'next') handlers.current.onNext();
         else if (c === 'back') handlers.current.onBack();
         else if (c === 'repeat') speak(handlers.current.text());
@@ -93,30 +106,42 @@ export function useHandsFree(h: { onNext: () => void; onBack: () => void; text: 
       }
     };
     r.onerror = (e) => {
+      reason = e.error;
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        want.current = false;
-        setError('Listening needs the microphone: allow it for this app in Settings, then try again.');
+        halt('Listening needs the microphone: allow it for this app in Settings, then try again.');
       }
     };
     // The browser stops listening after a pause or a minute or so: start again while the switch is on.
     r.onend = () => {
-      if (!want.current || rec.current !== r) { if (rec.current === r) { rec.current = null; setOn(false); } return; }
-      quickEnds.current = Date.now() - began < 1500 ? quickEnds.current + 1 : 0;
-      if (quickEnds.current >= 5) { want.current = false; rec.current = null; setOn(false); setError('Listening keeps stopping. Tap Listen to try again.'); return; }
-      tracker.reset();
-      began = Date.now();
-      try { r.start(); } catch { want.current = false; rec.current = null; setOn(false); setError('Listening stopped. Tap Listen to start again.'); }
+      if (rec.current !== r || !want.current) return;
+      const secs = (Date.now() - began) / 1000;
+      if (secs < 1.5) {
+        quickEnds.current += 1;
+        reasons.current = [...reasons.current, `${reason || 'ended'} after ${secs.toFixed(1)}s`].slice(-3);
+      } else quickEnds.current = 0;
+      // Safari may not keep a live transcript going: fall back to how the listening test listened.
+      if (quickEnds.current >= 2) live.current = false;
+      if (quickEnds.current >= 8) { halt(`Listening keeps stopping (Safari: ${reasons.current.join('; ')}). Tap Listen to try again.`); return; }
+      retry.current = setTimeout(() => { retry.current = null; listen(); }, Math.min(250 * 2 ** quickEnds.current, 4000));
     };
     rec.current = r;
+    try { r.start(); } catch (err) { halt(`Couldn't start listening (${err instanceof Error ? err.name : String(err)}).`); }
+  }, [stop]);
+
+  const start = useCallback(() => {
+    if (!Ctor()) return;
     want.current = true;
     quickEnds.current = 0;
+    live.current = true;
+    reasons.current = [];
     setError(null);
-    try { r.start(); setOn(true); } catch { want.current = false; rec.current = null; setError("Couldn't start listening."); }
-  }, [stop]);
+    setOn(true);
+    listen();
+  }, [listen]);
 
   const toggle = useCallback(() => { if (want.current) stop(); else start(); }, [start, stop]);
 
-  useEffect(() => () => { want.current = false; rec.current?.stop(); rec.current = null; window.speechSynthesis?.cancel(); }, []);
+  useEffect(() => () => { const r = rec.current; halt(); r?.stop(); window.speechSynthesis?.cancel(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { supported, on, error, toggle };
 }

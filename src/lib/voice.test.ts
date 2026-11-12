@@ -43,11 +43,30 @@ describe('useHandsFree', () => {
     act(() => r.say('planner next then planner back'));
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onBack).toHaveBeenCalledTimes(1);
+    vi.useFakeTimers();
     act(() => r.onend!());
-    expect(r.started).toBe(2);
     expect(result.current.on).toBe(true);
-    act(() => r.say('planner stop'));
+    act(() => { vi.advanceTimersByTime(1000); });
+    const again = FakeRec.last!;
+    expect(again).not.toBe(r);
+    expect(again.started).toBe(1);
+    act(() => again.say('planner stop'));
     expect(result.current.on).toBe(false);
+    vi.useRealTimers();
+  });
+
+  test('when Safari keeps ending at once it drops the live transcript, then gives up saying why', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useHandsFree({ onNext: vi.fn(), onBack: vi.fn(), text: () => '' }));
+    act(() => result.current.toggle());
+    const quickEnd = () => act(() => { FakeRec.last!.onerror!({ error: 'aborted' }); FakeRec.last!.onend!(); vi.runOnlyPendingTimers(); });
+    quickEnd(); quickEnd();
+    expect(FakeRec.last!.interimResults).toBe(false);
+    expect(result.current.on).toBe(true);
+    for (let i = 0; i < 6; i++) quickEnd();
+    expect(result.current.on).toBe(false);
+    expect(result.current.error).toMatch(/keeps stopping.*aborted/);
+    vi.useRealTimers();
   });
 
   test('a refused microphone turns it off and says why', () => {
