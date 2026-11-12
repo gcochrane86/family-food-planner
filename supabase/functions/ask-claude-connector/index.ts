@@ -1,6 +1,7 @@
 // "Ask Claude": a read-only MCP connector for the Claude app (docs/spec.md §10). The household adds it once as a
 // custom connector with the secret link …/functions/v1/ask-claude-connector/<key>; Claude then looks up recipes,
-// plans, the pantry and saved products while they chat. It never writes.
+// plans, the pantry and saved products while they chat, and (each call approved by the household in Claude) saves
+// tonight's version of a day's recipe, swaps a dinner, or marks a staple. It never edits saved recipes.
 // Deployed with --no-verify-jwt (Claude has no app login); the key in the path is the lock. A missing or wrong key
 // gets a bare 404. Secrets: CONNECTOR_KEY, CONNECTOR_HOUSEHOLD_ID.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -9,21 +10,25 @@ import {
   findRecipes, formatHousehold, formatPantry, formatProducts, formatRecipe, formatWeek, keyMatches, makeReader, pickRecipe,
   weekStartFor, type Reader,
 } from '../_shared/askClaude.ts';
+import { makeChanger } from '../_shared/askClaudeWrite.ts';
 import { MEAL_SPEC } from '../_shared/mealSpec.ts';
 
 const notFound = () => new Response('Not found', { status: 404 });
 const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });
 const readOnly = { readOnlyHint: true };
+const changes = { readOnlyHint: false, destructiveHint: false };
+const DATE = { type: 'string', description: 'The day, as YYYY-MM-DD (today to next Sunday)' };
+const SLOT = { type: 'string', enum: ['breakfast', 'lunch', 'dinner'], description: 'Which meal (default dinner)' };
 
 /** Runs a lookup; a failure comes back as words for Claude, never a stack. */
 const safely = async (run: () => Promise<string>) => {
   try { return text(await run()); } catch (e) { return text(`Couldn't read the planner just now: ${e instanceof Error ? e.message : String(e)}`); }
 };
 
-function server(read: Reader) {
+function server(read: Reader, change: ReturnType<typeof makeChanger>) {
   const mcp = new McpServer({ name: 'family-food-planner', version: '1.0.0' });
   mcp.tool('get_household', {
-    description: "Call this first. The household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), Today's hour and the breakfast and lunch options. Also how to answer: this connector is read-only.",
+    description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), Today's hour and the breakfast and lunch options.",
     annotations: readOnly,
     handler: () => safely(async () => formatHousehold(await read.household(), MEAL_SPEC)),
   });
@@ -64,6 +69,44 @@ function server(read: Reader) {
     annotations: readOnly,
     handler: (args: { query?: string }) => safely(async () => formatProducts(await read.products(), args?.query)),
   });
+  mcp.tool('swap_meal', {
+    description: "Changes the plan (the household approves each call in Claude): swaps a day's dinner for another of their recipes, or sets it to eating out, with the app's own rules (leftover lunches go back to their routine, portions set, kept from being replanned). Only this week and next, from today.",
+    inputSchema: { type: 'object', properties: { date: DATE, recipe: { type: 'string', description: 'The new recipe title' }, out: { type: 'boolean', description: 'true for eating out' } }, required: ['date'] },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => change.swapMeal(args ?? {})),
+  });
+  mcp.tool('set_tonights_version', {
+    description: "Changes the plan (the household approves each call in Claude): saves tonight's version of the recipe on one day, for a swapped ingredient or a different method. The saved recipe is untouched. Read the recipe with get_recipe first, then send the full ingredients and steps for that day, for the recipe's own base portions. Every saved ingredient and step must be kept, named in replaces, or listed in removed_ingredients / removed_steps.",
+    inputSchema: {
+      type: 'object', required: ['date', 'note', 'ingredients', 'steps'],
+      properties: {
+        date: DATE, slot: SLOT, note: { type: 'string', description: "One line: what's different tonight" },
+        ingredients: { type: 'array', items: { type: 'object', required: ['name'], properties: {
+          name: { type: 'string' }, qty: { type: ['number', 'null'] }, unit: { type: 'string' }, note: { type: ['string', 'null'] },
+          group_name: { type: ['string', 'null'] }, replaces: { type: 'string', description: 'The saved ingredient this one replaces' } } } },
+        removed_ingredients: { type: 'array', items: { type: 'string' } },
+        steps: { type: 'array', items: { type: 'object', required: ['phase', 'title', 'body'], properties: {
+          phase: { type: 'string', enum: ['prep_8pm', 'finish', 'reheat'] }, title: { type: 'string' }, body: { type: 'string' },
+          at_minute: { type: ['number', 'null'] }, machine: { type: ['string', 'null'] }, settings: { type: ['string', 'null'] },
+          timer_minutes: { type: ['number', 'null'] }, replaces: { type: 'string', description: 'The saved step title this one replaces' } } } },
+        removed_steps: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => change.setVersion(args ?? {})),
+  });
+  mcp.tool('clear_tonights_version', {
+    description: "Changes the plan (the household approves each call in Claude): puts a day back to the saved recipe.",
+    inputSchema: { type: 'object', properties: { date: DATE, slot: SLOT }, required: ['date'] },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => change.clearVersion(args ?? {})),
+  });
+  mcp.tool('set_pantry', {
+    description: "Changes the pantry (the household approves each call in Claude): marks a staple as have, low or out. Low and out staples go on the next shopping list. Other pantry items are changed in the app.",
+    inputSchema: { type: 'object', properties: { item: { type: 'string' }, status: { type: 'string', enum: ['have', 'low', 'out'] } }, required: ['item', 'status'] },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => change.setPantry(args ?? {})),
+  });
   return mcp;
 }
 
@@ -78,5 +121,5 @@ Deno.serve((req) => {
   if (!householdId) return notFound();
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  return new StreamableHttpTransport().bind(server(makeReader(db, householdId)))(req);
+  return new StreamableHttpTransport().bind(server(makeReader(db, householdId), makeChanger(db, householdId)))(req);
 });

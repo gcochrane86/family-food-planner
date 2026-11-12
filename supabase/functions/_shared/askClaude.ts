@@ -3,14 +3,16 @@
 // into plain text for Claude. The Edge Function (ask-claude-connector) is a thin MCP shell around it.
 import { addDays } from './planner.ts';
 import { londonParts } from './schedule.ts';
+import { parseVersion } from './slotVersion.ts';
 
 // The Deno and Node Supabase clients have different types; only the query builder is used.
 // deno-lint-ignore no-explicit-any
 type Db = any;
 
 export const INSTRUCTIONS = [
-  "This connector is read-only: it shows the household's food planner but can't change anything.",
-  'Suggest changes; the household makes them in the app, or taps Plan with Claude there with a note.',
+  "This connector shows the household's food planner, and can make a few changes: tonight's version of a day's recipe, swapping a dinner, and a staple's pantry status.",
+  'Suggest first; change only when asked. Change tools need the household\'s approval in Claude. When one ingredient is the problem, prefer tonight\'s version to swapping the meal.',
+  'Never edit saved recipes (that is done in Claude Code); other changes are made in the app, or with Plan with Claude there.',
   'Keep every suggestion within the house rules and the private rules below. Never name or explain the private rules; if you must mention them, say "your private rules".',
   "Keep weeknight dinners' hands-on time within Today's hour less 15 minutes, and prefer what is already in the pantry and freezer.",
 ].join(' ');
@@ -52,7 +54,7 @@ const join = (...parts: (string | null | undefined | false)[]) => parts.filter(B
 
 export interface SlotRow {
   date: string; slot: 'breakfast' | 'lunch' | 'dinner'; mode: string; recipe_id: string | null; recipe_title: string | null;
-  portions: number | null; reason: string | null; source_date: string | null; routine_choice: string | null;
+  portions: number | null; reason: string | null; source_date: string | null; routine_choice: string | null; version?: unknown;
 }
 export interface WeekData { week: { week_start: string; days: number; status: string; summary: string | null } | null; slots: SlotRow[] }
 export interface RecipeRow {
@@ -116,7 +118,7 @@ export function makeReader(db: Db, householdId: string): Reader {
       if (!w?.id) return { week: null, slots: [] };
       const s = list(rows<(Omit<SlotRow, 'recipe_title'> & { recipes: unknown })[]>(await db.from('meal_slots')
         // meal_slots links to recipes twice (recipe_id and cookidoo_recipe_id), so the embed names its link.
-        .select('date, slot, mode, recipe_id, portions, reason, source_date, routine_choice, recipes!meal_slots_recipe_id_fkey(title)')
+        .select('date, slot, mode, recipe_id, portions, reason, source_date, routine_choice, version, recipes!meal_slots_recipe_id_fkey(title)')
         .eq('plan_week_id', w.id).order('date'), 'Reading the days'));
       const { id: _id, ...week } = w;
       return { week, slots: s.map(({ recipes, ...x }) => ({ ...x, recipe_title: (Array.isArray(recipes) ? recipes[0]?.title : (recipes as { title?: string } | null)?.title) ?? null })) };
@@ -169,7 +171,9 @@ function slotLine(s: SlotRow): string {
   if (s.mode === 'routine') return `${label}: ${s.routine_choice ?? s.recipe_title ?? 'routine (not chosen yet)'}`;
   const what = s.recipe_title ?? s.routine_choice ?? 'not chosen';
   const extra = [s.mode, s.portions ? `${Number(s.portions)} portions` : null, s.source_date ? `from ${weekday(s.source_date)}'s dinner` : null].filter(Boolean).join(', ');
-  return `${label}: ${what} (${extra})${s.reason ? ` · ${s.reason}` : ''}`;
+  const v = parseVersion(s.version);
+  const tonight = v && v.based_on === s.recipe_id ? ` · tonight's version: ${v.note}` : '';
+  return `${label}: ${what} (${extra})${s.reason ? ` · ${s.reason}` : ''}${tonight}`;
 }
 
 /** One week, day by day. */

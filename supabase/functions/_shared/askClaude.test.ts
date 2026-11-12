@@ -2,6 +2,7 @@ import {
   findRecipes, formatHousehold, formatPantry, formatProducts, formatRecipe, formatWeek, INSTRUCTIONS, keyMatches,
   makeReader, pickRecipe, weekStartFor, type RecipeRow,
 } from './askClaude';
+import { tableDb } from './testDb';
 
 test('keyMatches needs the exact, non-empty key', () => {
   expect(keyMatches('abc', 'abc')).toBe(true);
@@ -201,27 +202,6 @@ test('formatHousehold starts with the instructions and lists the rules and kit',
   expect(none).not.toContain('Private rules');
 });
 
-/** A fake client that answers by table, for the reader's own logic. */
-function tableDb(answers: Record<string, unknown>) {
-  const selects: Record<string, string[]> = {};
-  return {
-    selects,
-    from(table: string) {
-      const proxy: unknown = new Proxy({}, {
-        get(_t, prop) {
-          if (prop === 'then') return (res: (v: unknown) => void) => res({ data: answers[table] ?? [], error: null });
-          return (...args: unknown[]) => {
-            if (prop === 'select') (selects[table] ??= []).push(String(args[0]));
-            if (prop === 'maybeSingle') return Promise.resolve({ data: answers[`${table}:one`] ?? null, error: null });
-            return proxy;
-          };
-        },
-      });
-      return proxy;
-    },
-  };
-}
-
 test("the week's slots name tonight's recipe through recipe_id, not the Cookidoo link", async () => {
   const db = tableDb({
     'plan_weeks:one': { id: 'w1', week_start: '2026-11-16', days: 7, status: 'draft', summary: null },
@@ -263,4 +243,21 @@ test('the connector imports only from supabase/functions, so it deploys on its o
   const local = [...src.matchAll(/from '(\.[^']+)'/g)].map((m) => m[1]);
   expect(local.length).toBeGreaterThan(0);
   for (const p of local) expect(p.startsWith('../_shared/')).toBe(true);
+});
+
+test("the week shows a day's tonight's version, and the instructions say changes need approval", async () => {
+  const text = formatWeek('2026-11-16', {
+    week: { week_start: '2026-11-16', days: 7, status: 'draft', summary: null },
+    slots: [
+      { ...slot({ date: '2026-11-16', slot: 'dinner', mode: 'cook', recipe_id: 'b', recipe_title: 'Fish pie', portions: 3 }), version: { based_on: 'b', note: 'Yoghurt tonight', ingredients: [], steps: [] } },
+      { ...slot({ date: '2026-11-17', slot: 'dinner', mode: 'cook', recipe_id: 'c', recipe_title: 'Curry', portions: 3 }), version: { based_on: 'old', note: 'Stale', ingredients: [], steps: [] } },
+    ],
+  });
+  expect(text).toContain("tonight's version: Yoghurt tonight");
+  expect(text).not.toContain('Stale');
+  expect(INSTRUCTIONS).toContain('Suggest first; change only when asked.');
+  expect(INSTRUCTIONS).not.toContain('read-only');
+  const db = tableDb({ 'plan_weeks:one': { id: 'w1', week_start: '2026-11-16', days: 7, status: 'draft', summary: null } });
+  await makeReader(db, 'h1').week('2026-11-16');
+  expect(db.selects.meal_slots[0]).toContain('version');
 });
