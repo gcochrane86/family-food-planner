@@ -45,7 +45,8 @@ export interface ChopGroup {
 export interface HourStep {
   at: string;
   end: string;
-  kind: 'chop' | 'cook' | 'extra' | 'clean';
+  /** serve: plating up, shown with the dish photo large and centred. */
+  kind: 'chop' | 'cook' | 'extra' | 'clean' | 'serve';
   title: string;
   body: string;
   kit: string | null;
@@ -174,7 +175,7 @@ export function planHour(input: HourInput): HourPlan {
   // 5. The end of the hour.
   let tail = endAt;
   if (input.tonight) {
-    add(tail, 5, true, null, { ...plain, photos: hero(input.tonight.recipe), kind: 'cook', title: 'Plate up', body: 'Plate up and serve.' });
+    add(tail, 5, true, null, { ...plain, photos: hero(input.tonight.recipe), kind: 'serve', title: 'Plate up', body: 'Plate up and serve.' });
     tail += 5;
   } else {
     tail = Math.max(base, ...slots.map((s) => s.end));

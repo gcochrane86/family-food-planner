@@ -335,3 +335,13 @@ test('swiping moves between the steps; oven settings show °F too, large', async
   fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 260, clientY: 400 }] });
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
 });
+
+test('Plate up shows the dish photo large, on its own, centred under the text', async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, hero_image_path: 'h1/hero/honey.jpg' } : null));
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (!screen.queryByRole('heading', { name: 'Plate up' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  const step = screen.getByRole('region', { name: /^Step \d+ of/ });
+  expect(step).toHaveAttribute('data-layout', 'serve');
+  expect(within(step).getByRole('img', { name: HONEY.title })).toBeInTheDocument();
+});

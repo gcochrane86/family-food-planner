@@ -146,7 +146,11 @@ export default function TodayHour() {
         return (
           <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`}
             onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
-            className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10">
+            data-layout={step.kind === 'serve' ? 'serve' : 'step'}
+            // Plating up: the text, then the dish photo large and centred. Other steps: text left, pictures right.
+            className={step.kind === 'serve'
+              ? 'mx-auto grid w-full max-w-4xl flex-1 content-start justify-items-center gap-6 text-center'
+              : 'mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10'}>
             <div className="grid content-start gap-3">
             {step.afterDinner
               ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">After dinner</span>
@@ -193,7 +197,7 @@ export default function TodayHour() {
               </ul>
             )}
             </div>
-            <StepPictures step={step} onHold={setMenu} />
+            <div className={step.kind === 'serve' ? 'w-full max-w-4xl' : ''}><StepPictures step={step} onHold={setMenu} /></div>
           </section>
         );
       })()}
