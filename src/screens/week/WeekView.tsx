@@ -85,6 +85,12 @@ export default function WeekView() {
       )}
       {w.week && <ClaudeWeekNotes w={w} plan={plan} />}
 
+      {!w.loading && (
+        <a href="https://claude.ai/new" target="_blank" rel="noreferrer" className="justify-self-start font-semibold text-accent underline">
+          Ask Claude about recipes and the plan ↗
+        </a>
+      )}
+
       {w.week && w.week.status !== 'draft' && approvedOpen && <ApprovedSheet w={w} onClose={() => setApprovedOpen(false)} />}
       {w.week && open && <DaySheet date={open} w={w} onClose={close} />}
     </section>

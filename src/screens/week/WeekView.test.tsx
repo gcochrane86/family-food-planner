@@ -974,3 +974,11 @@ test("on a planned day, a Today's hour card links to /today", async () => {
   expect(card).toHaveAttribute('href', '/today');
   expect(card).toHaveTextContent('Almond-Crusted Honey Chilli Chicken');
 });
+
+test('the Week tab links to Claude to ask about the plan', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  const link = await screen.findByRole('link', { name: /Ask Claude/ });
+  expect(link).toHaveAttribute('href', 'https://claude.ai/new');
+  expect(link).toHaveAttribute('target', '_blank');
+  expect(link).toHaveAttribute('rel', 'noreferrer');
+});

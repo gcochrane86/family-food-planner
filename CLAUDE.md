@@ -10,7 +10,7 @@ Storage, Edge Functions) behind it. The product spec is `docs/spec.md`, and each
 - Pushes to `main` deploy through `.github/workflows/deploy.yml`.
 - **Secrets:** only `VITE_SUPABASE_URL` and the publishable key go in the bundle.
   - The secret key lives in `.env` on this Mac. Never put it in `.env.example` or commit it.
-  - Edge Function secrets: `GOOGLE_AI_API_KEY`, `CRON_SECRET`.
+  - Edge Function secrets: `GOOGLE_AI_API_KEY`, `CRON_SECRET`, `CONNECTOR_KEY` and `CONNECTOR_HOUSEHOLD_ID` (Ask Claude; the key is never written down anywhere else).
 - **Privacy:** the repo is public. Personal data and recipe content live in Supabase and in the git-ignored
   `seed/private/`.
 - **Shared logic for app and Edge Functions** lives in `supabase/functions/_shared/` (planner, schedule, hero
