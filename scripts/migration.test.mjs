@@ -617,3 +617,11 @@ test('0016: chopping photos are kept once per ingredient and cut, for the househ
   expect(await as(STRANGER, 'select * from prep_photos')).toHaveLength(0);
   expect(await fails(STRANGER, `insert into prep_photos (household_id, key, label, path) values ('${hid}', 'x', 'x', 'x.jpg')`)).toMatch(/row-level security/);
 });
+
+test('0017: a step picture description can be thorough (up to 600 characters), not unlimited', async () => {
+  const { rid } = await recipeFor(OWNER);
+  const long = 'x'.repeat(600);
+  await as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, photo_hint) values ('${rid}', 'finish', 1, 'A', 'b', '${long}')`);
+  expect(await one(OWNER, `select length(photo_hint) from recipe_steps where recipe_id = '${rid}'`)).toBe(600);
+  await expect(as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, photo_hint) values ('${rid}', 'finish', 2, 'B', 'b', '${long}x')`)).rejects.toThrow();
+});

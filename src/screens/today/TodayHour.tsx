@@ -251,7 +251,7 @@ function PhotoOptions({ title, note, onRemake, onOwn, onClose }: { title: string
         {asking ? (
           <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); onClose(); onRemake(hint.trim()); }}>
             <label className="grid gap-1 text-sm text-[#C9D3CC]">What should it show? (optional)
-              <input autoFocus value={hint} maxLength={200} onChange={(e) => setHint(e.target.value)} placeholder="e.g. bigger chunks, skins on"
+              <input autoFocus value={hint} maxLength={600} onChange={(e) => setHint(e.target.value)} placeholder="e.g. bigger chunks, skins on"
                 className="rounded-xl bg-white/10 px-3 py-2.5 text-base text-white placeholder:text-[#7C887F]" />
             </label>
             <button type="submit" className="rounded-xl bg-lcd-ink px-4 py-3 text-base font-semibold text-[#0A0E0B]">Make it</button>

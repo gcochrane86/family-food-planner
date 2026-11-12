@@ -77,14 +77,16 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
      `slug` not in `existingRecipes`, `title` and `subtitle` in the household's style ("Chicken Katsu" / "with
      sticky rice & slaw"). Bold ingredient names in step bodies with `**…**`, as the existing recipes do. Steps with a
      time get `timer` in minutes.
-   - **Step pictures.** Every step gets a `picture`: one sentence (about 15–30 words) saying exactly what that step's
-     cartoon picture shows, so it's clear at a glance. One moment of the main action, the container named plainly
-     ("frying pan on the hob", "saucepan on the hob", "the Thermomix TM7 bowl", "a lined tray in the Anova oven", "air
-     fryer basket", "a lidded glass container" for night-before steps), the food's state and cut, and only the
-     ingredients in the dish by then. A step that ends with a probe check shows the probe in the thickest part. No
-     people, hands, brands, text, numbers, times or temperatures, and nothing about style (the app adds that). E.g.
-     "Halved new potatoes going into a saucepan of cold water on the hob". When reworking, rewrite the `picture` of
-     any step whose action changed.
+   - **Step pictures.** Every step gets a `picture`: what that step's cartoon picture shows, so thorough that the
+     image model can't get it wrong (it takes it literally and knows nothing else). 2–4 short sentences, about 30–70
+     words: the one moment and where it happens (container and appliance named plainly: "a frying pan on the hob",
+     "the Thermomix TM7 bowl", "a lined tray in the Anova oven", "the air fryer basket", "a lidded glass container"),
+     then every item visible with its amount in words, cut and state (raw, browning, cooked through), which container
+     each is in, and anything that must not appear ("No sauce yet."). **Raw meat and fish never share a container
+     with other food** unless the step mixes them (a marinade): prepped-ahead items each go in their own lidded glass
+     container. Only ingredients in the dish by then; a probe check shows the probe in the thickest part. No people,
+     hands, brands, words, times, temperatures or settings, and nothing about drawing style (the app adds that).
+     When reworking, rewrite the `picture` of any step whose action or contents changed.
 4. **Save it.** Write the file in the scratchpad with the Write tool:
    ```json
    {"recipe": { …seed-format recipe… }, "summary": "Added Chicken Katsu: 6 portions, TM7 sauce and air-fryer chicken."}

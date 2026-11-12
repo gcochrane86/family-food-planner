@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
 
   const { recipeId, stepId, replace, asked, replaceOwn, hint } = await req.json().catch(() => ({}));
   // Your own description of the photo (one sentence); saved with the step so a remake uses it again.
-  const ownHint = typeof hint === 'string' && hint.trim() ? hint.trim().slice(0, 200) : null;
+  const ownHint = typeof hint === 'string' && hint.trim() ? hint.trim().slice(0, 600) : null;
   if (typeof recipeId !== 'string' || typeof stepId !== 'string') return reply(400, { error: 'recipeId and stepId are required' });
 
   const { data: recipe, error: recipeError } = await db.from('recipes')

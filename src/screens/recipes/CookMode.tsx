@@ -202,8 +202,8 @@ export default function CookMode() {
           <div role="dialog" aria-modal="true" aria-label="New photo for this step" className="grid w-full max-w-md gap-3 rounded-2xl bg-[#1F2822] p-5 text-white">
             <h2 className="text-xl font-bold">New photo: {step.title}</h2>
             <label className="grid gap-1.5 text-sm font-semibold">
-              In one sentence, what should the photo show? (optional)
-              <input type="text" maxLength={200} autoFocus disabled={newPhoto.busy} value={newPhoto.hint}
+              What should the picture show? (optional)
+              <textarea rows={5} maxLength={600} autoFocus disabled={newPhoto.busy} value={newPhoto.hint}
                 onChange={(e) => setNewPhoto({ ...newPhoto, hint: e.target.value })}
                 placeholder="e.g. Chickpeas bubbling in a creamy tomato sauce"
                 className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-base font-normal text-white placeholder:text-[#9AA89F]" />

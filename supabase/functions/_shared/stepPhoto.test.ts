@@ -70,7 +70,7 @@ test('a photo you ask for from the menu does not need a 👍, but your own photo
 
 test('your own one-sentence description replaces the automatic one, keeping the house style', () => {
   const p = stepPhotoPrompt('Chickpea Curry', curry, 1, 'Chickpeas bubbling in a creamy tomato sauce');
-  expect(p).toContain('Show this clearly: Chickpeas bubbling in a creamy tomato sauce.');
+  expect(p).toContain('Draw exactly this, and nothing else: Chickpeas bubbling in a creamy tomato sauce.');
   expect(p).not.toContain('Only these ingredients are in it so far');
   expect(p).toMatch(/friendly cartoon illustration/);
   expect(p).toContain('No text');

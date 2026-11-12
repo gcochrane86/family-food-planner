@@ -64,7 +64,7 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
     ? `${which} the household's own ${kit.name}: draw that same kit as a cartoon (same shape and colour), from any angle or rotation that shows the food best, showing only the part that holds the food.${tm7} No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
     : 'No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
   const own = hint?.trim().replace(/[.\s]+$/, '');
-  if (own) return [intro, style, `The step: ${step.title}.`, `Show this clearly: ${own}.`, rules].join(' ');
+  if (own) return [intro, style, `The step: ${step.title}.`, `Draw exactly this, and nothing else: ${own}.`, rules].join(' ');
   return [
     intro,
     style,
