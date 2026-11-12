@@ -14,6 +14,18 @@ const madeCopies = new Set<string>();
 
 type Result<T> = { data: T | null; error: { message: string } | null };
 
+/** Why an Edge Function call failed: the function's own reason when it replied with one, otherwise what went wrong
+ *  on the way (no connection, or the call timed out), never a crash while reading a reply that isn't there. */
+async function functionError(error: { message: string; context?: unknown }): Promise<string> {
+  const c = error.context;
+  if (c && typeof (c as Response).json === 'function') {
+    const detail = await (c as Response).json().then((b: { error?: string }) => b?.error).catch(() => null);
+    if (detail) return detail;
+  }
+  const cause = c instanceof Error ? c.message : null;
+  return cause && cause !== error.message ? `${error.message} (${cause})` : error.message;
+}
+
 function must<T>({ data, error }: Result<T>): T {
   if (error) throw new Error(error.message);
   return data as T;
@@ -97,9 +109,7 @@ export const repo = {
   async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false, hint?: string, icon = false): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace, hint, ...(icon ? { icon: true } : {}) } });
     if (error) {
-      const context = (error as { context?: Response }).context;
-      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
-      throw new Error(detail ?? error.message);
+      throw new Error(await functionError(error));
     }
     return (data as { path: string }).path;
   },
@@ -267,9 +277,7 @@ export const repo = {
   async proposeNow(weekStart: string): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('propose-week', { body: { weekStart } });
     if (error) {
-      const context = (error as { context?: Response }).context;
-      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
-      throw new Error(detail ?? error.message);
+      throw new Error(await functionError(error));
     }
     return (data as { result: string }).result;
   },
@@ -311,9 +319,7 @@ export const repo = {
   async generateHero(recipeId: string): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('generate-hero', { body: { recipeId } });
     if (error) {
-      const context = (error as { context?: Response }).context;
-      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
-      throw new Error(detail ?? error.message);
+      throw new Error(await functionError(error));
     }
     return (data as { path: string }).path;
   },
@@ -328,9 +334,7 @@ export const repo = {
     opts: { hint?: string; replaceOwn?: boolean } = {}): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('generate-step-photo', { body: { recipeId, stepId, replace, asked, ...opts } });
     if (error) {
-      const context = (error as { context?: Response }).context;
-      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
-      throw new Error(detail ?? error.message);
+      throw new Error(await functionError(error));
     }
     return (data as { path: string }).path;
   },

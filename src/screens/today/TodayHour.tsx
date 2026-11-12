@@ -52,32 +52,38 @@ export default function TodayHour() {
   }
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
+  /** Making photos stopped on an error: say why, and show the photos made so far (Try again carries on from there). */
+  function stopped(done: number, total: number, error: string) {
+    setPhotos({ done, total, error });
+    reload();
+  }
+
   async function addPhotos(recipes: RecipeDetail[], prep: HourPlan['prepMissing'], icons: HourPlan['iconsMissing']) {
     const total = icons.length + prep.length + recipes.reduce((n, r) => n + photosNeeded(r), 0);
     let before = 0;
     setPhotos({ done: 0, total });
     // The "get it out" pictures first: one small cartoon per ingredient, reused wherever it comes up.
     for (const c of icons) {
-      try { await repo.generatePrepPhoto(householdId!, c.name, null, false, undefined, true); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the picture for ${c.name}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+      try { await repo.generatePrepPhoto(householdId!, c.name, null, false, undefined, true); } catch (e) { return stopped(before, total, `Couldn't make the picture for ${c.name}: ${e instanceof Error ? e.message : String(e)}`); }
       before += 1;
       setPhotos({ done: before, total });
     }
     // The chopping-board photos first: one per cut, reused by every recipe that cuts it the same way.
     for (const c of prep) {
-      try { await (c.redraw ? repo.generatePrepPhoto(householdId!, c.name, c.note, true) : repo.generatePrepPhoto(householdId!, c.name, c.note)); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+      try { await (c.redraw ? repo.generatePrepPhoto(householdId!, c.name, c.note, true) : repo.generatePrepPhoto(householdId!, c.name, c.note)); } catch (e) { return stopped(before, total, `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}`); }
       before += 1;
       setPhotos({ done: before, total });
     }
     for (const r of recipes) {
       // Step photos are made in the style of the main photo, so a recipe without one gets it first.
       if (!r.hero_image_path) {
-        try { await repo.generateHero(r.id); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the main photo for ${r.title}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+        try { await repo.generateHero(r.id); } catch (e) { return stopped(before, total, `Couldn't make the main photo for ${r.title}: ${e instanceof Error ? e.message : String(e)}`); }
         before += 1;
         setPhotos({ done: before, total });
       }
       const result = await makeStepPhotos(r.id, r.steps, (done) => setPhotos({ done: before + done, total }), { asked: true, redraw: true });
       before += result.made;
-      if (result.error) { setPhotos({ done: before, total, error: `Couldn't make step photos: ${result.error}` }); return; }
+      if (result.error) { return stopped(before, total, `Couldn't make step photos: ${result.error}`); }
     }
     setPhotos({ done: before, total, finished: true });
     reload();
@@ -201,7 +207,12 @@ const photosNeeded = (r: RecipeDetail) => missing(r) + (missing(r) > 0 && !r.her
 /** "Add step photos" for the hour's recipes, and how it's getting on. */
 function MissingPhotos({ recipes, prep, icons, state, onStart }: { recipes: RecipeDetail[]; prep: HourPlan['prepMissing']; icons: HourPlan['iconsMissing']; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
   const n = icons.length + prep.length + recipes.reduce((t, r) => t + photosNeeded(r), 0);
-  if (state?.error) return <p className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{state.error}</p>;
+  if (state?.error) return (
+    <div className="grid justify-items-start gap-2">
+      <p role="alert" className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{state.error}</p>
+      {n > 0 && <button type="button" onClick={() => onStart(recipes.filter((r) => missing(r) > 0))} className="rounded-xl bg-[#E9ECE4] px-4 py-2 text-sm font-semibold text-[#1B211D]">Try again</button>}
+    </div>
+  );
   if (state?.finished) return <p className="m-0 text-[#3F4A43]">Step photos made ({state.done}).</p>;
   if (state) return (
     <div role="status" aria-label="Making step photos" className="grid gap-2 text-[#3F4A43]">

@@ -287,3 +287,12 @@ test('Add step photos redraws older realistic step photos as cartoons', async ()
   await screen.findByText(/Step photos made/);
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', true, true);
 });
+
+test('if making photos stops on an error, it says why and Try again carries on', async () => {
+  h.repo.generateStepPhoto.mockRejectedValueOnce(new Error('Failed to send a request to the Edge Function (Load failed)'));
+  open();
+  await user().click(await screen.findByRole('button', { name: /Add step photos/ }));
+  expect(await screen.findByText(/Couldn't make step photos: Failed to send a request/)).toBeInTheDocument();
+  await user().click(screen.getByRole('button', { name: 'Try again' }));
+  expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
+});

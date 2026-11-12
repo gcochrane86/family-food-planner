@@ -11,9 +11,11 @@ const h = vi.hoisted(() => ({
   updates: [] as unknown[],
   upserts: [] as unknown[],
   rpcs: [] as { fn: string; args: unknown }[],
+  invoke: null as unknown,
 }));
 vi.mock('./supabase', () => ({
   getSupabase: () => ({
+    functions: { invoke: async () => h.invoke ?? { data: null, error: null } },
     rpc: async (fn: string, args: unknown) => { h.rpcs.push({ fn, args }); return { data: null, error: null }; },
     storage: { from: () => ({
       upload: async (path: string) => { h.uploads.push(path); return { error: null }; },
@@ -97,4 +99,17 @@ test("saving slots from the app never sends tonight's version (Claude saves it; 
   await repo.saveSlots([{ id: 'x', plan_week_id: 'w', date: '2026-10-21', slot: 'dinner', recipe_id: 'b', mode: 'cook', portions: 3, guests: 0,
     locked: true, reason: null, source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, version: null }]);
   expect((h.upserts[0] as Record<string, unknown>[])[0]).not.toHaveProperty('version');
+});
+
+describe('photo function errors', () => {
+  afterEach(() => { h.invoke = null; });
+  test("a call that never got a reply says so, instead of failing on the missing reply", async () => {
+    h.invoke = { data: null, error: Object.assign(new Error('Failed to send a request to the Edge Function'), { context: new TypeError('Load failed') }) };
+    await expect(repo.generateStepPhoto('r1', 's1')).rejects.toThrow('Failed to send a request to the Edge Function (Load failed)');
+    await expect(repo.generatePrepPhoto('h1', 'onion', null)).rejects.toThrow(/Failed to send a request/);
+  });
+  test("the function's own reason is shown when it replied with one", async () => {
+    h.invoke = { data: null, error: Object.assign(new Error('Edge Function returned a non-2xx status code'), { context: new Response(JSON.stringify({ error: 'Only liked recipes get step photos.' }), { status: 400 }) }) };
+    await expect(repo.generateStepPhoto('r1', 's1')).rejects.toThrow('Only liked recipes get step photos.');
+  });
 });
