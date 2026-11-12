@@ -36,8 +36,10 @@ test('the first page is just the hour, what to get out, and Start; the chopping 
   expect(screen.queryByText(/To wash/)).not.toBeInTheDocument();
   expect(screen.getByText(/minutes hands-on/)).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Start' }));
-  expect(screen.getByText(/on its own mat/)).toBeInTheDocument();
-  expect(screen.getAllByText(/^Into one bowl$/).length).toBeGreaterThan(0);
+  // No headings for ordinary chopping; raw meat still says to do it last on its own board.
+  expect(screen.queryByText(/^For /)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Into one bowl/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Raw meat and fish: last, on a separate board/)).toBeInTheDocument();
 });
 
 test('Start goes to the first step and Next steps through, with no timers', async () => {
@@ -269,7 +271,7 @@ test('the step pages show the same pictures: tiles for what a step uses, and bes
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(screen.getByRole('img', { name: 'chicken breast or thigh' })).toHaveAttribute('src', expect.stringContaining('icon-chicken.jpg'));
   // The chopping is tiles too: name, then the amount and the cut.
-  const chop = screen.getAllByRole('list').find((l) => /^For /.test(l.getAttribute('aria-label') ?? ''))!;
+  const chop = screen.getByRole('list', { name: 'Raw meat and fish' });
   expect(within(chop).getByText('Chicken breast or thigh')).toBeInTheDocument();
   expect(within(chop).getByText('Cut the chicken breast or thigh into 10mm strips')).toBeInTheDocument();
   while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));

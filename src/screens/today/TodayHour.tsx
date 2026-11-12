@@ -7,7 +7,7 @@ import PhotoFrame from '../../components/PhotoFrame';
 import { makeStepPhotos, needsRedraw } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
-import type { ChopGroup, HourInput, HourPlan, HourStep } from '../../lib/todayHour';
+import type { HourInput, HourPlan, HourStep } from '../../lib/todayHour';
 import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
@@ -25,7 +25,6 @@ const addMinutes = (hhmm: string, n: number) => {
   const t = h * 60 + m + n;
   return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
-const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one bowl (for the TM7)', box: 'a lidded box, into the fridge', fridge: 'the fridge box: check they are there' };
 
 /** Today's hour: the plan for the evening's cooking hour, then one step at a time, with timers and the screen kept on. */
 export default function TodayHour() {
@@ -156,24 +155,32 @@ export default function TodayHour() {
             {step.kit && <span className="font-mono text-[clamp(22px,3vw,32px)] font-bold leading-tight text-[#1B211D]">{withFahrenheit(step.kit)}</span>}
             {step.kind === 'chop' && data ? (
               <div className="grid gap-4">
-                {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => (
-                  <div key={i} className="grid gap-1.5">
-                    <b className="text-[clamp(17px,2.2vw,22px)] text-[#1B211D]">{g.label}{g.raw ? ' · last, on its own mat' : ''}</b>
-                    <span className="text-sm text-[#5D6760]">Into {WHERE[g.where]}</span>
-                    <ul aria-label={g.label} className="m-0 grid list-none gap-3 p-0">
-                      {g.items.map((it) => {
-                        const k = iconKey(it.name);
-                        return (
-                          <li key={it.name} className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4">
-                            <Card item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }}
-                              onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />
-                            <span className="text-[clamp(19px,2.6vw,26px)] font-semibold leading-snug text-[#1B211D]">{chopInstruction(it.name, it.note)}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
+                {(() => {
+                  // One plain list; a heading only where it changes what you do.
+                  const live = data.plan.chop.filter((g) => g.where !== 'fridge');
+                  const sections = [
+                    { label: null, items: live.filter((g) => !g.raw && g.where !== 'box').flatMap((g) => g.items) },
+                    { label: 'For tomorrow: into a lidded box in the fridge', items: live.filter((g) => !g.raw && g.where === 'box').flatMap((g) => g.items) },
+                    { label: 'Raw meat and fish: last, on a separate board', items: live.filter((g) => g.raw).flatMap((g) => g.items) },
+                  ].filter((x) => x.items.length);
+                  return sections.map((sec) => (
+                    <div key={sec.label ?? 'chop'} className="grid gap-2">
+                      {sec.label && <b className="text-[clamp(17px,2.2vw,22px)] text-[#1B211D]">{sec.label}</b>}
+                      <ul aria-label={sec.label ? sec.label.split(':')[0] : 'To chop'} className="m-0 grid list-none gap-3 p-0">
+                        {sec.items.map((it, n) => {
+                          const k = iconKey(it.name);
+                          return (
+                            <li key={`${it.name}-${n}`} className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4">
+                              <Card item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }}
+                                onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />
+                              <span className="text-[clamp(19px,2.6vw,26px)] font-semibold leading-snug text-[#1B211D]">{chopInstruction(it.name, it.note)}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ));
+                })()}
               </div>
             ) : (
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#1B211D] [&_b]:text-[#1B211D]"><StepText text={step.body} /></p>
