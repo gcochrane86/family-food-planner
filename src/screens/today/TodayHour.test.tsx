@@ -169,3 +169,23 @@ test('holding a chopping photo offers a new photo, or your own; nothing shows un
   await user().upload(screen.getByLabelText('Use my own photo'), new File(['x'], 'c.jpg', { type: 'image/jpeg' }));
   expect(h.repo.uploadPrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh|strips (10mm)', 'chicken breast or thigh, strips (10mm)', expect.any(Blob));
 });
+
+test("holding a recipe step's photo offers a new photo for that step, or your own", async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, hero_image_path: 'h1/hero/honey.jpg' } : null));
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  const photo = screen.getByRole('img', { name: 'Almond-Crusted Honey Chilli Chicken' });
+  fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  fireEvent.pointerUp(photo);
+  const sheet = screen.getByRole('dialog', { name: 'Rice on' });
+  await user().click(within(sheet).getByRole('button', { name: 'Make a new photo' }));
+  await user().type(screen.getByLabelText('What should it show? (optional)'), 'rice in the TM7 basket');
+  await user().click(screen.getByRole('button', { name: 'Make it' }));
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true, { hint: 'rice in the TM7 basket' });
+  fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  await user().upload(screen.getByLabelText('Use my own photo'), new File(['x'], 'r.jpg', { type: 'image/jpeg' }));
+  expect(h.repo.uploadStepPhoto).toHaveBeenCalledWith('h1', 's-rice', expect.any(Blob));
+});

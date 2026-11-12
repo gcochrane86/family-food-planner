@@ -29,7 +29,7 @@ export default function TodayHour() {
   const key = `today-hour:${todayInLondon()}`;
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
-  const [menu, setMenu] = useState<Prep | null>(null);
+  const [menu, setMenu] = useState<Held | null>(null);
   const [photos, setPhotos] = useState<{ done: number; total: number; finished?: boolean; error?: string } | null>(null);
   const steps: (HourStep & { afterDinner?: boolean })[] = data ? [...data.plan.steps, ...data.plan.after.map((s) => ({ ...s, afterDinner: true }))] : [];
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
@@ -142,9 +142,14 @@ export default function TodayHour() {
             : <Link to="/week" className="rounded-xl bg-lcd-ink px-6 py-3.5 text-base font-semibold text-[#0A0E0B] no-underline">Done</Link>}
         </div>
       )}
-      {menu && <PhotoOptions prep={menu} onClose={() => setMenu(null)}
-        onRemake={(hint) => void fixPrep(() => repo.generatePrepPhoto(householdId!, menu.name, menu.note, true, hint || undefined))}
-        onOwn={(file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, menu.key, menu.label, await resizeImage(file, 1600)))} />}
+      {menu?.prep && (() => { const p = menu.prep; return (
+        <PhotoOptions title={p.label} note="Changes this photo wherever this cut is used." onClose={() => setMenu(null)}
+          onRemake={(hint) => void fixPrep(() => repo.generatePrepPhoto(householdId!, p.name, p.note, true, hint || undefined))}
+          onOwn={(file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />); })()}
+      {menu?.step && (() => { const st = menu.step; return (
+        <PhotoOptions title={st.title} note="Gives this step its own photo, in cook mode too." onClose={() => setMenu(null)}
+          onRemake={(hint) => void fixPrep(() => repo.generateStepPhoto(st.recipeId, st.stepId, st.has, true, { ...(hint ? { hint } : {}), ...(st.own ? { replaceOwn: true } : {}) }))}
+          onOwn={(file) => void fixPrep(async () => repo.uploadStepPhoto(householdId!, st.stepId, await resizeImage(file, 1600)))} />); })()}
     </div>
   );
 }
@@ -175,22 +180,24 @@ function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetai
 
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
 type Prep = NonNullable<HourStep['photos'][number]['prep']>;
-function StepPictures({ step, onHold }: { step: HourStep; onHold: (p: Prep) => void }) {
+type Held = { prep?: Prep; step?: NonNullable<HourStep['photos'][number]['step']> };
+function StepPictures({ step, onHold }: { step: HourStep; onHold: (h: Held) => void }) {
   if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-6xl">🧽</span> : null;
-  return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt, caption: p.prep?.label, onHold: p.prep ? () => onHold(p.prep!) : undefined }))} />;
+  return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt, caption: p.prep?.label,
+    onHold: p.prep ? () => onHold({ prep: p.prep }) : p.step ? () => onHold({ step: p.step }) : undefined }))} />;
 }
 
 /** A chopping photo's options, opened by holding it: a new photo, or your own, for that cut everywhere. */
-function PhotoOptions({ prep, onRemake, onOwn, onClose }: { prep: Prep; onRemake: (hint: string) => void; onOwn: (file: File) => void; onClose: () => void }) {
+function PhotoOptions({ title, note, onRemake, onOwn, onClose }: { title: string; note: string; onRemake: (hint: string) => void; onOwn: (file: File) => void; onClose: () => void }) {
   const item = 'block w-full rounded-xl bg-white/10 px-4 py-3 text-left text-base font-semibold text-white';
   const [asking, setAsking] = useState(false);
   const [hint, setHint] = useState('');
   return (
     <div className="fixed inset-0 z-[60] grid items-end justify-items-center bg-black/50 md:items-center" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label={prep.label} onClick={(e) => e.stopPropagation()}
+      <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
         className="grid w-full max-w-md gap-2 rounded-t-3xl bg-[#121814] p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-white md:rounded-3xl">
-        <p className="m-0 mb-1 font-bold">{prep.label}</p>
-        <p className="m-0 mb-2 text-sm text-[#9AA89F]">Changes this photo wherever this cut is used.</p>
+        <p className="m-0 mb-1 font-bold">{title}</p>
+        <p className="m-0 mb-2 text-sm text-[#9AA89F]">{note}</p>
         {asking ? (
           <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); onClose(); onRemake(hint.trim()); }}>
             <label className="grid gap-1 text-sm text-[#C9D3CC]">What should it show? (optional)

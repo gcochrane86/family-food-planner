@@ -181,7 +181,7 @@ describe('review fixes', () => {
     ]);
     const kit = { apo: { path: 'h1/kit/apo.jpg', name: 'Anova Precision Oven' }, tm7: { path: 'h1/kit/tm7.jpg', name: 'Thermomix TM7' } };
     const plan = planHour(input({ tonight: { recipe: { ...fish, hero_image_path: 'h1/hero/fish.jpg' }, portions: 4 }, kitPhotos: kit }));
-    expect(titled(plan, 'Heat the Anova')!.photos).toEqual([{ path: 'h1/kit/apo.jpg', alt: 'Anova Precision Oven' }]);
+    expect(titled(plan, 'Heat the Anova')!.photos).toMatchObject([{ path: 'h1/kit/apo.jpg', alt: 'Anova Precision Oven' }]);
     expect(titled(plan, 'Roast')!.photos.map((p) => p.path)).toEqual(['h1/hero/fish.jpg']);
     const tm7 = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } }, kitPhotos: kit }));
     const rinse = tm7.steps.find((x) => x.title === 'Rinse the TM7 bowl');

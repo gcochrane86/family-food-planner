@@ -52,7 +52,9 @@ export interface HourStep {
   ingredients: RecipeIngredient[];
   factor: number;
   /** Pictures for the step (stored photo paths): the step's own photo, else its recipe's; several for the chopping. */
-  photos: { path: string; alt: string; prep?: { name: string; note: string | null; key: string; label: string } }[];
+  photos: { path: string; alt: string; prep?: { name: string; note: string | null; key: string; label: string };
+    /** The recipe step this picture stands for, so it can be given its own photo. */
+    step?: { recipeId: string; stepId: string; title: string; has: boolean; own: boolean } }[];
 }
 
 export interface HourPlan {
@@ -198,10 +200,12 @@ const kitPhoto = (kit: Kit, machine: string | null): HourStep['photos'] => {
 /** A recipe step's own photo; for a step with no ingredients in it (just a machine), your photo of that machine;
  *  else the recipe's main photo. */
 export function stepPhotos(r: RecipeDetail, s: RecipeStep, kit?: Kit): HourStep['photos'] {
-  if (s.image_path) return [{ path: s.image_path, alt: 'Photo of this step' }];
+  const step = s.id ? { recipeId: r.id, stepId: s.id, title: s.title, has: !!s.image_path, own: s.image_source === 'own' } : undefined;
   const machineOnly = !!s.machine && !/\*\*.+?\*\*/.test(s.body);
-  if (machineOnly && kitPhoto(kit, s.machine).length) return kitPhoto(kit, s.machine);
-  return r.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : [];
+  const photos: HourStep['photos'] = s.image_path ? [{ path: s.image_path, alt: 'Photo of this step' }]
+    : machineOnly && kitPhoto(kit, s.machine).length ? kitPhoto(kit, s.machine)
+    : r.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : [];
+  return photos.map((p) => ({ ...p, step }));
 }
 
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
