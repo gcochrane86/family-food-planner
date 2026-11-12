@@ -1,0 +1,322 @@
+import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
+import { formatQty, machineLabel, stepIngredients } from './recipes';
+import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
+
+/**
+ * Today's hour: one cooking hour a day (17:30–18:30 by default). Chopping first, in one session; then tonight's
+ * dinner, with tomorrow's prep, a night-before breakfast and tomorrow's lunch fitted into the waits; then plate up,
+ * pack the leftovers lunch, wipe down and start the dishwasher.
+ */
+
+type Cooked = { recipe: RecipeDetail; portions: number };
+
+export interface HourInput {
+  date: string;
+  start: string;
+  minutes: number;
+  tm7Bowls: 1 | 2;
+  tm7Machines: 1 | 2;
+  /** Tonight's cooked dinner, if there is one. */
+  tonight?: Cooked | null;
+  /** Yesterday's hour ran, so tonight's veg that keeps was chopped then. */
+  yesterdayPlanned: boolean;
+  tomorrow?: {
+    dinner?: Cooked | null;
+    lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | null;
+    /** Only a breakfast made the night before. */
+    breakfast?: { title: string; recipe?: RecipeDetail } | null;
+  } | null;
+}
+
+export interface ChopGroup {
+  label: string;
+  where: 'bowl' | 'tm7' | 'box';
+  items: { name: string; qty: string; note: string | null }[];
+  raw: boolean;
+}
+
+export interface HourStep {
+  at: string;
+  end: string;
+  kind: 'chop' | 'cook' | 'extra' | 'clean';
+  title: string;
+  body: string;
+  kit: string | null;
+  timer: number | null;
+  ingredients: RecipeIngredient[];
+  factor: number;
+}
+
+export interface HourPlan {
+  chop: ChopGroup[];
+  steps: HourStep[];
+  /** Minutes you're busy (not counting the waits). */
+  handsOn: number;
+  toWash: string[];
+  /** Extras that didn't fit: do these after dinner. */
+  after: HourStep[];
+  warnings: string[];
+}
+
+const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+const clock = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+const HANDS_OFF = new Set<Machine>(['tm7', 'apo', 'oven', 'hy24']);
+/** A machine that only does one thing at a time (the hob has several rings). */
+const SINGLE = new Set<Machine>(['apo', 'hy24', 'oven']);
+const RINSE = 2;
+const CHOP_CLEAN = 2;
+const lengthOf = (s: RecipeStep) => s.timer_minutes ?? 5;
+const isHandsOff = (s: { machine: Machine | null; timer_minutes: number | null }) =>
+  !!s.machine && HANDS_OFF.has(s.machine) && (s.timer_minutes ?? 0) >= 5;
+const kitOf = (s: RecipeStep) => (s.machine ? [machineLabel(s.machine), s.settings].filter(Boolean).join(' · ') : s.settings);
+const factorOf = (c: Cooked) => c.portions / (c.recipe.base_portions || c.portions || 1);
+
+/** Something on the timeline. `busy` is when you're needed; `machine` is what it takes up. */
+interface Slot { start: number; end: number; busy: boolean; machine: Machine | null; step: HourStep }
+
+export function planHour(input: HourInput): HourPlan {
+  const start = toMin(input.start);
+  const plateAt = start + input.minutes - 10;
+  const tomorrow = input.tomorrow ?? null;
+  const warnings: string[] = [];
+
+  // 1. What to chop, grouped by the step it goes into; raw meat and fish last.
+  const chop = chopList(input);
+  const items = chop.reduce((n, g) => n + g.items.length, 0);
+
+  const slots: Slot[] = [];
+  const add = (start: number, length: number, busy: boolean, machine: Machine | null, step: Omit<HourStep, 'at' | 'end'>) => {
+    const slot = { start, end: start + length, busy, machine, step: { ...step, at: clock(start), end: clock(start + length) } };
+    slots.push(slot);
+    return slot;
+  };
+  const plain = { kit: null, timer: null, ingredients: [] as RecipeIngredient[], factor: 1 };
+
+  // 2. The chopping block, then the board and knife into the dishwasher.
+  let base = start;
+  if (items) {
+    const length = Math.max(5, Math.ceil(1.5 * items));
+    add(start, length, true, null, { ...plain, kind: 'chop', title: 'Chop everything', body: chop.map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
+    add(start + length, CHOP_CLEAN, true, null, { ...plain, kind: 'clean', title: 'Board, knife and bowls into the dishwasher', body: 'Rinse the board, knife and bowls and load them now, so the side is clear.' });
+    base = start + length + CHOP_CLEAN;
+  }
+
+  // 3. Tonight's dinner, at its own times from the end of the chopping.
+  let dinnerEnd = base;
+  if (input.tonight) {
+    const factor = factorOf(input.tonight);
+    const r = input.tonight.recipe;
+    let prevEnd = base;
+    for (const s of finishSteps(r)) {
+      const at = s.at_minute !== null ? base + s.at_minute : prevEnd;
+      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor });
+      prevEnd = slot.end;
+      dinnerEnd = Math.max(dinnerEnd, slot.end);
+    }
+    if (dinnerEnd > plateAt) warnings.push(`Tonight's dinner runs to ${clock(dinnerEnd)}`);
+  }
+  const endAt = input.tonight ? Math.max(plateAt, dinnerEnd) : plateAt;
+
+  // 4. Extras into the waits, each chain in order; what doesn't fit goes after dinner.
+  const after: HourStep[] = [];
+  const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
+  for (const chain of extras(tomorrow)) {
+    let earliest = base;
+    let stuck = false;
+    for (const e of chain) {
+      const placed = stuck ? null : place(e, earliest, endAt, slots, input.tm7Machines, bowls);
+      if (!placed) {
+        stuck = true;
+        after.push({ ...e.step, at: '', end: '' });
+        warnings.push(`Not enough time for ${e.step.title}: do it after dinner`);
+        continue;
+      }
+      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse());
+      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse());
+      const slot = add(placed.at, e.length, !e.handsOff, e.machine, e.step);
+      earliest = slot.end;
+    }
+  }
+
+  // 5. The end of the hour.
+  let tail = endAt;
+  if (input.tonight) {
+    add(tail, 5, true, null, { ...plain, kind: 'cook', title: 'Plate up', body: 'Plate up and serve.' });
+    tail += 5;
+  } else {
+    tail = Math.max(base, ...slots.map((s) => s.end));
+  }
+  const lunch = tomorrow?.lunch;
+  if (lunch?.kind === 'leftovers') {
+    add(tail, 3, true, null, { ...plain, kind: 'extra', title: `Pack tomorrow's lunch: ${lunch.title}`, body: "Box up tomorrow's lunch while it's warm, let it cool, then into the fridge." });
+    tail += 3;
+  }
+  add(tail, Math.max(2, input.tonight ? endAt + 10 - tail : 5), true, null, { ...plain, kind: 'clean', title: 'Wipe down, load and start the dishwasher', body: 'Wipe the sides, load the last pans and start the dishwasher.' });
+
+  const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
+  const steps = ordered.map((s) => s.step);
+  const handsOn = ordered.filter((s) => s.busy).reduce((n, s) => n + (s.end - s.start), 0);
+  return { chop, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
+}
+
+function rinse(): Omit<HourStep, 'at' | 'end'> {
+  return { kind: 'clean', title: 'Rinse the TM7 bowl', body: 'Rinse the TM7 bowl so it is ready for the next job.', kit: 'TM7', timer: null, ingredients: [], factor: 1 };
+}
+
+const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
+
+interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'at' | 'end'> }
+
+/** Tomorrow's prep steps, the night-before breakfast, then a lunch to make: each a chain of steps done in order. */
+function extras(tomorrow: HourInput['tomorrow']): Extra[][] {
+  if (!tomorrow) return [];
+  const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number): Extra[] =>
+    steps.map((s) => ({
+      length: lengthOf(s), handsOff: isHandsOff(s), machine: s.machine,
+      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor },
+    }));
+  const simple = (title: string, body: string): Extra[] =>
+    [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1 } }];
+  const chains: Extra[][] = [];
+  if (tomorrow.dinner) {
+    const r = tomorrow.dinner.recipe;
+    const prep = r.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+    if (prep.length) chains.push(fromSteps(r, prep, 'For tomorrow: ', factorOf(tomorrow.dinner)));
+  }
+  const b = tomorrow.breakfast;
+  if (b) {
+    const steps = b.recipe ? finishSteps(b.recipe) : [];
+    chains.push(steps.length ? fromSteps(b.recipe!, steps, `${b.title}: `, 1) : simple(`Make the ${b.title.toLowerCase()}`, 'Make it now and keep it in the fridge for the morning.'));
+  }
+  const l = tomorrow.lunch;
+  if (l?.kind === 'make') {
+    const steps = l.recipe ? finishSteps(l.recipe) : [];
+    chains.push(steps.length ? fromSteps(l.recipe!, steps, "Tomorrow's lunch: ", 1) : simple(`Make tomorrow's lunch: ${l.title}`, 'Make it and box it up for the fridge.'));
+  }
+  return chains;
+}
+
+const overlaps = (a: number, b: number, s: { start: number; end: number }) => a < s.end && s.start < b;
+
+/** The earliest time an extra fits: you're free (for its whole length, or just to set a machine going), its machine
+ *  is free, and with one TM7 bowl there's time to rinse it between jobs. */
+function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machines: number, bowls: number):
+  { at: number; rinseBefore: number | null; rinseAfter: number | null } | null {
+  const free = (a: number, b: number) => !slots.some((s) => s.busy && overlaps(a, b, s));
+  for (let t = earliest; t + e.length <= endAt; t++) {
+    if (!free(t, e.handsOff ? t + 1 : t + e.length)) continue;
+    const end = t + e.length;
+    if (e.machine && SINGLE.has(e.machine) && slots.some((s) => s.machine === e.machine && overlaps(t, end, s))) continue;
+    let rinseBefore: number | null = null;
+    let rinseAfter: number | null = null;
+    if (e.machine === 'tm7') {
+      const tm7 = slots.filter((s) => s.machine === 'tm7');
+      if (bowls < 2 || machines < 2) {
+        if (tm7.some((s) => overlaps(t, end, s))) continue;
+      } else if (tm7.filter((s) => overlaps(t, end, s)).length >= machines) continue;
+      if (bowls < 2) {
+        const before = tm7.filter((s) => s.end <= t).sort((a, b) => b.end - a.end)[0];
+        const next = tm7.filter((s) => s.start >= end).sort((a, b) => a.start - b.start)[0];
+        if (before) {
+          if (t - before.end < RINSE || !free(t - RINSE, t)) continue;
+          rinseBefore = t - RINSE;
+        }
+        if (next) {
+          if (next.start - end < RINSE || !free(end, end + RINSE)) continue;
+          rinseAfter = end;
+        }
+      }
+    }
+    return { at: t, rinseBefore, rinseAfter };
+  }
+  return null;
+}
+
+/** Tonight's dinner, tomorrow's prep (done tonight), breakfast and lunch: chopped now. Tomorrow's dinner: what keeps
+ *  is chopped now and boxed. */
+function chopList(input: HourInput): ChopGroup[] {
+  const groups: ChopGroup[] = [];
+  const seen = new Set<RecipeIngredient>();
+  const item = (i: RecipeIngredient, factor: number) => ({ name: i.name, qty: formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx), note: i.note });
+  const push = (label: string, where: ChopGroup['where'], list: RecipeIngredient[], factor: number) => {
+    const veg = list.filter((i) => !isRawProtein(i.name));
+    const raw = list.filter((i) => isRawProtein(i.name));
+    if (veg.length) groups.push({ label, where, items: veg.map((i) => item(i, factor)), raw: false });
+    if (raw.length) groups.push({ label, where: where === 'tm7' ? 'bowl' : where, items: raw.map((i) => item(i, factor)), raw: true });
+  };
+  const fromSteps = (r: RecipeDetail, steps: RecipeStep[], factor: number, label: (s: RecipeStep) => string, keep: (i: RecipeIngredient) => boolean) => {
+    for (const s of steps) {
+      const list = stepIngredients(s.body, r.ingredients).filter((i) => !seen.has(i) && needsChopping(i) && keep(i));
+      list.forEach((i) => seen.add(i));
+      const where = s.machine === 'tm7' && /^\d+ sec/.test(s.settings ?? '') ? 'tm7' : 'bowl';
+      push(label(s), where, list, factor);
+    }
+  };
+  const rest = (r: RecipeDetail, factor: number, label: string, where: ChopGroup['where'], keep: (i: RecipeIngredient) => boolean) => {
+    const list = r.ingredients.filter((i) => !seen.has(i) && needsChopping(i) && keep(i));
+    list.forEach((i) => seen.add(i));
+    push(label, where, list, factor);
+  };
+
+  if (input.tonight) {
+    const r = input.tonight.recipe;
+    const f = factorOf(input.tonight);
+    // Chopped in yesterday's hour, if there was one: anything that keeps a day or more.
+    const keep = (i: RecipeIngredient) => !(input.yesterdayPlanned && keepsDays(i.name) >= 1);
+    fromSteps(r, finishSteps(r), f, (s) => `For ${s.title}`, keep);
+    rest(r, f, `For ${r.title}`, 'bowl', keep);
+  }
+  const t = input.tomorrow;
+  const all = () => true;
+  if (t?.dinner) {
+    const r = t.dinner.recipe;
+    const f = factorOf(t.dinner);
+    const prep = r.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+    fromSteps(r, prep, f, (s) => `For tomorrow's prep: ${s.title}`, all);
+  }
+  for (const x of [t?.breakfast, t?.lunch?.kind === 'make' ? t.lunch : null]) {
+    if (x && 'recipe' in x && x.recipe) fromSteps(x.recipe, finishSteps(x.recipe), 1, () => `For ${x.title}`, all);
+  }
+  if (t?.dinner) {
+    const r = t.dinner.recipe;
+    const f = factorOf(t.dinner);
+    const box: RecipeIngredient[] = [];
+    for (const s of finishSteps(r)) for (const i of stepIngredients(s.body, r.ingredients)) if (!seen.has(i) && !box.includes(i)) box.push(i);
+    for (const i of r.ingredients) if (!seen.has(i) && !box.includes(i)) box.push(i);
+    const keepable = box.filter((i) => needsChopping(i) && keepsDays(i.name) >= 1);
+    keepable.forEach((i) => seen.add(i));
+    push(`For tomorrow: ${r.title}`, 'box', keepable, f);
+  }
+  return [...groups.filter((g) => !g.raw), ...groups.filter((g) => g.raw)];
+}
+
+const BY_MACHINE: Partial<Record<Machine, string>> = { tm7: 'TM7 bowl', hob: 'Pan', oven: 'Tray', apo: 'Tray', hy24: 'Air-fryer basket' };
+const BY_WORD: [RegExp, string][] = [
+  [/\b(sauce|frying )?pans?\b/i, 'Pan'],
+  [/\bpots?\b/i, 'Pot'],
+  [/\bcasseroles?\b/i, 'Casserole'],
+  [/\btrays?\b/i, 'Tray'],
+  [/\b(baking|oven|ovenproof|roasting|gratin|pie) dish(es)?\b/i, 'Dish'],
+  [/(?<!(tm7|mixing|thermomix) )\bbowls?\b/i, 'Bowl'],
+];
+
+function toWash(chopped: boolean, chop: ChopGroup[], steps: HourStep[], slots: Slot[], ex: Extra[]): string[] {
+  const out: string[] = [];
+  const addOne = (x: string) => { if (!out.includes(x)) out.push(x); };
+  if (chopped) {
+    addOne('Board');
+    addOne('Knife');
+    if (chop.some((g) => g.where !== 'box')) addOne('Prep bowls');
+  }
+  const machineOf = new Map<string, Machine | null>();
+  for (const s of slots) machineOf.set(s.step.title, s.machine);
+  for (const e of ex) machineOf.set(e.step.title, e.machine);
+  for (const s of steps) {
+    if (s.kind === 'chop' || s.kind === 'clean') continue;
+    const m = machineOf.get(s.title);
+    if (m && BY_MACHINE[m]) addOne(BY_MACHINE[m]!);
+    for (const [re, name] of BY_WORD) if (re.test(s.body)) addOne(name);
+  }
+  return out;
+}
