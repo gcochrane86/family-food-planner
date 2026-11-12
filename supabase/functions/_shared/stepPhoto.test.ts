@@ -16,7 +16,7 @@ test('the prompt names only ingredients added so far', () => {
 
 test('the prompt is a close-up of food with no machine', () => {
   const p = stepPhotoPrompt('Curry', curry, 0);
-  expect(p).toContain('directly above');
+  expect(p).toContain('slight angle');
   expect(p).toContain('No appliance');
   expect(p).toContain('No text');
   expect(p).not.toContain('**');
@@ -26,8 +26,14 @@ test('the prompt is a close-up of food with no machine', () => {
   expect(stepPhotoPrompt('X', [step('Slice the **lemon**.', null)], 0)).toContain('chopping board');
 });
 
-test('the prompt asks for the reference photo\'s table and light', () => {
-  expect(stepPhotoPrompt('Curry', curry, 0)).toContain('same table, light and colours as the reference photo');
+test('step pictures are cartoons in the chopping-board style; the dish photo only shows what the food looks like', () => {
+  const p = stepPhotoPrompt('Curry', curry, 0);
+  expect(p).toMatch(/friendly cartoon illustration/);
+  expect(p).toMatch(/plain white background/);
+  expect(p).toMatch(/only to see what the food looks like/);
+  expect(p).toMatch(/obvious at a glance/);
+  expect(p).not.toMatch(/realistic/i);
+  expect(p).not.toContain('table, light');
 });
 
 test('a prep step is shown as made-ahead', () => {
@@ -64,9 +70,9 @@ test('a photo you ask for from the menu does not need a 👍, but your own photo
 
 test('your own one-sentence description replaces the automatic one, keeping the house style', () => {
   const p = stepPhotoPrompt('Chickpea Curry', curry, 1, 'Chickpeas bubbling in a creamy tomato sauce');
-  expect(p).toContain('Show this: Chickpeas bubbling in a creamy tomato sauce.');
+  expect(p).toContain('Show this clearly: Chickpeas bubbling in a creamy tomato sauce.');
   expect(p).not.toContain('Only these ingredients are in it so far');
-  expect(p).toContain('same table, light and colours as the reference photo');
+  expect(p).toMatch(/friendly cartoon illustration/);
   expect(p).toContain('No text');
 });
 
@@ -103,7 +109,7 @@ test('which of your kit goes with a step', () => {
 
 test('the images are numbered: the dish for style only, then your kit, and the TM7 bowl is described too', () => {
   const p = stepPhotoPrompt('Ginger Chicken', curry, 1, 'Show the ingredients being added to the TM7 bowl', { name: 'Thermomix TM7', count: 3 });
-  expect(p).toContain('Image 1 is the finished dish "Ginger Chicken": use it only for the table, light and colours.');
+  expect(p).toContain('Image 1 is the finished dish "Ginger Chicken": use it only to see what the food looks like.');
   expect(p).toContain("Images 2 to 4 show the household's own Thermomix TM7");
   expect(p).toMatch(/tall, narrow stainless-steel jug with a handle/);
   expect(p).toMatch(/not a mixing bowl or a saucepan/);
@@ -122,4 +128,11 @@ test('mentioning the TM7, the Anova or a pan in your words sends that kit too', 
   expect(kitReference('hob', kit, 'then into the TM7')).toEqual({ name: 'Thermomix TM7 and Frying pans', photos: ['t1', 'f1'] });
   expect(kitReference(null, kit, 'on the Anova tray')?.photos).toEqual(['a1']);
   expect(kitReference(null, kit, 'nothing special')).toBeNull();
+});
+
+test('cartoon step pictures are named so older realistic ones can be told apart', async () => {
+  const { isCartoonStep } = await import('./stepPhoto');
+  expect(isCartoonStep('h1/steps/cartoon-r1-s1-1.jpg')).toBe(true);
+  expect(isCartoonStep('h1/steps/r1-s1-1.jpg')).toBe(false);
+  expect(isCartoonStep(null)).toBe(false);
 });

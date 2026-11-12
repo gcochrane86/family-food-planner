@@ -139,3 +139,18 @@ test('a roast description is checked and travels through the row helpers', () =>
   const { ingredients, steps } = contentRows(r);
   expect(seedFromDetail({ ...recipeRow('h1', r), ingredients, steps }).roast).toEqual(r.roast);
 });
+
+test("a step's picture description goes to photo_hint and comes back out; without one, the saved one is kept", () => {
+  const r = { ingredients: [], steps: [
+    { phase: 'finish', title: 'Potatoes on', body: 'Boil.', picture: 'Halved new potatoes in a saucepan of water on the hob' },
+    { phase: 'finish', title: 'Serve', body: 'Plate.' },
+  ] };
+  const { steps } = contentRows(r);
+  expect(steps[0].photo_hint).toBe('Halved new potatoes in a saucepan of water on the hob');
+  expect('photo_hint' in steps[1]).toBe(false);
+  const back = seedFromDetail({ title: 'X', ingredients: [], steps: [{ phase: 'finish', position: 1, at_minute: null, title: 'Potatoes on', body: 'Boil.', machine: 'hob', settings: null, timer_minutes: null, photo_hint: 'A pan' }] });
+  expect(back.steps[0].picture).toBe('A pan');
+  const bad = clone();
+  bad.recipes[0].steps[0].picture = 5;
+  expect(validateRecipeSeed(bad)).toContain('recipes[0].steps[0].picture must be text');
+});

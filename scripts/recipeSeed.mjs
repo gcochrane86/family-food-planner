@@ -46,6 +46,7 @@ export function validateRecipeSeed(file) {
       if (s?.at != null && (!Number.isInteger(s.at) || s.at < 0)) problems.push(`${at}.steps[${j}].at must be whole minutes`);
       if (s?.settings != null && typeof s.settings !== 'string') problems.push(`${at}.steps[${j}].settings must be text`);
       if (s?.timer != null && (!Number.isInteger(s.timer) || s.timer <= 0)) problems.push(`${at}.steps[${j}].timer must be whole minutes`);
+      if (s?.picture != null && typeof s.picture !== 'string') problems.push(`${at}.steps[${j}].picture must be text`);
     });
     if (r?.roast != null) {
       const KITS = ['oven', 'grill', 'warm', 'apo', 'tm7', 'hob', 'hy24', 'counter'];
@@ -91,6 +92,8 @@ export function contentRows(r) {
   const steps = r.steps.map((s) => ({
     phase: s.phase, position: ++position[s.phase], at_minute: s.at ?? null, title: s.title, body: s.body,
     machine: s.machine ?? null, settings: s.settings ?? null, timer_minutes: s.timer ?? null,
+    // What the step's cartoon picture shows; left out, the step keeps the one it has.
+    ...(s.picture ? { photo_hint: s.picture } : {}),
   }));
   const ingredients = r.ingredients.map((g, i) => ({
     position: i + 1, group_name: g.group ?? null, name: g.name, qty: g.qty ?? null,
@@ -115,6 +118,7 @@ export function seedFromDetail(d) {
   const order = { prep_8pm: 0, finish: 1, reheat: 2 };
   r.steps = [...d.steps].sort((a, b) => order[a.phase] - order[b.phase] || a.position - b.position).map((s) => ({
     phase: s.phase, at: s.at_minute, title: s.title, body: s.body, machine: s.machine, settings: s.settings, timer: s.timer_minutes,
+    ...(s.photo_hint ? { picture: s.photo_hint } : {}),
   }));
   return r;
 }

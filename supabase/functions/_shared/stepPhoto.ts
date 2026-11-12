@@ -54,17 +54,20 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
   const ingredients = ingredientsSoFar(steps, index);
   const prep = step.phase === 'prep_8pm';
   const intro = kit
-    ? `Image 1 is the finished dish "${recipeTitle}": use it only for the table, light and colours. Make a realistic photo of one cooking step for this same dish.`
-    : `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`;
+    ? `Image 1 is the finished dish "${recipeTitle}": use it only to see what the food looks like. Draw a friendly cartoon illustration of one cooking step for this dish.`
+    : `The reference photo shows the finished dish "${recipeTitle}": use it only to see what the food looks like. Draw a friendly cartoon illustration of one cooking step for this dish.`;
+  // The same look as the chopping-board pictures and the get-out cards.
+  const style = 'Bright flat colours with soft shading and clean outlines, like an illustrated picture-vocabulary card, seen from above at a slight angle, on a plain white background. Make the action obvious at a glance: one clear moment, the food large in the middle.';
   const which = kit && (kit.count === 1 ? 'Image 2 shows' : `Images 2 to ${kit.count + 1} show`);
   const tm7 = kit && /tm7|thermomix/i.test(kit.name) ? ` The Thermomix part is ${TM7_BOWL}.` : '';
   const rules = kit
-    ? `${which} the household's own ${kit.name}: the food must be in that exact kit (same shape, colour and finish), seen from any angle or rotation that makes the photo clearest, close up and showing only the part that holds the food.${tm7} No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
-    : 'Close up from directly above. No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
+    ? `${which} the household's own ${kit.name}: draw that same kit as a cartoon (same shape and colour), from any angle or rotation that shows the food best, showing only the part that holds the food.${tm7} No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
+    : 'No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
   const own = hint?.trim().replace(/[.\s]+$/, '');
-  if (own) return [intro, `The step: ${step.title}.`, `Show this: ${own}.`, rules].join(' ');
+  if (own) return [intro, style, `The step: ${step.title}.`, `Show this clearly: ${own}.`, rules].join(' ');
   return [
     intro,
+    style,
     `The step: ${step.title}. ${step.body.replace(/\*\*/g, '')}`,
     ingredients.length ? `Only these ingredients are in it so far: ${ingredients.join(', ')}.` : '',
     prep
@@ -73,6 +76,9 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
     rules,
   ].filter(Boolean).join(' ');
 }
+
+/** Step pictures drawn in the cartoon style are saved as steps/cartoon-…; older realistic ones get redrawn. */
+export const isCartoonStep = (path: string | null | undefined) => !!path && /\/steps\/cartoon-/.test(path);
 
 /**
  * Why a step photo can't be made, or null when it can. Guards cost and never replaces your own photo.

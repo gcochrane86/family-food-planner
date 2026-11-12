@@ -53,3 +53,15 @@ test('your own description for a step is sent with it', async () => {
   expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's1', false, true);
   expect(h.generateStepPhoto).toHaveBeenCalledWith('r9', 's2', false, true, { hint: 'Rice steaming in the basket' });
 });
+
+test('with redraw, older realistic generated photos are made again as cartoons; cartoons and your own photos are kept', async () => {
+  const list = [
+    { id: 's1', image_path: 'h1/steps/r1-s1-1.jpg', image_source: 'generated' },
+    { id: 's2', image_path: 'h1/steps/cartoon-r1-s2-1.jpg', image_source: 'generated' },
+    { id: 's3', image_path: 'h1/steps/own.jpg', image_source: 'own' },
+    { id: 's4', image_path: null, image_source: null },
+  ];
+  const result = await makeStepPhotos('r9', list, () => {}, { asked: true, redraw: true });
+  expect(result.made).toBe(2);
+  expect(h.generateStepPhoto.mock.calls).toEqual([['r9', 's1', true, true], ['r9', 's4', false, true]]);
+});

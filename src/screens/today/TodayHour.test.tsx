@@ -277,3 +277,13 @@ test('the step pages show the same pictures: tiles for what a step uses, and bes
   expect(within(uses).getByText('Basmati rice')).toBeInTheDocument();
   expect(within(uses).getByRole('img', { name: 'basmati rice' })).toHaveAttribute('src', expect.stringContaining('icon-rice.jpg'));
 });
+
+test('Add step photos redraws older realistic step photos as cartoons', async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, hero_image_path: 'h1/hero/honey.jpg',
+    steps: HONEY.steps.map((s) => ({ ...s, image_path: `h1/steps/${s.id}.jpg`, image_source: 'generated' as const })) } : null));
+  h.repo.listPrepPhotos.mockResolvedValue([]);
+  open();
+  await user().click(await screen.findByRole('button', { name: /Add step photos/ }));
+  await screen.findByText(/Step photos made/);
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', true, true);
+});

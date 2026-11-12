@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import PhotoFrame from '../../components/PhotoFrame';
-import { makeStepPhotos } from '../../lib/stepPhotos';
+import { makeStepPhotos, needsRedraw } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
 import type { ChopGroup, HourInput, HourPlan, HourStep } from '../../lib/todayHour';
@@ -75,7 +75,7 @@ export default function TodayHour() {
         before += 1;
         setPhotos({ done: before, total });
       }
-      const result = await makeStepPhotos(r.id, r.steps, (done) => setPhotos({ done: before + done, total }), { asked: true });
+      const result = await makeStepPhotos(r.id, r.steps, (done) => setPhotos({ done: before + done, total }), { asked: true, redraw: true });
       before += result.made;
       if (result.error) { setPhotos({ done: before, total, error: `Couldn't make step photos: ${result.error}` }); return; }
     }
@@ -194,7 +194,7 @@ function hourRecipes(input: HourInput): RecipeDetail[] {
   const all = [input.tonight?.recipe, input.tomorrow?.dinner?.recipe, input.tomorrow?.breakfast?.recipe, lunch?.kind === 'make' ? lunch.recipe : undefined];
   return all.filter((r): r is RecipeDetail => !!r).filter((r, i, rs) => rs.findIndex((x) => x.id === r.id) === i);
 }
-const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && !s.image_path).length;
+const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && (!s.image_path || needsRedraw(s))).length;
 /** The photos a recipe needs: its missing step photos, and its main photo first if it has none. */
 const photosNeeded = (r: RecipeDetail) => missing(r) + (missing(r) > 0 && !r.hero_image_path ? 1 : 0);
 

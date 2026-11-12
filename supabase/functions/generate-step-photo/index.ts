@@ -92,7 +92,8 @@ Deno.serve(async (req) => {
   if (!image) return reply(502, { error: 'Google replied without an image. Try again.' });
 
   // A new file name each time, so phones never show a cached older photo.
-  const path = `${recipe.household_id}/steps/${recipe.id}-${stepId}-${Date.now()}.jpg`;
+  // Cartoon-style pictures are named cartoon-…, so the app can tell them from the older realistic ones it redraws.
+  const path = `${recipe.household_id}/steps/cartoon-${recipe.id}-${stepId}-${Date.now()}.jpg`;
   const { error: uploadError } = await db.storage.from('recipe-images')
     .upload(path, decodeBase64(image.data), { contentType: image.mimeType });
   if (uploadError) return reply(500, { error: `Couldn't save the image: ${uploadError.message}` });
