@@ -36,6 +36,18 @@ const input = (over: Partial<HourInput> = {}): HourInput => ({
 const titled = (plan: ReturnType<typeof planHour>, t: string) => plan.steps.find((s) => s.title.includes(t));
 
 describe('planHour', () => {
+  it("lists what to get out for the whole hour: tonight's dinner, tomorrow's prep and the boxed veg, with icons once made", () => {
+    const plan = planHour(input({ prepPhotos: { 'icon:onion': 'h1/prep/icon-onion.jpg' } }));
+    const where = Object.fromEntries(plan.getOut.flatMap((g) => g.items.map((i) => [i.name, g.where])));
+    expect(where).toMatchObject({ 'chicken thigh': 'fridge', coriander: 'fridge', carrot: 'fridge', beef: 'fridge', onion: 'cupboard', 'tinned tomato': 'cupboard', 'beef stock': 'cupboard' });
+    // Tomorrow's tomatoes are cut on the day, so they stay put tonight.
+    expect(where.tomato).toBeUndefined();
+    const onion = plan.getOut.flatMap((g) => g.items).find((i) => i.name === 'onion')!;
+    expect(onion).toMatchObject({ qty: '2', icon: 'h1/prep/icon-onion.jpg' });
+    expect(plan.iconsMissing.map((i) => i.name)).not.toContain('onion');
+    expect(plan.iconsMissing.map((i) => i.name)).toContain('chicken thigh');
+  });
+
   it('chops first, at the start, veg before raw meat, and boxes what keeps for tomorrow', () => {
     const plan = planHour(input());
     expect(plan.steps[0]).toMatchObject({ at: '17:30', kind: 'chop' });

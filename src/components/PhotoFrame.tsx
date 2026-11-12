@@ -28,7 +28,7 @@ const HOLD_MS = 550;
 const MOVE_PX = 8; // further than this is a scroll, not a hold
 
 /** Press and hold (or right-click) to call `onHold`; without it, just the photo. */
-function Hold({ onHold, children }: { onHold?: () => void; children: ReactNode }) {
+export function Hold({ onHold, children }: { onHold?: () => void; children: ReactNode }) {
   const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
   const cancel = () => { if (hold.current) clearTimeout(hold.current.timer); hold.current = null; };
   useEffect(() => cancel, []);

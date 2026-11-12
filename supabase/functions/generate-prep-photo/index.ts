@@ -1,10 +1,11 @@
 // Makes one chopping photo: an ingredient cut a particular way, on a chopping board ("new potato, halved"). Saved
 // once per household, ingredient and cut, and reused by every recipe that prepares it the same way.
+// With `icon: true` it makes the ingredient's small cartoon for Today's hour "Get it out" list instead (one per ingredient).
 // Runs as the signed-in caller, so household access rules decide where it can save. Needs GOOGLE_AI_API_KEY.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { decodeBase64, encodeBase64 } from 'jsr:@std/encoding@1.0.5/base64';
 import { findImageData, GEMINI_MODEL, GEMINI_URL } from '../_shared/hero.ts';
-import { prepKey, prepPhotoPrompt } from '../_shared/prepCut.ts';
+import { iconKey, iconPrompt, prepKey, prepPhotoPrompt } from '../_shared/prepCut.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +27,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { householdId, name, note, replace, hint } = await req.json().catch(() => ({}));
+  const { householdId, name, note, replace, hint, icon } = await req.json().catch(() => ({}));
   const ownHint = typeof hint === 'string' && hint.trim() ? hint.trim().slice(0, 200) : null;
   if (typeof householdId !== 'string' || typeof name !== 'string' || !name.trim() || name.length > 120 || (note != null && (typeof note !== 'string' || note.length > 200))) {
     return reply(400, { error: 'householdId and an ingredient name are required' });
@@ -35,7 +36,8 @@ Deno.serve(async (req) => {
   const { data: home } = await db.from('households').select('id').eq('id', householdId).maybeSingle();
   if (!home) return reply(404, { error: 'That household is not yours.' });
 
-  const p = prepKey(name, note ?? null);
+  const asIcon = icon === true;
+  const p = asIcon ? { ...iconKey(name), cut: '' } : prepKey(name, note ?? null);
   const { data: existing, error: readError } = await db.from('prep_photos').select('path, source').eq('household_id', householdId).eq('key', p.key).maybeSingle();
   if (readError) return reply(500, { error: readError.message });
   if (existing && replace !== true) return reply(200, { path: existing.path, key: p.key, label: p.label, reused: true });
@@ -44,7 +46,7 @@ Deno.serve(async (req) => {
   const { data: kitRows } = await db.from('equipment').select('code, name, capabilities').eq('household_id', householdId);
   const board = (kitRows ?? []).find((k: { code: string; name: string }) => /board/i.test(`${k.code} ${k.name}`));
   const boardPath = (board?.capabilities?.photos as string[] | undefined)?.[0] ?? (typeof board?.capabilities?.photo === 'string' ? board.capabilities.photo : null);
-  const boardImg = boardPath ? (await db.storage.from('recipe-images').download(boardPath)).data : null;
+  const boardImg = boardPath && !asIcon ? (await db.storage.from('recipe-images').download(boardPath)).data : null;
   const boardInput = boardImg ? [{ type: 'image', data: encodeBase64(new Uint8Array(await boardImg.arrayBuffer())), mime_type: boardImg.type || 'image/jpeg' }] : [];
 
   const gemini = await fetch(GEMINI_URL, {
@@ -52,8 +54,8 @@ Deno.serve(async (req) => {
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       model: GEMINI_MODEL,
-      input: [{ type: 'text', text: prepPhotoPrompt(p, ownHint, boardInput.length > 0) }, ...boardInput],
-      response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '4:3', image_size: '1K' },
+      input: [{ type: 'text', text: asIcon ? iconPrompt(p.ingredient, ownHint) : prepPhotoPrompt(p, ownHint, boardInput.length > 0) }, ...boardInput],
+      response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: asIcon ? '1:1' : '4:3', image_size: '1K' },
     }),
   });
   const body = await gemini.json().catch(() => null);

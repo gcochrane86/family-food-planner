@@ -107,7 +107,7 @@ test("steps show their recipe's pictures, and cleaning steps an icon", async () 
 test('the first page offers to make the missing step photos, and makes them in the background', async () => {
   open();
   const button = await screen.findByRole('button', { name: /Add step photos/ });
-  expect(button).toHaveTextContent(/5 photos/);
+  expect(button).toHaveTextContent(/7 photos/); // 2 get-out pictures, 1 chopping photo, the main photo and 3 step photos
   await user().click(button);
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true);
   expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
@@ -116,7 +116,7 @@ test('the first page offers to make the missing step photos, and makes them in t
 test('a recipe with no main photo gets one first, then its step photos, and the count includes it', async () => {
   open();
   const button = await screen.findByRole('button', { name: /Add step photos/ });
-  expect(button).toHaveTextContent(/5 photos, about 15p/);
+  expect(button).toHaveTextContent(/7 photos, about 21p/);
   await user().click(button);
   await screen.findByText(/Step photos made/);
   expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
@@ -141,7 +141,7 @@ test('Add step photos also makes the chopping-board photos, once per cut, and th
   await user().click(await screen.findByRole('button', { name: /Add step photos/ }));
   await screen.findByText(/Step photos made/);
   expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons');
-  expect(h.repo.generatePrepPhoto).toHaveBeenCalledTimes(1);
+  expect(h.repo.generatePrepPhoto.mock.calls.filter((c) => c[5] !== true)).toHaveLength(1);
 });
 
 test('saved chopping photos show on the chop step', async () => {
@@ -227,4 +227,33 @@ test('hands-free in Today\'s hour: "planner next" starts the hour and steps on',
   act(() => FakeRec.last!.say('planner next planner next planner next'));
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
   remove();
+});
+
+test('the first page lists what to get out, by fridge and cupboard, each with a label and amount', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'icon:basmati rice', label: 'basmati rice', path: 'h1/prep/icon-rice.jpg', source: 'generated' }]);
+  open();
+  const list = await screen.findByRole('region', { name: 'Get it out' });
+  const fridge = within(list).getByRole('list', { name: 'Fridge' });
+  const cupboard = within(list).getByRole('list', { name: 'Cupboard' });
+  expect(within(fridge).getByText('Chicken breast or thigh')).toBeInTheDocument();
+  expect(within(cupboard).getByText('Basmati rice')).toBeInTheDocument();
+  expect(within(cupboard).getByRole('img', { name: 'basmati rice' })).toHaveAttribute('src', expect.stringContaining('icon-rice.jpg'));
+  expect(within(cupboard).getByText(/\d+g/)).toBeInTheDocument();
+});
+
+test('Add step photos makes the missing get-out pictures too, and holding one offers a new one', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'icon:basmati rice', label: 'basmati rice', path: 'h1/prep/icon-rice.jpg', source: 'generated' }]);
+  open();
+  await user().click(await screen.findByRole('button', { name: /Add step photos/ }));
+  await screen.findByText(/Step photos made/);
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', null, false, undefined, true);
+  expect(h.repo.generatePrepPhoto).not.toHaveBeenCalledWith('h1', 'basmati rice', null, false, undefined, true);
+  const rice = screen.getByRole('img', { name: 'basmati rice' });
+  fireEvent.pointerDown(rice, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  fireEvent.pointerUp(rice);
+  const sheet = screen.getByRole('dialog', { name: 'basmati rice' });
+  await user().click(within(sheet).getByRole('button', { name: 'Make a new photo' }));
+  await user().click(screen.getByRole('button', { name: 'Make it' }));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'basmati rice', null, true, undefined, true);
 });

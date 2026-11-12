@@ -94,8 +94,8 @@ export const repo = {
     return error ? [] : (data as PrepPhoto[]);
   },
   /** Makes (or finds) the chopping photo for an ingredient cut the way the recipe says (about 3p, once). */
-  async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false, hint?: string): Promise<string> {
-    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace, hint } });
+  async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false, hint?: string, icon = false): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace, hint, ...(icon ? { icon: true } : {}) } });
     if (error) {
       const context = (error as { context?: Response }).context;
       const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;

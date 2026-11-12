@@ -2,6 +2,7 @@ import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
 import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
 import { prepKey } from '../../supabase/functions/_shared/prepCut.ts';
+import { getOutList, type GetOutGroup } from './getOut';
 
 /**
  * Today's hour: one cooking hour a day (17:30–18:30 by default). Chopping first, in one session; then tonight's
@@ -59,6 +60,10 @@ export interface HourStep {
 
 export interface HourPlan {
   chop: ChopGroup[];
+  /** Everything to get out of the fridge, freezer and cupboard for the hour, with its cartoon picture once made. */
+  getOut: GetOutGroup[];
+  /** Ingredients on that list without a picture yet, for "Add step photos". */
+  iconsMissing: { name: string; key: string }[];
   /** The cuts being chopped that have no chopping photo yet (one each), for "Add step photos". */
   prepMissing: { name: string; note: string | null; key: string; label: string }[];
   steps: HourStep[];
@@ -94,7 +99,8 @@ export function planHour(input: HourInput): HourPlan {
   const warnings: string[] = [];
 
   // 1. What to chop, grouped by the step it goes into; raw meat and fish last.
-  const chop = chopList(input);
+  const used: { i: RecipeIngredient; factor: number }[] = [];
+  const chop = chopList(input, used);
   const items = chop.filter((g) => g.where !== 'fridge').reduce((n, g) => n + g.items.length, 0);
 
   const slots: Slot[] = [];
@@ -181,7 +187,14 @@ export function planHour(input: HourInput): HourPlan {
   const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
   const steps = ordered.map((s) => s.step);
   const handsOn = ordered.filter((s) => s.busy).reduce((n, s) => n + (s.end - s.start), 0);
-  return { chop, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
+  // 6. What to get out: all of tonight's dinner, everything chopped, and what the extras use.
+  const getOut = getOutList([
+    ...(input.tonight ? input.tonight.recipe.ingredients.map((i) => ({ i, factor: factorOf(input.tonight!) })) : []),
+    ...used,
+    ...extras(tomorrow).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
+  ], input.prepPhotos);
+  const iconsMissing = getOut.flatMap((g) => g.items).filter((i) => !i.icon).map(({ name, key }) => ({ name, key }));
+  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
 }
 
 function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'at' | 'end'> {
@@ -287,10 +300,10 @@ function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machine
 
 /** Tonight's dinner, tomorrow's prep (done tonight), breakfast and lunch: chopped now. Tomorrow's dinner: what keeps
  *  is chopped now and boxed. */
-function chopList(input: HourInput): ChopGroup[] {
+function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number }[] = []): ChopGroup[] {
   const groups: ChopGroup[] = [];
   const seen = new Set<RecipeIngredient>();
-  const item = (i: RecipeIngredient, factor: number) => ({ name: i.name, qty: formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx), note: i.note });
+  const item = (i: RecipeIngredient, factor: number) => (used.push({ i, factor }), { name: i.name, qty: formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx), note: i.note });
   const push = (label: string, where: ChopGroup['where'], list: RecipeIngredient[], factor: number) => {
     const veg = list.filter((i) => !isRawProtein(i.name));
     const raw = list.filter((i) => isRawProtein(i.name));

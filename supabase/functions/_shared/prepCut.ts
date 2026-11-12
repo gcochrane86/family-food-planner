@@ -58,3 +58,22 @@ export function prepPhotoPrompt(p: { ingredient: string; cut: string }, hint?: s
     'Natural kitchen light. A knife may lie beside the board. No hands, no text, no labels, no packaging, no other ingredients.',
   ].filter(Boolean).join(' ');
 }
+
+/** The "get it out" picture for an ingredient: one per ingredient, however it's cut. Kept with the chopping photos
+ *  (prep_photos) under an `icon:` key. */
+export function iconKey(name: string): { key: string; ingredient: string; label: string } {
+  const ingredient = ingredientOf(name);
+  return { key: `icon:${ingredient}`, ingredient, label: ingredient };
+}
+
+/** A small cartoon of the ingredient as it comes out of the fridge or cupboard, like a picture-vocabulary card. */
+export function iconPrompt(ingredient: string, hint?: string | null): string {
+  const extra = hint?.trim().replace(/[.\s]+$/, '');
+  return [
+    `A simple, friendly cartoon illustration of ${ingredient}, the way it looks when you take it out of the fridge, freezer or cupboard to cook`,
+    '(whole, or in its usual bottle, jar, tin, tub or pack if that is how it is kept).',
+    'Centred on a plain white background, bright flat colours with soft shading and clean outlines, like an illustrated picture-vocabulary card.',
+    extra ? `Also: ${extra.slice(0, 200)}.` : '',
+    'No text, no labels, no letters, no brand names, no people, nothing else in the picture.',
+  ].filter(Boolean).join(' ');
+}

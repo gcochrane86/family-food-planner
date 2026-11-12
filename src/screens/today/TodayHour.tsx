@@ -12,6 +12,10 @@ import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
+import { Hold } from '../../components/PhotoFrame';
+import StoredPhoto from '../../components/StoredPhoto';
+import { PHOTO_SMALL } from '../../lib/photoSizes';
+import type { GetOutGroup, GetOutItem } from '../../lib/getOut';
 import ListenSwitch from '../../components/ListenSwitch';
 import { speakable } from '../../lib/voice';
 import StepUses from '../recipes/StepUses';
@@ -48,10 +52,16 @@ export default function TodayHour() {
   }
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
-  async function addPhotos(recipes: RecipeDetail[], prep: HourPlan['prepMissing']) {
-    const total = prep.length + recipes.reduce((n, r) => n + photosNeeded(r), 0);
+  async function addPhotos(recipes: RecipeDetail[], prep: HourPlan['prepMissing'], icons: HourPlan['iconsMissing']) {
+    const total = icons.length + prep.length + recipes.reduce((n, r) => n + photosNeeded(r), 0);
     let before = 0;
     setPhotos({ done: 0, total });
+    // The "get it out" pictures first: one small cartoon per ingredient, reused wherever it comes up.
+    for (const c of icons) {
+      try { await repo.generatePrepPhoto(householdId!, c.name, null, false, undefined, true); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the picture for ${c.name}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+      before += 1;
+      setPhotos({ done: before, total });
+    }
     // The chopping-board photos first: one per cut, reused by every recipe that cuts it the same way.
     for (const c of prep) {
       try { await repo.generatePrepPhoto(householdId!, c.name, c.note); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}` }); return; }
@@ -98,6 +108,7 @@ export default function TodayHour() {
             <p className="m-0 text-lg text-[#C9D3CC]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#C9D3CC]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{w}</p>)}
+            {plan.getOut.length > 0 && <GetOut groups={plan.getOut} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
             {plan.chop.length > 0 && (
               <section aria-label="Chopping" className="grid gap-3 rounded-2xl bg-white/5 p-4">
                 <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-lcd-ink">Chop first, all in one go</h2>
@@ -113,7 +124,7 @@ export default function TodayHour() {
               </section>
             )}
             {plan.toWash.length > 0 && <p className="m-0 text-[#C9D3CC]">To wash: {plan.toWash.join(', ')}. One dishwasher load.</p>}
-            <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing)} />
+            <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} icons={plan.iconsMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing, plan.iconsMissing)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-lcd-ink px-8 py-3.5 text-lg font-semibold text-[#0A0E0B]">Start</button>
             )}
@@ -167,8 +178,10 @@ export default function TodayHour() {
         </div>
       )}
       {menu?.prep && (() => { const p = menu.prep; return (
-        <PhotoOptions title={p.label} note="Changes this photo wherever this cut is used." onClose={() => setMenu(null)}
-          onRemake={(hint) => void fixPrep('Making a new photo', () => repo.generatePrepPhoto(householdId!, p.name, p.note, true, hint || undefined))}
+        <PhotoOptions title={p.label} note={p.icon ? 'Changes this picture wherever this ingredient comes up.' : 'Changes this photo wherever this cut is used.'} onClose={() => setMenu(null)}
+          onRemake={(hint) => void fixPrep('Making a new photo', () => (p.icon
+            ? repo.generatePrepPhoto(householdId!, p.name, null, true, hint || undefined, true)
+            : repo.generatePrepPhoto(householdId!, p.name, p.note, true, hint || undefined)))}
           onOwn={(file) => void fixPrep('Saving your photo', async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />); })()}
       {menu?.step && (() => { const st = menu.step; return (
         <PhotoOptions title={st.title} note="Gives this step its own photo, in cook mode too." onClose={() => setMenu(null)}
@@ -190,8 +203,8 @@ const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && !s.image_path
 const photosNeeded = (r: RecipeDetail) => missing(r) + (missing(r) > 0 && !r.hero_image_path ? 1 : 0);
 
 /** "Add step photos" for the hour's recipes, and how it's getting on. */
-function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetail[]; prep: HourPlan['prepMissing']; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
-  const n = prep.length + recipes.reduce((t, r) => t + photosNeeded(r), 0);
+function MissingPhotos({ recipes, prep, icons, state, onStart }: { recipes: RecipeDetail[]; prep: HourPlan['prepMissing']; icons: HourPlan['iconsMissing']; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
+  const n = icons.length + prep.length + recipes.reduce((t, r) => t + photosNeeded(r), 0);
   if (state?.error) return <p className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{state.error}</p>;
   if (state?.finished) return <p className="m-0 text-[#C9D3CC]">Step photos made ({state.done}).</p>;
   if (state) return (
@@ -210,7 +223,7 @@ function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetai
 
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
 type Prep = NonNullable<HourStep['photos'][number]['prep']>;
-type Held = { prep?: Prep; step?: NonNullable<HourStep['photos'][number]['step']> };
+type Held = { prep?: Prep & { icon?: boolean }; step?: NonNullable<HourStep['photos'][number]['step']> };
 function StepPictures({ step, onHold }: { step: HourStep; onHold: (h: Held) => void }) {
   if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-6xl">🧽</span> : null;
   return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt, caption: p.prep?.label,
@@ -261,5 +274,36 @@ function Working({ label, error, onClose }: { label: string; error?: string; onC
         <ProgressLine />
       </>)}
     </div>
+  );
+}
+
+const KEPT: Record<GetOutGroup['where'], string> = { fridge: 'Fridge', freezer: 'Freezer', cupboard: 'Cupboard' };
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** "Get it out": a small cartoon of each thing the hour uses, with its name and amount underneath, by where it's
+ *  kept. Hold a picture to remake it or use your own. */
+function GetOut({ groups, onHold }: { groups: GetOutGroup[]; onHold: (it: GetOutItem) => void }) {
+  return (
+    <section aria-label="Get it out" className="grid gap-4 rounded-2xl bg-white/5 p-4">
+      <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-lcd-ink">Get it out</h2>
+      {groups.map((g) => (
+        <div key={g.where} className="grid gap-2">
+          <b>{KEPT[g.where]}</b>
+          <ul aria-label={KEPT[g.where]} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4 md:grid-cols-6">
+            {g.items.map((it) => (
+              <li key={it.key} className="grid content-start justify-items-center gap-1.5 rounded-2xl bg-white p-2 pb-2.5 text-center">
+                <Hold onHold={() => onHold(it)}>
+                  {it.icon
+                    ? <StoredPhoto path={it.icon} width={PHOTO_SMALL} alt={it.name} draggable={false} className="aspect-square w-full rounded-xl object-contain" />
+                    : <span aria-hidden="true" className="grid aspect-square w-full place-items-center rounded-xl bg-[#EEF3EF] text-4xl font-bold text-[#9AA89F]">{it.name.charAt(0).toUpperCase()}</span>}
+                </Hold>
+                <span className="rounded-lg bg-[#0A0E0B] px-2 py-0.5 text-sm font-semibold leading-tight text-white">{cap(it.name)}</span>
+                {it.qty && <span className="text-xs font-semibold text-[#3F4A43]">{it.qty}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </section>
   );
 }

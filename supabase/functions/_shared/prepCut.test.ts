@@ -45,3 +45,20 @@ test('your words and your own board go into the chopping photo request', () => {
   expect(own).not.toContain('wooden chopping board');
   expect(own).toMatch(/any angle or rotation/i);
 });
+
+describe('ingredient icons', () => {
+  test('one icon per ingredient, whatever the cut or plural', async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    expect(iconKey('Red Peppers (about 2)')).toEqual({ key: 'icon:red pepper', ingredient: 'red pepper', label: 'red pepper' });
+    expect(iconKey('red pepper').key).toBe(iconKey('Red peppers').key);
+  });
+  test('the icon prompt asks for a cartoon on white, with no words', async () => {
+    const { iconPrompt } = await import('./prepCut.ts');
+    const p = iconPrompt('olive oil', 'in a green bottle');
+    expect(p).toMatch(/cartoon/i);
+    expect(p).toMatch(/olive oil/);
+    expect(p).toMatch(/white background/i);
+    expect(p).toMatch(/no text/i);
+    expect(p).toMatch(/in a green bottle/);
+  });
+});
