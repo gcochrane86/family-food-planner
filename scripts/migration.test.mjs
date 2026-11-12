@@ -609,3 +609,11 @@ test("0015: tonight's version is cleared by the database when the day's recipe c
   await as(OWNER, `update meal_slots set mode = 'out', recipe_id = null`);
   expect(await one(OWNER, `select version from meal_slots`)).toBeNull();
 });
+
+test('0016: chopping photos are kept once per ingredient and cut, for the household only', async () => {
+  const hid = await one(OWNER, `select create_household('Home')`);
+  await as(OWNER, `insert into prep_photos (household_id, key, label, path) values ('${hid}', 'potato|halved', 'potato, halved', 'p.jpg')`);
+  expect(await fails(OWNER, `insert into prep_photos (household_id, key, label, path) values ('${hid}', 'potato|halved', 'potato, halved', 'q.jpg')`)).toMatch(/duplicate key/);
+  expect(await as(STRANGER, 'select * from prep_photos')).toHaveLength(0);
+  expect(await fails(STRANGER, `insert into prep_photos (household_id, key, label, path) values ('${hid}', 'x', 'x', 'x.jpg')`)).toMatch(/row-level security/);
+});

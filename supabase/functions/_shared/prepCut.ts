@@ -1,0 +1,55 @@
+// Chopping photos: one photo per ingredient and cut ("new potato, halved", "red pepper, strips (1cm)"), made once and
+// reused by every recipe that prepares it the same way. Recipes word their cuts differently ("in pieces", "roughly
+// chopped"), so the cut is read into a standard set, keeping any size. Shared by the app and the photo function.
+
+const DROP = new Set(['fresh', 'large', 'small', 'medium', 'ripe', 'big']);
+
+/** "Red Peppers (about 2)" → "red pepper": lower case, no notes in brackets or size words, the last word singular. */
+function ingredientOf(name: string): string {
+  const words = name.toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter((w) => w && !DROP.has(w));
+  if (!words.length) return name.trim().toLowerCase();
+  const last = words[words.length - 1];
+  words[words.length - 1] = last === 'chillies' ? 'chilli'
+    : last.endsWith('oes') ? last.slice(0, -2)
+    : last.endsWith('ies') ? `${last.slice(0, -3)}y`
+    : last.endsWith('s') && !/(ss|us|as)$/.test(last) ? last.slice(0, -1) : last;
+  return words.join(' ');
+}
+
+const CUTS: [RegExp, string][] = [
+  [/crush|minced?\b/, 'crushed'],
+  [/grat/, 'grated'],
+  [/julienne|matchstick/, 'matchsticks'],
+  [/baton|strip/, 'strips'],
+  [/\brings?\b/, 'rings'],
+  [/half[- ]moon/, 'half-moons'],
+  [/wedge/, 'wedges'],
+  [/floret/, 'florets'],
+  [/quarter/, 'quartered'],
+  [/halve|in half|\bhalves\b/, 'halved'],
+  [/finely (chopped|diced)|fine dice|\bfinely\b/, 'finely diced'],
+  [/dice|cube/, 'diced'],
+  [/chunk|piece|roughly chopped|rough chop/, 'chunks'],
+  [/thin(ly)? slic|thin slices/, 'thinly sliced'],
+  [/slic/, 'sliced'],
+  [/chop/, 'chopped'],
+];
+
+/** The ingredient and its cut, as a key for the saved photo and a label to show. */
+export function prepKey(name: string, note: string | null | undefined): { key: string; ingredient: string; cut: string; label: string } {
+  const ingredient = ingredientOf(name);
+  const n = (note ?? '').trim().toLowerCase().replace(/[.;]+$/, '');
+  const size = n.match(/(\d+(?:\.\d+)?)\s*(mm|cm)\b/);
+  const found = CUTS.find(([re]) => re.test(n));
+  const cut = !n ? 'chopped' : found ? `${found[1]}${size ? ` (${size[1]}${size[2]})` : ''}` : n;
+  return { key: `${ingredient}|${cut}`, ingredient, cut, label: `${ingredient}, ${cut}` };
+}
+
+/** What the photo maker is asked for: just that ingredient, cut that way, on a chopping board. */
+export function prepPhotoPrompt(p: { ingredient: string; cut: string }): string {
+  return [
+    `A realistic photo, from directly above, of a wooden chopping board with ${p.ingredient}, freshly prepared and ready to cook.`,
+    `Show only the ${p.ingredient}, cut exactly like this: ${p.cut}. Show enough pieces that the size and shape of the cut are clear.`,
+    'Natural kitchen light. A knife may lie beside the board. No hands, no text, no labels, no packaging, no other ingredients.',
+  ].join(' ');
+}
