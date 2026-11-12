@@ -53,6 +53,10 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
        roast potatoes are roasted in the oven, the Anova or the air fryer as usual.
      - HY 24L air-fryer (`hy24`): crisping, roasting small batches, the rotisserie. Settings as `200°C · 12 min`.
      - MEATER (`meater`): any whole joint or chicken; give the target core temperature.
+     - **Doneness by probe** (the household uses an instant-read probe): every step where meat or fish finishes
+       cooking ends with "Probe the thickest part: **°C / °F**". Targets: chicken and turkey 74°C / 165°F; beef and
+       lamb joints and steaks 70°C / 158°F; pork 70°C / 158°F; mince, burgers and meatballs 71°C / 160°F; fish
+       63°C / 145°F. Never lower, and no pink or rare.
      - `oven`, `kettle` when nothing else fits.
      List the machines used in `equipment`.
    - **Prep ahead.** Steps that can be done the night before (sauces, marinades, chopping) go in phase `prep_8pm`,
