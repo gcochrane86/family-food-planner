@@ -43,12 +43,14 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
    - **Portions.** Scale to `base_portions: 6` if it reheats well (cook once, eat twice), otherwise `4`. Scale every
      quantity from the original's servings. Round to sensible amounts (whole eggs, 400g tins, 5g spices).
    - **Equipment.** Rewrite each step for the household's kit, choosing what does the job best:
-     - TM7 (`tm7`): mainly sauces and pastes, plus chopping, and rice or potatoes in the simmering basket. Settings as
+     - TM7 (`tm7`): mainly sauces and pastes, plus chopping, and rice in the simmering basket. Settings as
        `3 sec · speed 8 → 5 min · 100°C · speed 1`. **Never the Varoma** (the household's choice): proteins and
        vegetables are cooked in the Anova or a pan instead.
      - Anova Precision Oven (`apo`): proteins (fish, chicken, pork) and vegetables by steam-roasting, roasting,
        steam-baking, sous-vide-style cooks. Settings as `200°C · 30% steam · 25 min`.
-     - A pan on the hob (`hob`): whatever browns best: mince, searing, quick-fried vegetables.
+     - A pan on the hob (`hob`): whatever browns best: mince, searing, quick-fried vegetables. **Potatoes always go on
+       the hob** (the household's choice): boil, parboil and mash them in a saucepan, never in the TM7 or the Anova;
+       roasting them in the oven afterwards is fine.
      - HY 24L air-fryer (`hy24`): crisping, roasting small batches, the rotisserie. Settings as `200°C · 12 min`.
      - MEATER (`meater`): any whole joint or chicken; give the target core temperature.
      - `oven`, `kettle` when nothing else fits.
