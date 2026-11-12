@@ -158,4 +158,19 @@ describe('review fixes', () => {
     // Only the coriander is chopped: the 5-minute minimum.
     expect(titled(plan, 'Chop everything')).toMatchObject({ at: '17:30', end: '17:35' });
   });
+
+  it("gives each step a picture that makes sense: the step's photo, else its recipe's, and none for cleaning", () => {
+    const withPhotos = { ...CURRY, hero_image_path: 'h1/hero/curry.jpg', steps: CURRY.steps.map((st) => (st.title === 'Simmer' ? { ...st, image_path: 'h1/steps/simmer.jpg' } : st)) };
+    const stew = { ...STEW(HAND_PREP), hero_image_path: 'h1/hero/stew.jpg' };
+    const plan = planHour(input({ tonight: { recipe: withPhotos, portions: 4 }, tomorrow: { dinner: { recipe: stew, portions: 4 }, lunch: { kind: 'leftovers', title: 'Chicken Curry' }, breakfast: null } }));
+    expect(titled(plan, 'Simmer')!.photos.map((p) => p.path)).toEqual(['h1/steps/simmer.jpg']);
+    expect(titled(plan, 'Simmer')!.photos[0].alt).toBe('Photo of this step');
+    expect(titled(plan, 'Brown the chicken')!.photos[0].alt).toBe('Chicken Curry');
+    expect(titled(plan, 'Brown the chicken')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
+    expect(titled(plan, 'Marinate the beef')!.photos.map((p) => p.path)).toEqual(['h1/hero/stew.jpg']);
+    expect(titled(plan, 'Chop everything')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg', 'h1/hero/stew.jpg']);
+    expect(titled(plan, 'Plate up')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
+    expect(titled(plan, "Pack tomorrow's lunch")!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
+    for (const c of plan.steps.filter((x) => x.kind === 'clean')) expect(c.photos).toEqual([]);
+  });
 });

@@ -9,12 +9,10 @@ import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { photoCost } from './RecipeCard';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
-import { remaining } from '../../lib/timer';
 import type { Phase, RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
-import { useTimers } from '../../lib/cookTimers';
 import StepUses from './StepUses';
 import StoredPhoto from '../../components/StoredPhoto';
 
@@ -35,7 +33,6 @@ export default function CookMode() {
   const [newPhoto, setNewPhoto] = useState<{ hint: string; busy: boolean; error: string | null } | null>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   useWakeLock();
-  const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
   const close = () => navigate(`/recipes/${id}${at ? `?${dayQuery(at)}` : ''}`);
   // The portions picked on the recipe page, so each step's amounts match the ingredients list.
@@ -153,18 +150,6 @@ export default function CookMode() {
         </div>
       </div>
 
-      {timers.length > 0 && (
-        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-wrap gap-2 md:max-w-6xl">
-          {timers.map((t) => (
-            <span key={t.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm ${t.done ? 'bg-lcd-ink text-[#0A0E0B]' : 'bg-white/10 text-white'}`}>
-              <span className="font-semibold">{t.label}</span>
-              <span role="timer" aria-label={`${t.label} timer`} className="font-mono tabular-nums">{t.done ? 'done' : remaining(t.endAt, now)}</span>
-              <button type="button" onClick={() => dismiss(t.key)} aria-label={`Clear ${t.label} timer`} className="opacity-70">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div role="status" className="sr-only">{timers.filter((t) => t.done).map((t) => `${t.label}: done`).join('. ')}</div>
 
       <section aria-label="Step" onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
@@ -174,7 +159,7 @@ export default function CookMode() {
           <>
             <div className="flex flex-col gap-5">
             <p className="font-mono text-sm text-lcd-ink">
-              {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}
+              {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}{step.timer_minutes ? ` · ${step.timer_minutes} min` : ''}
             </p>
             {recipe.versionNote && <p className="self-start rounded-xl bg-[#3A2A12] px-3 py-1.5 text-sm text-[#FFD9A0]">Tonight's version: {recipe.versionNote}</p>}
             <h1 className="text-[clamp(28px,5vw,46px)] font-bold text-white">{step.title}</h1>
@@ -187,18 +172,6 @@ export default function CookMode() {
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             <StepUses body={step.body} ingredients={recipe.ingredients} factor={portions > 0 ? portions / recipe.base_portions : 1} />
-            {step.timer_minutes ? (() => {
-              const key = `${step.phase}-${step.id ?? index}`;
-              const running = timers.find((t) => t.key === key);
-              return running ? (
-                <span aria-hidden="true" className="font-mono text-5xl text-white tabular-nums">{running.done ? 'Done' : remaining(running.endAt, now)}</span>
-              ) : (
-                <button type="button" onClick={() => startTimer(key, step.title, step.timer_minutes!)}
-                  className="self-start rounded-xl bg-white/10 px-5 py-3 text-base font-semibold text-white">
-                  Start {remaining(step.timer_minutes * 60_000, 0)} timer
-                </button>
-              );
-            })() : null}
             </div>
             <div className="flex flex-col gap-3">
               {(() => {

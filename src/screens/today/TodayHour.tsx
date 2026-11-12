@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ErrorBanner from '../../components/ErrorBanner';
-import { useTimers } from '../../lib/cookTimers';
-import { remaining } from '../../lib/timer';
-import type { ChopGroup, HourStep } from '../../lib/todayHour';
+import StoredPhoto from '../../components/StoredPhoto';
+import { PHOTO_LARGE } from '../../lib/photoSizes';
+import { makeStepPhotos } from '../../lib/stepPhotos';
+import type { ChopGroup, HourInput, HourStep } from '../../lib/todayHour';
+import type { RecipeDetail } from '../../lib/types';
+import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
 import StepUses from '../recipes/StepUses';
@@ -23,11 +26,25 @@ export default function TodayHour() {
   const key = `today-hour:${todayInLondon()}`;
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
-  const { timers, now, start, dismiss } = useTimers(key);
+  const [photos, setPhotos] = useState<{ done: number; total: number; finished?: boolean; error?: string } | null>(null);
   const steps: (HourStep & { afterDinner?: boolean })[] = data ? [...data.plan.steps, ...data.plan.after.map((s) => ({ ...s, afterDinner: true }))] : [];
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
   useEffect(() => { if (data && index > steps.length - 1) setIndex(steps.length - 1); }, [data, index, steps.length]);
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
+
+  /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
+  async function addPhotos(recipes: RecipeDetail[]) {
+    const total = recipes.reduce((n, r) => n + missing(r), 0);
+    let before = 0;
+    setPhotos({ done: 0, total });
+    for (const r of recipes) {
+      const result = await makeStepPhotos(r.id, r.steps, (done) => setPhotos({ done: before + done, total }), { asked: true });
+      before += result.made;
+      if (result.error) { setPhotos({ done: before, total, error: `Couldn't make step photos: ${result.error}` }); return; }
+    }
+    setPhotos({ done: before, total, finished: true });
+    reload();
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-lcd p-4 pt-[calc(16px+env(safe-area-inset-top,0px))] pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-white md:p-8">
@@ -36,18 +53,6 @@ export default function TodayHour() {
         <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl text-white no-underline">×</Link>
       </div>
 
-      {timers.length > 0 && (
-        <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2">
-          {timers.map((t) => (
-            <span key={t.key} className={`flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm ${t.done ? 'bg-lcd-ink text-[#0A0E0B]' : 'bg-white/10 text-white'}`}>
-              <span className="font-semibold">{t.label}</span>
-              <span role="timer" aria-label={`${t.label} timer`} className="font-mono tabular-nums">{t.done ? 'done' : remaining(t.endAt, now)}</span>
-              <button type="button" onClick={() => dismiss(t.key)} aria-label={`Clear ${t.label} timer`} className="opacity-70">×</button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div role="status" className="sr-only">{timers.filter((t) => t.done).map((t) => `${t.label}: done`).join('. ')}</div>
 
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {loading && !data && <p className="text-[#9AA89F]">Loading…</p>}
@@ -75,6 +80,7 @@ export default function TodayHour() {
               </section>
             )}
             {plan.toWash.length > 0 && <p className="m-0 text-[#C9D3CC]">To wash: {plan.toWash.join(', ')}. One dishwasher load.</p>}
+            <MissingPhotos recipes={hourRecipes(input)} state={photos} onStart={(rs) => void addPhotos(rs)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-lcd-ink px-8 py-3.5 text-lg font-semibold text-[#0A0E0B]">Start</button>
             )}
@@ -83,14 +89,13 @@ export default function TodayHour() {
       })()}
 
       {step && (() => {
-        const tkey = `${index}|${step.title}`;
-        const running = timers.find((t) => t.key === tkey);
         return (
           <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`} className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-3">
             {step.afterDinner
               ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-lcd-ink">After dinner</span>
               : <span className="font-mono text-5xl font-bold tabular-nums">{step.at}<span className="ml-2 text-xl text-[#9AA89F]">to {step.end}</span></span>}
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
+            <StepPictures step={step} />
             {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}</span>}
             {step.kind === 'chop' && data ? (
               <ul className="m-0 grid list-none gap-2 p-0 text-[clamp(18px,2.4vw,24px)] text-[#DDE5DF]">
@@ -100,13 +105,6 @@ export default function TodayHour() {
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             )}
             {step.ingredients.length > 0 && <StepUses body={step.body} ingredients={step.ingredients} factor={step.factor} />}
-            {(step.timer ?? 0) >= 2 && (running ? (
-              <span aria-hidden="true" className="font-mono text-5xl tabular-nums">{running.done ? 'Done' : remaining(running.endAt, now)}</span>
-            ) : (
-              <button type="button" onClick={() => start(tkey, step.title, step.timer!)} className="self-start rounded-xl bg-white/10 px-5 py-3 text-base font-semibold text-white">
-                Start {step.timer}-min timer
-              </button>
-            ))}
           </section>
         );
       })()}
@@ -122,4 +120,41 @@ export default function TodayHour() {
       )}
     </div>
   );
+}
+
+/** The recipes cooked or prepared in the hour. */
+function hourRecipes(input: HourInput): RecipeDetail[] {
+  const lunch = input.tomorrow?.lunch;
+  const all = [input.tonight?.recipe, input.tomorrow?.dinner?.recipe, input.tomorrow?.breakfast?.recipe, lunch?.kind === 'make' ? lunch.recipe : undefined];
+  return all.filter((r): r is RecipeDetail => !!r).filter((r, i, rs) => rs.findIndex((x) => x.id === r.id) === i);
+}
+const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && !s.image_path).length;
+
+/** "Add step photos" for the hour's recipes, and how it's getting on. */
+function MissingPhotos({ recipes, state, onStart }: { recipes: RecipeDetail[]; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
+  const n = recipes.reduce((t, r) => t + missing(r), 0);
+  if (state?.error) return <p className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{state.error}</p>;
+  if (state?.finished) return <p className="m-0 text-[#C9D3CC]">Step photos made ({state.done}).</p>;
+  if (state) return <p role="status" className="m-0 text-[#C9D3CC]">Making step photos: {state.done} of {state.total}… (you can carry on)</p>;
+  if (!n) return null;
+  return (
+    <button type="button" onClick={() => onStart(recipes.filter((r) => missing(r) > 0))} className="justify-self-start rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">
+      Add step photos ✨ ({n} missing, about {photoCost(n)})
+    </button>
+  );
+}
+
+/** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
+function StepPictures({ step }: { step: HourStep }) {
+  if (step.kind === 'clean') return <span role="img" aria-label="Cleaning" className="text-5xl">🧽</span>;
+  if (!step.photos.length) return null;
+  if (step.photos.length > 1) {
+    return (
+      <div className="flex gap-2 overflow-x-auto">
+        {step.photos.map((p) => <StoredPhoto key={p.path} path={p.path} width={PHOTO_LARGE} alt={p.alt} className="h-28 w-40 shrink-0 rounded-xl object-cover md:h-36 md:w-52" />)}
+      </div>
+    );
+  }
+  const [p] = step.photos;
+  return <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} className="aspect-[4/3] w-full max-h-72 rounded-2xl object-cover" />;
 }

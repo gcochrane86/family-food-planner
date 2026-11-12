@@ -46,6 +46,8 @@ export interface HourStep {
   timer: number | null;
   ingredients: RecipeIngredient[];
   factor: number;
+  /** Pictures for the step (stored photo paths): the step's own photo, else its recipe's; several for the chopping. */
+  photos: { path: string; alt: string }[];
 }
 
 export interface HourPlan {
@@ -92,13 +94,18 @@ export function planHour(input: HourInput): HourPlan {
     slots.push(slot);
     return slot;
   };
-  const plain = { kit: null, timer: null, ingredients: [] as RecipeIngredient[], factor: 1 };
+  const plain = { kit: null, timer: null, ingredients: [] as RecipeIngredient[], factor: 1, photos: [] as HourStep['photos'] };
+  const hero = (r: RecipeDetail | null | undefined) => (r?.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : []);
+  // The chopping is for tonight, tomorrow's dinner, and whatever else is made in the hour.
+  const lunchRecipe = tomorrow?.lunch?.kind === 'make' ? tomorrow.lunch.recipe : null;
+  const chopPhotos = [input.tonight?.recipe, tomorrow?.dinner?.recipe, tomorrow?.breakfast?.recipe, lunchRecipe].flatMap(hero)
+    .filter((p, i, all) => all.findIndex((q) => q.path === p.path) === i);
 
   // 2. The chopping block, then the board and knife into the dishwasher.
   let base = start;
   if (items) {
     const length = Math.max(5, Math.ceil(1.5 * items));
-    add(start, length, true, null, { ...plain, kind: 'chop', title: 'Chop everything', body: chop.filter((g) => g.where !== 'fridge').map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
+    add(start, length, true, null, { ...plain, photos: chopPhotos, kind: 'chop', title: 'Chop everything', body: chop.filter((g) => g.where !== 'fridge').map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
     add(start + length, CHOP_CLEAN, true, null, { ...plain, kind: 'clean', title: 'Board, knife and bowls into the dishwasher', body: 'Rinse the board, knife and bowls and load them now, so the side is clear.' });
     base = start + length + CHOP_CLEAN;
   }
@@ -111,7 +118,7 @@ export function planHour(input: HourInput): HourPlan {
     let prevEnd = base;
     for (const s of finishSteps(r)) {
       const at = s.at_minute !== null ? base + s.at_minute : prevEnd;
-      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor }, 'dinner');
+      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s) }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
@@ -143,14 +150,14 @@ export function planHour(input: HourInput): HourPlan {
   // 5. The end of the hour.
   let tail = endAt;
   if (input.tonight) {
-    add(tail, 5, true, null, { ...plain, kind: 'cook', title: 'Plate up', body: 'Plate up and serve.' });
+    add(tail, 5, true, null, { ...plain, photos: hero(input.tonight.recipe), kind: 'cook', title: 'Plate up', body: 'Plate up and serve.' });
     tail += 5;
   } else {
     tail = Math.max(base, ...slots.map((s) => s.end));
   }
   const lunch = tomorrow?.lunch;
   if (lunch?.kind === 'leftovers') {
-    add(tail, 3, true, null, { ...plain, kind: 'extra', title: `Pack tomorrow's lunch: ${lunch.title}`, body: "Box up tomorrow's lunch while it's warm, let it cool, then into the fridge." });
+    add(tail, 3, true, null, { ...plain, photos: hero(input.tonight?.recipe), kind: 'extra', title: `Pack tomorrow's lunch: ${lunch.title}`, body: "Box up tomorrow's lunch while it's warm, let it cool, then into the fridge." });
     tail += 3;
   }
   add(tail, Math.max(2, input.tonight ? endAt + 10 - tail : 5), true, null, { ...plain, kind: 'clean', title: 'Wipe down, load and start the dishwasher', body: 'Wipe the sides, load the last pans and start the dishwasher.' });
@@ -165,8 +172,12 @@ function rinse(afterDinner: boolean): Omit<HourStep, 'at' | 'end'> {
   const body = afterDinner
     ? "Tip tonight's dinner into a warm dish and cover it, then rinse the TM7 bowl so it is ready for the next job."
     : 'Rinse the TM7 bowl so it is ready for the next job.';
-  return { kind: 'clean', title: 'Rinse the TM7 bowl', body, kit: 'TM7', timer: null, ingredients: [], factor: 1 };
+  return { kind: 'clean', title: 'Rinse the TM7 bowl', body, kit: 'TM7', timer: null, ingredients: [], factor: 1, photos: [] };
 }
+
+/** A recipe step's own photo, else the recipe's main photo. */
+const stepPhotos = (r: RecipeDetail, s: RecipeStep): HourStep['photos'] =>
+  (s.image_path ? [{ path: s.image_path, alt: 'Photo of this step' }] : r.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : []);
 
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
 
@@ -178,10 +189,10 @@ function extras(tomorrow: HourInput['tomorrow']): Extra[][] {
   const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number): Extra[] =>
     steps.map((s) => ({
       length: lengthOf(s), handsOff: isHandsOff(s), machine: s.machine,
-      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor },
+      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s) },
     }));
   const simple = (title: string, body: string): Extra[] =>
-    [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1 } }];
+    [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1, photos: [] } }];
   const chains: Extra[][] = [];
   if (tomorrow.dinner) {
     const r = tomorrow.dinner.recipe;

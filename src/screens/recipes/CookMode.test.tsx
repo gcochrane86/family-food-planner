@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -39,52 +39,6 @@ test('the night before tab shows the prep steps', async () => {
   await screen.findByRole('heading', { name: 'Rice on' });
   await userEvent.click(screen.getByRole('tab', { name: 'Night before' }));
   expect(screen.getByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
-});
-
-test('the timer counts down from the step time', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('20:00');
-  await act(async () => { vi.advanceTimersByTime(5_000); });
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('19:55');
-});
-
-test('a running timer stays visible after moving to the next step', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
-  expect(screen.getByRole('heading', { name: 'Final toss' })).toBeInTheDocument();
-  await act(async () => { vi.advanceTimersByTime(5_000); });
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('19:5');
-});
-
-test('a timer that finishes beeps, vibrates and says so', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  const vibrate = vi.fn();
-  Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true });
-  open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
-  await act(async () => { vi.advanceTimersByTime(20 * 60_000 + 1_000); });
-  expect(screen.getByRole('status')).toHaveTextContent('Rice on: done');
-  expect(vibrate).toHaveBeenCalledTimes(1);
-  await act(async () => { vi.advanceTimersByTime(5_000); });
-  expect(vibrate).toHaveBeenCalledTimes(1);
-});
-
-test('timers survive leaving and reopening cook mode', async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  const first = open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('button', { name: 'Start 20:00 timer' }));
-  first.unmount();
-  open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toBeInTheDocument();
 });
 
 test('Done on the last step goes back to the recipe', async () => {
@@ -216,4 +170,11 @@ test("from a day with tonight's version, cook mode shows the changed step", asyn
   expect(screen.getByText(/twice and start/)).toBeInTheDocument();
   expect(screen.getByText('Changed tonight')).toBeInTheDocument();
   expect(screen.getByText(/Tonight's version: Turkey instead of chicken/)).toBeInTheDocument();
+});
+
+test('cook mode has no timers: each step just says how long it takes', async () => {
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(screen.queryByRole('button', { name: /timer/i })).not.toBeInTheDocument();
+  expect(screen.queryByRole('timer')).not.toBeInTheDocument();
 });

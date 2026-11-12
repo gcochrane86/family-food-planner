@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { DEFAULT_SETTINGS } from '../../lib/household';
 import type { MealSlot, PlanWeek } from '../../lib/types';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
-import { HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
+import { HONEY, HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
 import TodayHour from './TodayHour';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -37,7 +37,7 @@ test('the first page shows the hour, the chopping list and what to wash', async 
   expect(screen.getByText(/minutes hands-on/)).toBeInTheDocument();
 });
 
-test('Start goes to the first step, Next steps through, and a timer starts', async () => {
+test('Start goes to the first step and Next steps through, with no timers', async () => {
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(screen.getByText('17:30')).toBeInTheDocument();
@@ -46,8 +46,7 @@ test('Start goes to the first step, Next steps through, and a timer starts', asy
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
-  await user().click(screen.getByRole('button', { name: 'Start 20-min timer' }));
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toHaveTextContent('20:00');
+  expect(screen.queryByRole('button', { name: /timer/i })).not.toBeInTheDocument();
 });
 
 test("leftovers for tomorrow's lunch are packed after plating up", async () => {
@@ -67,16 +66,14 @@ test("out tonight: no dinner to cook, but tomorrow's night-before breakfast", as
   expect(screen.getByRole('heading', { name: 'Make the overnight oats' })).toBeInTheDocument();
 });
 
-test('coming back mid-hour keeps your step and your timers', async () => {
+test('coming back mid-hour keeps your step', async () => {
   const first = open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   await user().click(screen.getByRole('button', { name: 'Next' }));
   await user().click(screen.getByRole('button', { name: 'Next' }));
-  await user().click(screen.getByRole('button', { name: 'Start 20-min timer' }));
   first.unmount();
   open();
   expect(await screen.findByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
-  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toBeInTheDocument();
 });
 
 test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
@@ -92,4 +89,24 @@ test("tonight's version is what gets chopped", async () => {
   const list = await screen.findByRole('region', { name: 'Chopping' });
   expect(within(list).getByText(/turkey breast/)).toBeInTheDocument();
   expect(within(list).queryByText(/chicken breast/)).not.toBeInTheDocument();
+});
+
+test("steps show their recipe's pictures, and cleaning steps an icon", async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, hero_image_path: 'h1/hero/honey.jpg' } : null));
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  expect(screen.getAllByRole('img', { name: 'Almond-Crusted Honey Chilli Chicken' }).length).toBeGreaterThan(0);
+  await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
+  expect(screen.queryByRole('img', { name: 'Almond-Crusted Honey Chilli Chicken' })).not.toBeInTheDocument();
+  expect(screen.getByRole('img', { name: 'Cleaning' })).toBeInTheDocument();
+});
+
+test('the first page offers to make the missing step photos, and makes them in the background', async () => {
+  open();
+  const button = await screen.findByRole('button', { name: /Add step photos/ });
+  expect(button).toHaveTextContent(/3 missing/);
+  await user().click(button);
+  expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true);
+  expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
 });
