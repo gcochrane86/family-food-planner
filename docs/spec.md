@@ -475,6 +475,30 @@ A mic button available on every screen, made large in cook mode, so you can ask 
 - **Hands-free:** in cook mode, the mic stays one big tap away. A wake word ("hey…") is a possible later addition but isn't planned for the first version.
 - **Data:** `assistant_messages` (`member_id, context (screen/recipe/step), role, content, actions_taken`). This keeps a history, so you can see what was changed and why.
 
+### Ask Claude (a read-only connector in the Claude app, 12 Nov 2026)
+The first version of the kitchen assistant. You chat in the Claude app (phone, iPad, Mac) on your own subscription, and Claude looks things up in the planner. It answers questions such as "swap Thursday for something quicker using what's in the pantry", "redesign next week with two fish dinners" or "what can I use instead of crème fraîche tonight?". It **changes nothing**: you make any change in the app yourself, or tap Plan with Claude with a note.
+
+- **Setup, once:** in Claude, Settings → Connectors → Add custom connector, named "Family Food Planner", with the secret link. It is then available in every chat.
+- **Where it runs:** a Supabase Edge Function, `ask-claude-connector`, speaking MCP over streamable HTTP, built on Supabase's documented MCP route. It is deployed with `--no-verify-jwt`, because Claude has no app login.
+- **The lock:** the link is `…/functions/v1/ask-claude-connector/<key>`. The key is a long random value in the Supabase secret `CONNECTOR_KEY`, compared in constant time. The secret `CONNECTOR_HOUSEHOLD_ID` names the one household it reads. A missing or wrong key gets a plain 404, so nothing shows there is a connector. To cut access, change the secret and add the connector again with the new link. The link is never committed: it lives only in the Supabase secrets and your Claude settings.
+- **Read-only:** the function uses the server key, so the code itself is the guard. It only ever runs `select` queries, always filtered to that household.
+- **Tools Claude can call:**
+  - `get_household`: members and portions, house rules, private rules, what makes a meal, kit (TM7 machines and bowls, APO, air fryer, oven), Today's hour (start, length, weeknight hands-on limit), and the breakfast and home-lunch pools.
+  - `get_week` (`week`: "this", "next", or any date in the week, London time): each day's breakfast, lunch and dinner, with mode, recipe title, portions and the planner's reason; whether the week is a draft or approved; "No plan for that week yet" when there isn't one.
+  - `find_recipes` (optional `query` words, optional `tag`): matching recipes with title, kind, protein, tags, total and hands-on minutes, base portions, reheats well, rating and when last cooked. With no arguments it returns every recipe, which is the full list Claude needs to redesign a week.
+  - `get_recipe` (`title`): one recipe in full, with ingredients and amounts, and steps with phase, timings and TM7 settings. If the title isn't an exact match, it takes the closest single match, or lists the candidates.
+  - `get_pantry`: staples with their status (have, low, out), other items with amounts, and the freezer with portions and use-by dates.
+- **Standing instructions** sent with the connector:
+  - The connector is read-only. Suggest changes, and point to the app or Plan with Claude to make them.
+  - Keep suggestions within the house rules and the private rules. Never name or explain the private rules; call them "your private rules" if you have to mention them.
+  - Keep weeknight dinners' hands-on time within Today's hour, less 15 minutes. Prefer what's already in the pantry and freezer.
+- **App:** the Week tab gets a small "Ask Claude" link that opens claude.ai in a new tab. On the phone or iPad, the Claude app picks it up.
+- **Out of scope:** writes of any kind, chat history in Supabase, Sainsbury's, Cookidoo and email. The in-app voice assistant above, which can make changes using the paid API, stays a later option.
+- **Testing:**
+  - The tools are pure functions in `supabase/functions/_shared/askClaude.ts`: rows in, text out. Unit tests cover each tool, including an unknown recipe, a close-match title, an empty week and a missing pantry.
+  - Further tests cover the key check (missing, wrong, right) and confirm the data reader only uses `select`.
+  - After deploying, a real MCP `tools/list` and one `tools/call` with curl confirm it works. Then you add the connector and ask it one question.
+
 ---
 
 ## 11. Build plan
