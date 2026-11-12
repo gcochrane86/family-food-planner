@@ -385,6 +385,7 @@ The meal slots (each with a reason), the shopping lists, the estimated cost and 
 | **Mon** | Claude | Recheck the plan against feedback and skipped meals → fill the Tuesday basket |
 | **Mon** | **You** | Check out the Tuesday order before the cut-off |
 | **Tue 7–8pm** | Delivery | Pantry updates |
+| **Daily 17:30–18:30** | You | **Today's hour** (Week tab card → `/today`): chop everything first in one session (veg first, raw meat last on its own mat; what keeps for tomorrow goes in a lidded box), then tonight's dinner with tomorrow's prep, any night-before breakfast and tomorrow's lunch fitted into the waits, then plate up, pack the leftovers lunch, wipe down and start the dishwasher. Times, night-before breakfasts and TM7 machines and bowls are in Settings → Today's hour. On weekdays the planner keeps a dinner's hands-on time within the hour less 15 minutes |
 | **Daily** | You | Tap ✓ cooked (removes the ingredients from the pantry) and give quick portion feedback |
 
 Sainsbury's order-amendment cut-off is usually 11:45pm the night before delivery. **Check the exact cut-off on your account**; the app stores it in settings.
