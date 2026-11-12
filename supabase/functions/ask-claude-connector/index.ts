@@ -9,7 +9,7 @@ import {
   findRecipes, formatHousehold, formatPantry, formatProducts, formatRecipe, formatWeek, keyMatches, makeReader, pickRecipe,
   weekStartFor, type Reader,
 } from '../_shared/askClaude.ts';
-import { MEAL_SPEC } from '../../../src/lib/mealSpec.ts';
+import { MEAL_SPEC } from '../_shared/mealSpec.ts';
 
 const notFound = () => new Response('Not found', { status: 404 });
 const text = (t: string) => ({ content: [{ type: 'text' as const, text: t }] });

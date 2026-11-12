@@ -58,7 +58,7 @@ export interface WeekData { week: { week_start: string; days: number; status: st
 export interface RecipeRow {
   id: string; title: string; subtitle: string | null; kind: string; status: string; protein: string | null;
   finish_minutes: number; prep_minutes: number; hands_off_minutes: number; reheats_well: boolean; base_portions: number;
-  rating: string | null; tags: string[]; lastCooked: string | null;
+  rating: string | null; tags: string[]; lastCooked: string | null; component_role?: string | null;
 }
 export interface RecipeData {
   recipe: RecipeRow & { reheat: string | null; toddler_note: string | null };
@@ -86,7 +86,7 @@ export interface Reader {
   products(): Promise<ProductRow[]>;
 }
 
-const RECIPE_COLS = 'id, title, subtitle, kind, status, protein, finish_minutes, prep_minutes, hands_off_minutes, reheats_well, base_portions, rating, tags';
+const RECIPE_COLS = 'id, title, subtitle, kind, component_role, status, protein, finish_minutes, prep_minutes, hands_off_minutes, reheats_well, base_portions, rating, tags';
 const rows = <T>(res: { data: T | null; error: { message: string } | null }, what: string): T => {
   if (res.error) throw new Error(`${what}: ${res.error.message}`);
   return res.data as T;
@@ -115,19 +115,22 @@ export function makeReader(db: Db, householdId: string): Reader {
         await hh('plan_weeks', 'id, week_start, days, status, summary').eq('week_start', weekStart).maybeSingle(), 'Reading the week'));
       if (!w?.id) return { week: null, slots: [] };
       const s = list(rows<(Omit<SlotRow, 'recipe_title'> & { recipes: unknown })[]>(await db.from('meal_slots')
-        .select('date, slot, mode, recipe_id, portions, reason, source_date, routine_choice, recipes(title)')
+        // meal_slots links to recipes twice (recipe_id and cookidoo_recipe_id), so the embed names its link.
+        .select('date, slot, mode, recipe_id, portions, reason, source_date, routine_choice, recipes!meal_slots_recipe_id_fkey(title)')
         .eq('plan_week_id', w.id).order('date'), 'Reading the days'));
       const { id: _id, ...week } = w;
       return { week, slots: s.map(({ recipes, ...x }) => ({ ...x, recipe_title: (Array.isArray(recipes) ? recipes[0]?.title : (recipes as { title?: string } | null)?.title) ?? null })) };
     },
     async recipes() {
-      const since = addDays(londonParts(new Date()).date, -56);
+      const today = londonParts(new Date()).date;
+      const since = addDays(today, -56);
       const [r, w] = await Promise.all([hh('recipes', RECIPE_COLS).order('title'), hh('plan_weeks', 'id').gte('week_start', since)]);
       const ids = list(rows<{ id: string }[]>(w, 'Reading recent weeks')).map((x) => x.id);
       const cooked = ids.length ? list(rows<{ recipe_id: string | null; date: string }[]>(await db.from('meal_slots').select('recipe_id, date')
         .in('plan_week_id', ids).eq('slot', 'dinner').eq('mode', 'cook'), 'Reading recent dinners')) : [];
       const last = new Map<string, string>();
-      for (const c of cooked) if (c.recipe_id && (last.get(c.recipe_id) ?? '') < c.date) last.set(c.recipe_id, c.date);
+      // Only dinners before today: this week's and next week's are planned, not cooked yet.
+      for (const c of cooked) if (c.recipe_id && c.date < today && (last.get(c.recipe_id) ?? '') < c.date) last.set(c.recipe_id, c.date);
       return list(rows<Omit<RecipeRow, 'lastCooked'>[]>(r, 'Reading recipes')).map((x) => ({ ...x, tags: x.tags ?? [], lastCooked: last.get(x.id) ?? null }));
     },
     async recipe(id) {
@@ -185,7 +188,7 @@ export function formatWeek(weekStart: string, data: WeekData): string {
 
 const handsOn = (r: RecipeRow) => Math.max(0, r.prep_minutes + r.finish_minutes - r.hands_off_minutes);
 const recipeLine = (r: RecipeRow) => [
-  `- ${r.title}`, r.protein, `${r.prep_minutes + r.finish_minutes} min (${handsOn(r)} hands-on)`, `serves ${Number(r.base_portions)}`,
+  `- ${r.title}`, r.kind === 'component' ? r.component_role ?? 'component' : null, r.status === 'draft' ? 'draft' : null, r.protein, `${r.prep_minutes + r.finish_minutes} min (${handsOn(r)} hands-on)`, `serves ${Number(r.base_portions)}`,
   r.reheats_well && 'reheats well', r.rating && `rated ${r.rating}`, r.tags.length ? `tags: ${r.tags.join(', ')}` : null,
   r.lastCooked ? `last cooked ${shortDate(r.lastCooked)}` : 'not cooked lately',
 ].filter(Boolean).join(' · ');
@@ -201,7 +204,13 @@ export function findRecipes(rs: RecipeRow[], query?: string, tag?: string): stri
     return words.every((w) => hay.includes(w)) && (!t || r.tags.some((x) => x.toLowerCase() === t));
   });
   if (!hits.length) return query ? `No recipes match "${query}".` : tag ? `No recipes tagged "${tag}".` : 'No recipes yet.';
-  return [`${hits.length} recipe${hits.length === 1 ? '' : 's'}:`, ...hits.map(recipeLine)].join('\n');
+  // Components (sauces, sides) are parts of a meal: listed apart, so they aren't offered as a dinner.
+  const meals = hits.filter((r) => r.kind !== 'component');
+  const parts = hits.filter((r) => r.kind === 'component');
+  return [
+    ...(meals.length ? [`${meals.length} meal${meals.length === 1 ? '' : 's'}:`, ...meals.map(recipeLine)] : []),
+    ...(parts.length ? [...(meals.length ? [''] : []), 'Components (parts of a meal, not a dinner on their own):', ...parts.map(recipeLine)] : []),
+  ].join('\n');
 }
 
 /** The recipe a title means: an exact title, or the only one containing it. Otherwise a message. */

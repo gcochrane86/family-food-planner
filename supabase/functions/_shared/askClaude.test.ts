@@ -200,3 +200,67 @@ test('formatHousehold starts with the instructions and lists the rules and kit',
   const none = formatHousehold({ ...data, settings: { ...data.settings, private_rules: [] } }, []);
   expect(none).not.toContain('Private rules');
 });
+
+/** A fake client that answers by table, for the reader's own logic. */
+function tableDb(answers: Record<string, unknown>) {
+  const selects: Record<string, string[]> = {};
+  return {
+    selects,
+    from(table: string) {
+      const proxy: unknown = new Proxy({}, {
+        get(_t, prop) {
+          if (prop === 'then') return (res: (v: unknown) => void) => res({ data: answers[table] ?? [], error: null });
+          return (...args: unknown[]) => {
+            if (prop === 'select') (selects[table] ??= []).push(String(args[0]));
+            if (prop === 'maybeSingle') return Promise.resolve({ data: answers[`${table}:one`] ?? null, error: null });
+            return proxy;
+          };
+        },
+      });
+      return proxy;
+    },
+  };
+}
+
+test("the week's slots name tonight's recipe through recipe_id, not the Cookidoo link", async () => {
+  const db = tableDb({
+    'plan_weeks:one': { id: 'w1', week_start: '2026-11-16', days: 7, status: 'draft', summary: null },
+    meal_slots: [{ date: '2026-11-16', slot: 'dinner', mode: 'cook', recipe_id: 'b', portions: 3, reason: null, source_date: null, routine_choice: null, recipes: { title: 'Fish Pie' } }],
+  });
+  const w = await makeReader(db, 'h1').week('2026-11-16');
+  // meal_slots has two links to recipes (recipe_id and cookidoo_recipe_id): the embed must name one.
+  expect(db.selects.meal_slots[0]).toContain('recipes!meal_slots_recipe_id_fkey(title)');
+  expect(w.slots[0].recipe_title).toBe('Fish Pie');
+});
+
+test('last cooked only counts dinners before today, not planned ones', async () => {
+  vi.useFakeTimers({ now: new Date('2026-11-12T12:00:00Z') });
+  try {
+    const db = tableDb({
+      recipes: [{ ...recipe({ id: 'b', title: 'Fish Pie' }), lastCooked: undefined }],
+      plan_weeks: [{ id: 'w1' }, { id: 'w2' }],
+      meal_slots: [{ recipe_id: 'b', date: '2026-11-03' }, { recipe_id: 'b', date: '2026-11-12' }, { recipe_id: 'b', date: '2026-11-19' }],
+    });
+    const [r] = await makeReader(db, 'h1').recipes();
+    expect(r.lastCooked).toBe('2026-11-03');
+  } finally { vi.useRealTimers(); }
+});
+
+test('findRecipes keeps sauces and sides apart from dinners, and marks drafts', () => {
+  const text = findRecipes([
+    recipe({ id: 'a', title: 'Fish Pie' }),
+    recipe({ id: 's', title: 'Tomato Sauce', kind: 'component', component_role: 'sauce' }),
+    recipe({ id: 'n', title: 'New Curry', status: 'draft' }),
+  ]);
+  expect(text.indexOf('Fish Pie')).toBeLessThan(text.indexOf('Components'));
+  expect(text).toMatch(/Components \(parts of a meal, not a dinner on their own\)[\s\S]*Tomato Sauce · sauce/);
+  expect(text).toMatch(/New Curry · draft/);
+});
+
+test('the connector imports only from supabase/functions, so it deploys on its own', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync('supabase/functions/ask-claude-connector/index.ts', 'utf8');
+  const local = [...src.matchAll(/from '(\.[^']+)'/g)].map((m) => m[1]);
+  expect(local.length).toBeGreaterThan(0);
+  for (const p of local) expect(p.startsWith('../_shared/')).toBe(true);
+});
