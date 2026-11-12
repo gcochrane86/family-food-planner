@@ -64,7 +64,7 @@ export interface RecipeRow {
 }
 export interface RecipeData {
   recipe: RecipeRow & { reheat: string | null; toddler_note: string | null };
-  ingredients: { group_name: string | null; name: string; qty: number | null; unit: string; note: string | null }[];
+  ingredients: { group_name: string | null; name: string; qty: number | null; unit: string; note: string | null; qty_approx?: boolean }[];
   steps: { phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null; settings: string | null; timer_minutes: number | null }[];
 }
 export interface PantryData {
@@ -139,7 +139,7 @@ export function makeReader(db: Db, householdId: string): Reader {
       const rec = one(rows<RecipeData['recipe'] | null>(await hh('recipes', `${RECIPE_COLS}, reheat, toddler_note`).eq('id', id).maybeSingle(), 'Reading the recipe'));
       if (!rec?.id) return null;
       const [i, s] = await Promise.all([
-        db.from('recipe_ingredients').select('group_name, name, qty, unit, note, position').eq('recipe_id', id).order('position'),
+        db.from('recipe_ingredients').select('group_name, name, qty, unit, note, qty_approx, position').eq('recipe_id', id).order('position'),
         db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes').eq('recipe_id', id).order('position'),
       ]);
       return { recipe: { ...rec, tags: rec.tags ?? [], lastCooked: null }, ingredients: list(rows(i, 'Reading ingredients')), steps: list(rows(s, 'Reading steps')) };
@@ -242,7 +242,7 @@ export function formatRecipe(d: RecipeData): string {
   for (const i of d.ingredients) {
     if (i.group_name && i.group_name !== group) out.push(i.group_name);
     group = i.group_name;
-    out.push(`- ${join(amount(i.qty, i.unit), i.name)}${i.note ? `, ${i.note}` : ''}`);
+    out.push(`- ${join(i.qty_approx && i.qty !== null ? 'about' : '', amount(i.qty, i.unit), i.name)}${i.note ? `, ${i.note}` : ''}`);
   }
   for (const [phase, label] of PHASES) {
     const steps = d.steps.filter((s) => s.phase === phase).sort((a, b) => a.position - b.position);
@@ -250,7 +250,8 @@ export function formatRecipe(d: RecipeData): string {
     out.push('', label);
     steps.forEach((s, n) => {
       const meta = [s.at_minute !== null && s.at_minute !== undefined ? `+${s.at_minute} min` : null, s.machine, s.settings, s.timer_minutes ? `timer ${s.timer_minutes} min` : null].filter(Boolean).join(', ');
-      out.push(`${n + 1}. ${s.title}${meta ? ` [${meta}]` : ''}: ${s.body.replace(/\*\*/g, '')}`);
+      // The **bold** marks the ingredient words the app links to amounts: shown, so Claude keeps them in tonight's version.
+      out.push(`${n + 1}. ${s.title}${meta ? ` [${meta}]` : ''}: ${s.body}`);
     });
   }
   return out.join('\n');

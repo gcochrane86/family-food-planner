@@ -151,7 +151,9 @@ export const repo = {
    *  the Cookidoo sync, so it's left out here: a stale copy on screen must never overwrite it. */
   async saveSlots(slots: MealSlot[]): Promise<void> {
     if (!slots.length) return;
-    const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, ...s }) => s);
+    // Tonight's version is only written by the Ask Claude connector, and cleared by the database when the day's
+    // recipe changes: a stale copy on screen must never overwrite it either.
+    const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
   },
 

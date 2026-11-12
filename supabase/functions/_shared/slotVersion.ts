@@ -22,6 +22,8 @@ type SavedStep = { phase: string; position: number; at_minute: number | null; ti
 type Saved = { id: string; ingredients: SavedIngredient[]; steps: SavedStep[] };
 
 const key = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+/** A step body without its **bold** ingredient markers or extra spaces, to tell a step sent back as plain text from a changed one. */
+const plain = (s: string) => s.replace(/\*\*/g, '').replace(/\s+/g, ' ').trim();
 const num = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
 const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 const MAX_INGREDIENTS = 80;
@@ -53,9 +55,11 @@ export function buildVersion(saved: Saved, input: VersionInput): { version: Slot
 
   const savedI = new Map(saved.ingredients.map((i) => [key(i.name), i]));
   const ingredients: VersionIngredient[] = ins.map((i) => {
-    const v = { group_name: text(i.group_name), name: i.name.trim(), qty: num(i.qty), unit: (i.unit ?? '').trim(), note: text(i.note) };
-    const was = i.replaces ? undefined : savedI.get(key(v.name));
-    const changed = !was || num(was.qty) !== v.qty || (was.unit ?? '') !== v.unit || (was.note ?? null) !== v.note;
+    const was = i.replaces ? undefined : savedI.get(key(i.name));
+    // A kept ingredient keeps its saved group unless a group is given (the batch plan and the card's groups use it).
+    const group = i.group_name === undefined && was ? was.group_name : text(i.group_name);
+    const v = { group_name: group, name: String(i.name).trim(), qty: num(i.qty), unit: String(i.unit ?? '').trim(), note: text(i.note) };
+    const changed = !was || num(was.qty) !== v.qty || (was.unit ?? '') !== v.unit || (was.note ?? null) !== v.note || (was.group_name ?? null) !== v.group_name;
     return { ...v, qty_approx: was?.qty_approx ?? false, changed };
   });
   const savedS = new Map(saved.steps.map((s) => [`${s.phase}|${key(s.title)}`, s]));
@@ -66,6 +70,8 @@ export function buildVersion(saved: Saved, input: VersionInput): { version: Slot
       body: s.body.trim(), machine: text(s.machine), settings: text(s.settings), timer_minutes: num(s.timer_minutes),
     };
     const was = s.replaces ? undefined : savedS.get(`${v.phase}|${key(v.title)}`);
+    // Sent back as plain text: it's the saved step, with its **bold** ingredient words kept.
+    if (was && plain(was.body) === plain(v.body)) v.body = was.body;
     const changed = !was || was.body !== v.body || num(was.at_minute) !== v.at_minute || (was.machine ?? null) !== v.machine
       || (was.settings ?? null) !== v.settings || num(was.timer_minutes) !== v.timer_minutes;
     return { ...v, changed };

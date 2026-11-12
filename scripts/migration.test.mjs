@@ -593,3 +593,19 @@ test("0015: a day's meal can carry tonight's version, and members can set it", a
   expect(await one(OWNER, `select version->>'note' from meal_slots`)).toBe('Yoghurt tonight');
   expect(await as(STRANGER, 'select version from meal_slots')).toHaveLength(0);
 });
+
+test("0015: tonight's version is cleared by the database when the day's recipe changes or it isn't cooked", async () => {
+  const { hid, rid } = await recipeFor(OWNER, 'a');
+  const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions)
+    values ('${hid}', 'b', 'Other', 'meal', 'own_doc', 4) returning id`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-11-16') returning id`);
+  const v = `'{"based_on":"${rid}","note":"x"}'::jsonb`;
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, version) values ('${wid}', '2026-11-16', 'dinner', 'cook', '${rid}', ${v})`);
+  await as(OWNER, `update meal_slots set portions = 4`);
+  expect(await one(OWNER, `select version->>'note' from meal_slots`)).toBe('x');
+  await as(OWNER, `update meal_slots set recipe_id = '${other}'`);
+  expect(await one(OWNER, `select version from meal_slots`)).toBeNull();
+  await as(OWNER, `update meal_slots set recipe_id = '${rid}', version = ${v}`);
+  await as(OWNER, `update meal_slots set mode = 'out', recipe_id = null`);
+  expect(await one(OWNER, `select version from meal_slots`)).toBeNull();
+});

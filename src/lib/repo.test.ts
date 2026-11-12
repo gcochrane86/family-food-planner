@@ -92,3 +92,9 @@ test('cards load the small copy we store beside each photo; large views and no s
   expect(repo.heroUrl('h1/hero/a.jpg', 2000)).toBe('object/h1/hero/a.jpg');
   expect(repo.heroUrl('h1/hero/a.jpg')).toBe('object/h1/hero/a.jpg');
 });
+
+test("saving slots from the app never sends tonight's version (Claude saves it; the database clears it)", async () => {
+  await repo.saveSlots([{ id: 'x', plan_week_id: 'w', date: '2026-10-21', slot: 'dinner', recipe_id: 'b', mode: 'cook', portions: 3, guests: 0,
+    locked: true, reason: null, source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, version: null }]);
+  expect((h.upserts[0] as Record<string, unknown>[])[0]).not.toHaveProperty('version');
+});

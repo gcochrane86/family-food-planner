@@ -70,3 +70,20 @@ test('applyVersion uses the version for its own recipe only', () => {
   expect(parseVersion(r.version)).toEqual(r.version);
   for (const bad of [null, { note: 'x' }, 'junk', { based_on: 'r1', note: 'x', ingredients: 'no', steps: [] }]) expect(parseVersion(bad)).toBeNull();
 });
+
+test("a step sent back without the saved **bold** markers is the same step, and keeps them", () => {
+  const r = buildVersion(saved, input({ steps: [{ ...keepStep(saved.steps[0]), body: 'Brown the chicken.' }, { ...keepStep(saved.steps[1]), body: 'Stir in the Greek yoghurt.' }] }));
+  if (!('version' in r)) throw new Error(r.error);
+  expect(r.version.steps[0]).toMatchObject({ body: 'Brown the **chicken**.', changed: false });
+  expect(r.version.steps[1].changed).toBe(true);
+});
+
+test('a kept ingredient keeps its saved group and approximate amount unless told otherwise', () => {
+  const approx = { ...saved, ingredients: saved.ingredients.map((i) => (i.name === 'Rice' ? { ...i, qty_approx: true } : i)) };
+  const r = buildVersion(approx, input({ ingredients: [keep(saved.ingredients[0]), input().ingredients[1], { name: 'Rice', qty: 300, unit: 'g', note: null } as VersionInput['ingredients'][number]] }));
+  if (!('version' in r)) throw new Error(r.error);
+  expect(r.version.ingredients[2]).toMatchObject({ group_name: 'To serve', qty_approx: true, changed: false });
+  const moved = buildVersion(saved, input({ ingredients: [keep(saved.ingredients[0]), input().ingredients[1], { ...keep(saved.ingredients[2]), group_name: 'Side' }] }));
+  if (!('version' in moved)) throw new Error(moved.error);
+  expect(moved.version.ingredients[2]).toMatchObject({ group_name: 'Side', changed: true });
+});

@@ -141,8 +141,7 @@ test('formatRecipe lists ingredients and steps by phase', () => {
   expect(text).toContain('oven');
   expect(text).toContain('200C fan');
   expect(text).toContain('timer 20 min');
-  expect(text).toContain('Bake the pie.');
-  expect(text).not.toContain('**');
+  expect(text).toContain('Bake the **pie**.');
   expect(text).not.toMatch(/null|undefined/);
 });
 
@@ -260,4 +259,17 @@ test("the week shows a day's tonight's version, and the instructions say changes
   const db = tableDb({ 'plan_weeks:one': { id: 'w1', week_start: '2026-11-16', days: 7, status: 'draft', summary: null } });
   await makeReader(db, 'h1').week('2026-11-16');
   expect(db.selects.meal_slots[0]).toContain('version');
+});
+
+test("get_recipe keeps the **bold** ingredient markers and approximate amounts, for Claude to send back", async () => {
+  const text = formatRecipe({
+    recipe: { ...recipe({ title: 'Pie' }), reheat: null, toddler_note: null },
+    ingredients: [{ group_name: null, name: 'salt', qty: 1, unit: 'tsp', note: null, qty_approx: true }],
+    steps: [{ phase: 'finish', position: 1, at_minute: null, title: 'Season', body: 'Add the **salt**.', machine: null, settings: null, timer_minutes: null }],
+  });
+  expect(text).toContain('Add the **salt**.');
+  expect(text).toContain('about 1 tsp salt');
+  const db = tableDb({ 'recipes:one': { id: 'r1', title: 'Pie', tags: [] } });
+  await makeReader(db, 'h1').recipe('r1');
+  expect(db.selects.recipe_ingredients[0]).toContain('qty_approx');
 });
