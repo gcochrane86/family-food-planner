@@ -6,6 +6,7 @@ import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
+import { resizeImage } from '../../lib/image';
 import type { ChopGroup, HourInput, HourPlan, HourStep } from '../../lib/todayHour';
 import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
@@ -34,6 +35,11 @@ export default function TodayHour() {
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
   useEffect(() => { if (data && index > steps.length - 1) setIndex(steps.length - 1); }, [data, index, steps.length]);
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
+
+  /** Remakes a chopping photo, or saves your own, then shows it (everywhere that cut is used). */
+  async function fixPrep(run: () => Promise<unknown>) {
+    try { await run(); reload(); } catch (e) { setPhotos({ done: 0, total: 0, error: `Couldn't change that photo: ${e instanceof Error ? e.message : String(e)}` }); }
+  }
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
   async function addPhotos(recipes: RecipeDetail[], prep: HourPlan['prepMissing']) {
@@ -110,7 +116,8 @@ export default function TodayHour() {
               ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-lcd-ink">After dinner</span>
               : <span className="font-mono text-5xl font-bold tabular-nums">{step.at}<span className="ml-2 text-xl text-[#9AA89F]">to {step.end}</span></span>}
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
-            <StepPictures step={step} />
+            <StepPictures step={step} onRemake={(p) => void fixPrep(() => repo.generatePrepPhoto(householdId!, p.name, p.note, true))}
+              onOwn={(p, file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />
             {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}</span>}
             {step.kind === 'chop' && data ? (
               <ul className="m-0 grid list-none gap-2 p-0 text-[clamp(18px,2.4vw,24px)] text-[#DDE5DF]">
@@ -162,12 +169,27 @@ function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetai
 }
 
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
-function StepPictures({ step }: { step: HourStep }) {
+type Prep = NonNullable<HourStep['photos'][number]['prep']>;
+function StepPictures({ step, onRemake, onOwn }: { step: HourStep; onRemake: (p: Prep) => void; onOwn: (p: Prep, file: File) => void }) {
   if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-5xl">🧽</span> : null;
-  if (step.photos.length > 1) {
+  if (step.photos.length > 1 || step.photos.some((p) => p.prep)) {
     return (
       <div className="flex gap-2 overflow-x-auto">
-        {step.photos.map((p) => <StoredPhoto key={p.path} path={p.path} width={PHOTO_LARGE} alt={p.alt} className="h-28 w-40 shrink-0 rounded-xl object-cover md:h-36 md:w-52" />)}
+        {step.photos.map((p) => (
+          <figure key={p.path} className="m-0 grid shrink-0 gap-1">
+            <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} className="h-28 w-40 rounded-xl object-cover md:h-36 md:w-52" />
+            {p.prep && (
+              <figcaption className="flex items-center gap-2 text-xs text-[#9AA89F]">
+                <span className="min-w-0 flex-1 truncate">{p.prep.label}</span>
+                <button type="button" aria-label={`Remake ${p.prep.label}`} onClick={() => onRemake(p.prep!)} className="underline">Remake</button>
+                <label className="cursor-pointer underline">Mine
+                  <input type="file" accept="image/*" className="sr-only" aria-label={`Use my photo for ${p.prep.label}`}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onOwn(p.prep!, f); }} />
+                </label>
+              </figcaption>
+            )}
+          </figure>
+        ))}
       </div>
     );
   }

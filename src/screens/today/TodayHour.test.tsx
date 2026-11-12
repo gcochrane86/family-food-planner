@@ -9,6 +9,7 @@ import TodayHour from './TodayHour';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
+vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../../lib/image')>()), resizeImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })) }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 
 const week = (edit: (s: MealSlot) => MealSlot = (s) => s) => async (_hid: string, ws: string) =>
@@ -147,4 +148,14 @@ test('saved chopping photos show on the chop step', async () => {
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(screen.getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' })).toBeInTheDocument();
+});
+
+test('a chopping photo that came out wrong can be remade, or replaced with your own', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/chicken.jpg', source: 'generated' }]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  await user().click(screen.getByRole('button', { name: 'Remake chicken breast or thigh, strips (10mm)' }));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons', true);
+  await user().upload(screen.getByLabelText('Use my photo for chicken breast or thigh, strips (10mm)'), new File(['x'], 'c.jpg', { type: 'image/jpeg' }));
+  expect(h.repo.uploadPrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh|strips (10mm)', 'chicken breast or thigh, strips (10mm)', expect.any(Blob));
 });

@@ -87,14 +87,22 @@ export const repo = {
     return error ? [] : (data as PrepPhoto[]);
   },
   /** Makes (or finds) the chopping photo for an ingredient cut the way the recipe says (about 3p, once). */
-  async generatePrepPhoto(householdId: string, name: string, note: string | null): Promise<string> {
-    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note } });
+  async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace } });
     if (error) {
       const context = (error as { context?: Response }).context;
       const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
       throw new Error(detail ?? error.message);
     }
     return (data as { path: string }).path;
+  },
+  /** Your own photo for a chopping cut, used wherever that cut comes up. */
+  async uploadPrepPhoto(householdId: string, key: string, label: string, photo: Blob): Promise<string> {
+    const path = `${householdId}/prep/own-${key.replace(/[^a-z0-9]+/g, '-').slice(0, 60)}-${Date.now()}.jpg`;
+    const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw new Error(error.message);
+    must(await db().from('prep_photos').upsert({ household_id: householdId, key, label, path, source: 'own' }, { onConflict: 'household_id,key' }));
+    return path;
   },
   /** Saves your photo of a machine (any picture from Photos or Files), kept in the machine's capabilities. */
   async uploadEquipmentPhoto(householdId: string, item: Equipment, photo: Blob): Promise<string> {

@@ -191,7 +191,8 @@ describe('review fixes', () => {
   it('the chopping step shows a board photo for each cut, and lists the cuts still without one', () => {
     const plan = planHour(input({ prepPhotos: { 'onion|chunks': 'h1/prep/onion.jpg', 'garlic|crushed': 'h1/prep/garlic.jpg' } }));
     const chop = titled(plan, 'Chop everything')!;
-    expect(chop.photos).toEqual([{ path: 'h1/prep/onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/garlic.jpg', alt: 'garlic, crushed' }]);
+    expect(chop.photos.map(({ path, alt }) => ({ path, alt }))).toEqual([{ path: 'h1/prep/onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/garlic.jpg', alt: 'garlic, crushed' }]);
+    expect(chop.photos[0].prep).toMatchObject({ name: 'onion', note: 'roughly chopped', key: 'onion|chunks' });
     expect(plan.prepMissing.map((m) => m.label)).toEqual(['ginger, sliced', 'coriander, chopped', 'carrot, diced', 'chicken thigh, diced', 'beef, diced']);
     expect(plan.prepMissing[0]).toMatchObject({ name: 'ginger', note: 'peeled and sliced' });
     expect(titled(planHour(input()), 'Chop everything')!.photos.every((p) => !p.path.includes('/prep/'))).toBe(true);

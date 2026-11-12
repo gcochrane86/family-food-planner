@@ -52,7 +52,7 @@ export interface HourStep {
   ingredients: RecipeIngredient[];
   factor: number;
   /** Pictures for the step (stored photo paths): the step's own photo, else its recipe's; several for the chopping. */
-  photos: { path: string; alt: string }[];
+  photos: { path: string; alt: string; prep?: { name: string; note: string | null; key: string; label: string } }[];
 }
 
 export interface HourPlan {
@@ -109,7 +109,8 @@ export function planHour(input: HourInput): HourPlan {
   const cuts = chop.filter((g) => g.where !== 'fridge').flatMap((g) => g.items).map((i) => ({ name: i.name, note: i.note, ...prepKey(i.name, i.note) }))
     .filter((c, n, all) => all.findIndex((x) => x.key === c.key) === n);
   const prepMissing = cuts.filter((c) => !input.prepPhotos?.[c.key]).map(({ name, note, key, label }) => ({ name, note, key, label }));
-  const boards = cuts.filter((c) => input.prepPhotos?.[c.key]).map((c) => ({ path: input.prepPhotos![c.key], alt: c.label }));
+  const boards = cuts.filter((c) => input.prepPhotos?.[c.key])
+    .map((c) => ({ path: input.prepPhotos![c.key], alt: c.label, prep: { name: c.name, note: c.note, key: c.key, label: c.label } }));
   const recipePhotos = [input.tonight?.recipe, tomorrow?.dinner?.recipe, tomorrow?.breakfast?.recipe, lunchRecipe].flatMap(hero)
     .filter((p, i, all) => all.findIndex((q) => q.path === p.path) === i);
   const chopPhotos = boards.length ? boards : recipePhotos;
