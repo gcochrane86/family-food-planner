@@ -48,9 +48,9 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
        vegetables are cooked in the Anova or a pan instead.
      - Anova Precision Oven (`apo`): proteins (fish, chicken, pork) and vegetables by steam-roasting, roasting,
        steam-baking, sous-vide-style cooks. Settings as `200°C · 30% steam · 25 min`.
-     - A pan on the hob (`hob`): whatever browns best: mince, searing, quick-fried vegetables. **Potatoes always go on
-       the hob** (the household's choice): boil, parboil and mash them in a saucepan, never in the TM7 or the Anova;
-       roasting them in the oven afterwards is fine.
+     - A pan on the hob (`hob`): whatever browns best: mince, searing, quick-fried vegetables. **Steamed, boiled,
+       parboiled or mashed potatoes go on the hob** (the household's choice), in a pan, not the TM7 or the Anova;
+       roast potatoes are roasted in the oven, the Anova or the air fryer as usual.
      - HY 24L air-fryer (`hy24`): crisping, roasting small batches, the rotisserie. Settings as `200°C · 12 min`.
      - MEATER (`meater`): any whole joint or chicken; give the target core temperature.
      - `oven`, `kettle` when nothing else fits.
