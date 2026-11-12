@@ -189,3 +189,12 @@ test("holding a recipe step's photo offers a new photo for that step, or your ow
   await user().upload(screen.getByLabelText('Use my own photo'), new File(['x'], 'r.jpg', { type: 'image/jpeg' }));
   expect(h.repo.uploadStepPhoto).toHaveBeenCalledWith('h1', 's-rice', expect.any(Blob));
 });
+
+test('the chopping step lists each item with its weight and how to cut it', async () => {
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const step = screen.getByRole('region', { name: /^Step 1 of/ });
+  expect(within(step).getByText('1.2kg')).toBeInTheDocument();
+  expect(within(step).getByText(/chicken breast or thigh/)).toBeInTheDocument();
+  expect(within(step).getByText(/10mm batons/)).toBeInTheDocument();
+});

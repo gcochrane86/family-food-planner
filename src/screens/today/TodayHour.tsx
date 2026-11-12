@@ -120,9 +120,21 @@ export default function TodayHour() {
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
             {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}</span>}
             {step.kind === 'chop' && data ? (
-              <ul className="m-0 grid list-none gap-2 p-0 text-[clamp(18px,2.4vw,24px)] text-[#DDE5DF]">
-                {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => <li key={i}><b className="text-white">{g.label}</b>{g.raw ? ' (last, on its own mat)' : ''}: {g.items.map((it) => it.name).join(', ')}</li>)}
-              </ul>
+              <div className="grid gap-4">
+                {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => (
+                  <div key={i} className="grid gap-1.5">
+                    <b className="text-[clamp(17px,2.2vw,22px)] text-white">{g.label}{g.raw ? ' · last, on its own mat' : ''}</b>
+                    <ul className="m-0 grid list-none gap-1.5 p-0">
+                      {g.items.map((it) => (
+                        <li key={it.name} className="grid grid-cols-[84px_minmax(0,1fr)] items-baseline gap-3 rounded-xl bg-white/5 px-3 py-2 text-[clamp(17px,2.2vw,22px)]">
+                          <span className="font-mono font-bold text-lcd-ink tabular-nums">{it.qty}</span>
+                          <span className="text-[#DDE5DF]">{it.name}{it.note && <span className="text-[#9AA89F]"> · {it.note}</span>}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             )}
