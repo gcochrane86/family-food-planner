@@ -1,4 +1,4 @@
-import { stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from './stepPhoto';
+import { kitReference, stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from './stepPhoto';
 
 const step = (body: string, machine: string | null = 'tm7', phase = 'finish', title = 'Step') => ({ title, body, machine, phase });
 const curry = [
@@ -76,4 +76,25 @@ test('a new photo you ask for in cook mode can replace your own photo, and only 
   expect(stepPhotoRefusal(liked, own, true, true)).toBe('This step has your own photo.');
   expect(stepPhotoRefusal(liked, own, true, true, true)).toBeNull();
   expect(stepPhotoWriteGuard(true, true)).toEqual({ column: 'image_source', equals: 'own' });
+});
+
+test("with photos of the household's own kit, the food is shown in that kit, matching them", () => {
+  const p = stepPhotoPrompt('Chickpea Curry', curry, 1, null, { name: 'Thermomix TM7', count: 2 });
+  expect(p).toContain("The next 2 reference photos show the household's own Thermomix TM7");
+  expect(p).toMatch(/only the part that holds the food/i);
+  expect(p).not.toContain('No appliance');
+  expect(stepPhotoPrompt('Chickpea Curry', curry, 1)).toContain('No appliance');
+});
+
+test('which of your kit goes with a step', () => {
+  const kit = [
+    { code: 'tm7', name: 'Thermomix TM7', photos: ['t1', 't2'] },
+    { code: 'frying-pans', name: 'Frying pans', photos: ['f1'] },
+    { code: 'saucepans', name: 'Saucepans', photos: ['s1', 's2', 's3'] },
+    { code: 'apo', name: 'Anova Precision Oven', photos: [] },
+  ];
+  expect(kitReference('tm7', kit)).toEqual({ name: 'Thermomix TM7', photos: ['t1', 't2'] });
+  expect(kitReference('hob', kit)).toEqual({ name: 'Frying pans and Saucepans', photos: ['f1', 's1', 's2'] });
+  expect(kitReference('apo', kit)).toBeNull();
+  expect(kitReference(null, kit)).toBeNull();
 });

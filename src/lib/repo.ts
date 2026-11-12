@@ -27,6 +27,10 @@ const toRecipe = (r: Recipe): Recipe => ({
   salt_per_portion_g: r.salt_per_portion_g === null ? null : Number(r.salt_per_portion_g),
 });
 
+/** A machine's photos, from its capabilities (older rows kept a single `photo`). */
+const kitPhotos = (c: Record<string, unknown> | null | undefined): string[] =>
+  Array.isArray(c?.photos) ? (c!.photos as unknown[]).filter((p): p is string => typeof p === 'string') : typeof c?.photo === 'string' ? [c.photo] : [];
+
 export const repo = {
   async getHousehold(householdId: string): Promise<Household> {
     return must(await db().from('households').select('id, name, invite_code').eq('id', householdId).single());
@@ -77,9 +81,12 @@ export const repo = {
   },
 
   async listEquipment(householdId: string): Promise<Equipment[]> {
-    const rows = must<(Equipment & { capabilities?: { photo?: unknown } | null })[]>(
+    const rows = must<(Equipment & { capabilities?: { photo?: unknown; photos?: unknown } | null })[]>(
       await db().from('equipment').select('id, household_id, code, name, capabilities').eq('household_id', householdId).order('name'));
-    return rows.map(({ capabilities, ...e }) => ({ ...e, photo: typeof capabilities?.photo === 'string' ? capabilities.photo : null }));
+    return rows.map(({ capabilities, ...e }) => {
+      const photos = kitPhotos(capabilities);
+      return { ...e, photos, photo: photos[0] ?? null };
+    });
   },
   /** The household's chopping photos (none before migration 0016 runs). */
   async listPrepPhotos(householdId: string): Promise<PrepPhoto[]> {
@@ -87,8 +94,8 @@ export const repo = {
     return error ? [] : (data as PrepPhoto[]);
   },
   /** Makes (or finds) the chopping photo for an ingredient cut the way the recipe says (about 3p, once). */
-  async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false): Promise<string> {
-    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace } });
+  async generatePrepPhoto(householdId: string, name: string, note: string | null, replace = false, hint?: string): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note, replace, hint } });
     if (error) {
       const context = (error as { context?: Response }).context;
       const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
@@ -104,14 +111,20 @@ export const repo = {
     must(await db().from('prep_photos').upsert({ household_id: householdId, key, label, path, source: 'own' }, { onConflict: 'household_id,key' }));
     return path;
   },
-  /** Saves your photo of a machine (any picture from Photos or Files), kept in the machine's capabilities. */
+  /** Adds a photo of a machine (any picture from Photos or Files; up to 3), kept in the machine's capabilities. */
   async uploadEquipmentPhoto(householdId: string, item: Equipment, photo: Blob): Promise<string> {
     const path = `${householdId}/kit/${item.code}-${Date.now()}.jpg`;
     const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
     if (error) throw new Error(error.message);
     const current = must<{ capabilities: Record<string, unknown> | null }>(await db().from('equipment').select('capabilities').eq('id', item.id).single());
-    must(await db().from('equipment').update({ capabilities: { ...(current.capabilities ?? {}), photo: path } }).eq('id', item.id));
+    const photos = [...kitPhotos(current.capabilities), path].slice(-3);
+    must(await db().from('equipment').update({ capabilities: { ...(current.capabilities ?? {}), photos, photo: photos[0] } }).eq('id', item.id));
     return path;
+  },
+  async removeEquipmentPhoto(item: Equipment, path: string): Promise<void> {
+    const current = must<{ capabilities: Record<string, unknown> | null }>(await db().from('equipment').select('capabilities').eq('id', item.id).single());
+    const photos = kitPhotos(current.capabilities).filter((p) => p !== path);
+    must(await db().from('equipment').update({ capabilities: { ...(current.capabilities ?? {}), photos, photo: photos[0] ?? null } }).eq('id', item.id));
   },
   async saveEquipment(item: Omit<Equipment, 'id'> & { id?: string }): Promise<Equipment> {
     return must(await db().from('equipment').upsert(item).select('id, household_id, code, name').single());

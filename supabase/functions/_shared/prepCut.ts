@@ -45,11 +45,16 @@ export function prepKey(name: string, note: string | null | undefined): { key: s
   return { key: `${ingredient}|${cut}`, ingredient, cut, label: `${ingredient}, ${cut}` };
 }
 
-/** What the photo maker is asked for: just that ingredient, cut that way, on a chopping board. */
-export function prepPhotoPrompt(p: { ingredient: string; cut: string }): string {
+/** What the photo maker is asked for: just that ingredient, cut that way, on a chopping board. `hint`: your own words
+ *  for this photo. `ownBoard`: a photo of the household's board goes with the request as a reference. */
+export function prepPhotoPrompt(p: { ingredient: string; cut: string }, hint?: string | null, ownBoard = false): string {
+  const extra = hint?.trim().replace(/[.\s]+$/, '');
   return [
-    `A realistic photo, from directly above, of a wooden chopping board with ${p.ingredient}, freshly prepared and ready to cook.`,
+    ownBoard
+      ? `The reference photo shows the household's own chopping board. Make a realistic photo, from directly above, of that same board with ${p.ingredient}, freshly prepared and ready to cook.`
+      : `A realistic photo, from directly above, of a wooden chopping board with ${p.ingredient}, freshly prepared and ready to cook.`,
     `Show only the ${p.ingredient}, cut exactly like this: ${p.cut}. Show enough pieces that the size and shape of the cut are clear.`,
+    extra ? `Also: ${extra.slice(0, 200)}.` : '',
     'Natural kitchen light. A knife may lie beside the board. No hands, no text, no labels, no packaging, no other ingredients.',
-  ].join(' ');
+  ].filter(Boolean).join(' ');
 }

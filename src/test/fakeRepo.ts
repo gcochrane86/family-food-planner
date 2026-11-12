@@ -24,8 +24,9 @@ export function fakeRepo() {
     saveEquipment: vi.fn(),
     deleteEquipment: vi.fn(async () => {}),
     listPrepPhotos: vi.fn(async (_hid: string): Promise<PrepPhoto[]> => []),
-    generatePrepPhoto: vi.fn(async (_hid: string, name: string, _note: string | null, _replace?: boolean) => `h1/prep/${name.replace(/\W+/g, '-')}.jpg`),
+    generatePrepPhoto: vi.fn(async (_hid: string, name: string, _note: string | null, _replace?: boolean, _hint?: string) => `h1/prep/${name.replace(/\W+/g, '-')}.jpg`),
     uploadPrepPhoto: vi.fn(async (_hid: string, key: string, _label: string, _photo: Blob) => `h1/prep/own-${key}.jpg`),
+    removeEquipmentPhoto: vi.fn(async (_item: Equipment, _path: string) => {}),
     uploadEquipmentPhoto: vi.fn(async (_hid: string, item: { code: string }, _photo: Blob) => `h1/kit/${item.code}-1.jpg`),
     listStaples: vi.fn(async (): Promise<Staple[]> => [
       { id: 'p-paprika', ingredient_id: 'i1', name: 'Paprika', status: 'have' },

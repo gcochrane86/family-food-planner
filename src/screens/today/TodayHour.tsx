@@ -143,7 +143,7 @@ export default function TodayHour() {
         </div>
       )}
       {menu && <PhotoOptions prep={menu} onClose={() => setMenu(null)}
-        onRemake={() => void fixPrep(() => repo.generatePrepPhoto(householdId!, menu.name, menu.note, true))}
+        onRemake={(hint) => void fixPrep(() => repo.generatePrepPhoto(householdId!, menu.name, menu.note, true, hint || undefined))}
         onOwn={(file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, menu.key, menu.label, await resizeImage(file, 1600)))} />}
     </div>
   );
@@ -181,15 +181,25 @@ function StepPictures({ step, onHold }: { step: HourStep; onHold: (p: Prep) => v
 }
 
 /** A chopping photo's options, opened by holding it: a new photo, or your own, for that cut everywhere. */
-function PhotoOptions({ prep, onRemake, onOwn, onClose }: { prep: Prep; onRemake: () => void; onOwn: (file: File) => void; onClose: () => void }) {
+function PhotoOptions({ prep, onRemake, onOwn, onClose }: { prep: Prep; onRemake: (hint: string) => void; onOwn: (file: File) => void; onClose: () => void }) {
   const item = 'block w-full rounded-xl bg-white/10 px-4 py-3 text-left text-base font-semibold text-white';
+  const [asking, setAsking] = useState(false);
+  const [hint, setHint] = useState('');
   return (
     <div className="fixed inset-0 z-[60] grid items-end justify-items-center bg-black/50 md:items-center" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={prep.label} onClick={(e) => e.stopPropagation()}
         className="grid w-full max-w-md gap-2 rounded-t-3xl bg-[#121814] p-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-white md:rounded-3xl">
         <p className="m-0 mb-1 font-bold">{prep.label}</p>
         <p className="m-0 mb-2 text-sm text-[#9AA89F]">Changes this photo wherever this cut is used.</p>
-        <button type="button" className={item} onClick={() => { onClose(); onRemake(); }}>Make a new photo</button>
+        {asking ? (
+          <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); onClose(); onRemake(hint.trim()); }}>
+            <label className="grid gap-1 text-sm text-[#C9D3CC]">What should it show? (optional)
+              <input autoFocus value={hint} maxLength={200} onChange={(e) => setHint(e.target.value)} placeholder="e.g. bigger chunks, skins on"
+                className="rounded-xl bg-white/10 px-3 py-2.5 text-base text-white placeholder:text-[#7C887F]" />
+            </label>
+            <button type="submit" className="rounded-xl bg-lcd-ink px-4 py-3 text-base font-semibold text-[#0A0E0B]">Make it</button>
+          </form>
+        ) : <button type="button" className={item} onClick={() => setAsking(true)}>Make a new photo</button>}
         <label className={`${item} cursor-pointer`}>Use my own photo
           <input type="file" accept="image/*" className="sr-only" aria-label="Use my own photo"
             onChange={(e) => { const f = e.target.files?.[0]; onClose(); if (f) onOwn(f); }} />

@@ -35,3 +35,12 @@ test('the label reads naturally, and the prompt names the exact cut', () => {
   expect(prompt).toMatch(/chopping board/i);
   expect(prompt).toMatch(/no hands/i);
 });
+
+test('your words and your own board go into the chopping photo request', () => {
+  const p = prepKey('potatoes', 'halved');
+  expect(prepPhotoPrompt(p, 'bigger pieces, skins on')).toContain('Also: bigger pieces, skins on.');
+  expect(prepPhotoPrompt(p, '  ')).not.toContain('Also:');
+  const own = prepPhotoPrompt(p, null, true);
+  expect(own).toMatch(/reference photo shows the household's own chopping board/i);
+  expect(own).not.toContain('wooden chopping board');
+});

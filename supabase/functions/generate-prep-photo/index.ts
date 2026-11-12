@@ -2,7 +2,7 @@
 // once per household, ingredient and cut, and reused by every recipe that prepares it the same way.
 // Runs as the signed-in caller, so household access rules decide where it can save. Needs GOOGLE_AI_API_KEY.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
-import { decodeBase64 } from 'jsr:@std/encoding@1.0.5/base64';
+import { decodeBase64, encodeBase64 } from 'jsr:@std/encoding@1.0.5/base64';
 import { findImageData, GEMINI_MODEL, GEMINI_URL } from '../_shared/hero.ts';
 import { prepKey, prepPhotoPrompt } from '../_shared/prepCut.ts';
 
@@ -26,7 +26,8 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const { householdId, name, note, replace } = await req.json().catch(() => ({}));
+  const { householdId, name, note, replace, hint } = await req.json().catch(() => ({}));
+  const ownHint = typeof hint === 'string' && hint.trim() ? hint.trim().slice(0, 200) : null;
   if (typeof householdId !== 'string' || typeof name !== 'string' || !name.trim() || name.length > 120 || (note != null && (typeof note !== 'string' || note.length > 200))) {
     return reply(400, { error: 'householdId and an ingredient name are required' });
   }
@@ -39,12 +40,19 @@ Deno.serve(async (req) => {
   if (readError) return reply(500, { error: readError.message });
   if (existing && replace !== true) return reply(200, { path: existing.path, key: p.key, label: p.label, reused: true });
 
+  // The household's own chopping board (Settings → Kitchen, an item with "board" in its name), if it has a photo.
+  const { data: kitRows } = await db.from('equipment').select('code, name, capabilities').eq('household_id', householdId);
+  const board = (kitRows ?? []).find((k: { code: string; name: string }) => /board/i.test(`${k.code} ${k.name}`));
+  const boardPath = (board?.capabilities?.photos as string[] | undefined)?.[0] ?? (typeof board?.capabilities?.photo === 'string' ? board.capabilities.photo : null);
+  const boardImg = boardPath ? (await db.storage.from('recipe-images').download(boardPath)).data : null;
+  const boardInput = boardImg ? [{ type: 'image', data: encodeBase64(new Uint8Array(await boardImg.arrayBuffer())), mime_type: boardImg.type || 'image/jpeg' }] : [];
+
   const gemini = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       model: GEMINI_MODEL,
-      input: [{ type: 'text', text: prepPhotoPrompt(p) }],
+      input: [{ type: 'text', text: prepPhotoPrompt(p, ownHint, boardInput.length > 0) }, ...boardInput],
       response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '4:3', image_size: '1K' },
     }),
   });

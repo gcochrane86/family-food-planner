@@ -5,7 +5,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { decodeBase64, encodeBase64 } from 'jsr:@std/encoding@1.0.5/base64';
 import { findImageData, GEMINI_MODEL, GEMINI_URL } from '../_shared/hero.ts';
-import { stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from '../_shared/stepPhoto.ts';
+import { kitReference, stepPhotoPrompt, stepPhotoRefusal, stepPhotoWriteGuard } from '../_shared/stepPhoto.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -55,14 +55,30 @@ Deno.serve(async (req) => {
   const { data: hero, error: heroError } = await db.storage.from('recipe-images').download(recipe.hero_image_path!);
   if (heroError || !hero) return reply(500, { error: `Couldn't read the main photo: ${heroError?.message ?? 'missing'}` });
 
+  // The household's own photos of this step's kit (Settings → Kitchen), so the food is shown in their machine or pan.
+  const { data: kitRows } = await db.from('equipment').select('code, name, capabilities').eq('household_id', recipe.household_id);
+  const kitList = (kitRows ?? []).map((k: { code: string; name: string; capabilities: { photos?: unknown; photo?: unknown } | null }) => ({
+    code: k.code, name: k.name,
+    photos: Array.isArray(k.capabilities?.photos) ? (k.capabilities!.photos as unknown[]).filter((p): p is string => typeof p === 'string')
+      : typeof k.capabilities?.photo === 'string' ? [k.capabilities.photo] : [],
+  }));
+  const ref = kitReference(steps[index].machine, kitList);
+  const kitImages: { type: 'image'; data: string; mime_type: string }[] = [];
+  for (const path of ref?.photos ?? []) {
+    const { data: img } = await db.storage.from('recipe-images').download(path);
+    if (img) kitImages.push({ type: 'image', data: encodeBase64(new Uint8Array(await img.arrayBuffer())), mime_type: img.type || 'image/jpeg' });
+  }
+  const kit = ref && kitImages.length ? { name: ref.name, count: kitImages.length } : null;
+
   const gemini = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
     body: JSON.stringify({
       model: GEMINI_MODEL,
       input: [
-        { type: 'text', text: stepPhotoPrompt(recipe.title, steps, index, ownHint ?? steps[index].photo_hint) },
+        { type: 'text', text: stepPhotoPrompt(recipe.title, steps, index, ownHint ?? steps[index].photo_hint, kit) },
         { type: 'image', data: encodeBase64(new Uint8Array(await hero.arrayBuffer())), mime_type: hero.type || 'image/jpeg' },
+        ...kitImages,
       ],
       response_format: { type: 'image', mime_type: 'image/jpeg', aspect_ratio: '4:3', image_size: '1K' },
     }),

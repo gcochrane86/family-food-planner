@@ -33,9 +33,27 @@ export default function Kitchen() {
     setBanner(null);
     try {
       const path = await repo.uploadEquipmentPhoto(hid, item, await resizeImage(file, 1200));
-      setData((d) => (d ?? []).map((x) => (x.id === item.id ? { ...x, photo: path } : x)));
+      setData((d) => (d ?? []).map((x) => {
+        if (x.id !== item.id) return x;
+        const photos = [...(x.photos ?? []), path].slice(-3);
+        return { ...x, photos, photo: photos[0] };
+      }));
     } catch {
       setBanner("Couldn't save the photo. Try again.");
+    }
+  }
+
+  async function removePhoto(item: Equipment, path: string) {
+    setBanner(null);
+    try {
+      await repo.removeEquipmentPhoto(item, path);
+      setData((d) => (d ?? []).map((x) => {
+        if (x.id !== item.id) return x;
+        const photos = (x.photos ?? []).filter((p) => p !== path);
+        return { ...x, photos, photo: photos[0] ?? null };
+      }));
+    } catch {
+      setBanner(SAVE_ERROR);
     }
   }
 
@@ -57,17 +75,23 @@ export default function Kitchen() {
         {data?.length === 0 && <li className="p-4 text-muted">Nothing added yet.</li>}
         {data?.map((e) => (
           <li key={e.id} className="flex items-center justify-between gap-3 p-4">
-            <span className="flex items-center gap-3">
-              {e.photo
-                ? <StoredPhoto path={e.photo} width={160} alt={e.name} className="h-12 w-16 rounded-lg object-cover" />
-                : <span aria-hidden="true" className="grid h-12 w-16 place-items-center rounded-lg bg-surface-2 text-muted">📷</span>}
-              <span className="grid">
-                <span className="font-semibold">{e.name}</span>
-                <label className="cursor-pointer text-sm text-accent underline">
-                  {e.photo ? 'Change photo' : 'Add photo'}
-                  <input type="file" accept="image/*" className="sr-only" aria-label={`${e.photo ? 'Change the photo of' : 'Add a photo of'} ${e.name}`}
-                    onChange={(ev) => void addPhoto(e, ev.target.files?.[0])} />
-                </label>
+            <span className="grid gap-2">
+              <span className="font-semibold">{e.name}</span>
+              <span className="flex flex-wrap items-center gap-2">
+                {(e.photos ?? []).map((p, i) => (
+                  <span key={p} className="relative">
+                    <StoredPhoto path={p} width={160} alt={i === 0 ? e.name : `${e.name} (${i + 1})`} className="aspect-[4/3] w-20 rounded-lg object-cover" />
+                    <button type="button" aria-label={`Remove photo ${i + 1} of ${e.name}`} onClick={() => void removePhoto(e, p)}
+                      className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-ink text-xs text-bg">×</button>
+                  </span>
+                ))}
+                {(e.photos ?? []).length < 3 && (
+                  <label className="grid aspect-[4/3] w-20 cursor-pointer place-items-center rounded-lg border border-dashed border-line text-center text-xs text-accent">
+                    {(e.photos ?? []).length ? 'Add another' : 'Add photo'}
+                    <input type="file" accept="image/*" className="sr-only" aria-label={`${(e.photos ?? []).length ? 'Add another photo of' : 'Add a photo of'} ${e.name}`}
+                      onChange={(ev) => void addPhoto(e, ev.target.files?.[0])} />
+                  </label>
+                )}
               </span>
             </span>
             <button type="button" className="text-sm text-muted underline" onClick={() => void remove(e.id)}>Remove {e.name}</button>

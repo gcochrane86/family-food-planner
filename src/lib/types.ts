@@ -79,8 +79,10 @@ export interface Equipment {
   household_id: string;
   code: string;
   name: string;
-  /** Your photo of the machine (stored path), shown on steps that are only about that machine. */
+  /** Your photo of the machine (stored path), shown on steps that are only about that machine: the first of `photos`. */
   photo?: string | null;
+  /** Up to 3 photos of it; all go to the photo maker as references, so generated photos show your own kit. */
+  photos?: string[];
 }
 
 export type StapleStatus = 'have' | 'low' | 'out';

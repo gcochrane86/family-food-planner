@@ -161,7 +161,9 @@ test('holding a chopping photo offers a new photo, or your own; nothing shows un
   fireEvent.pointerUp(photo);
   const sheet = screen.getByRole('dialog', { name: 'chicken breast or thigh, strips (10mm)' });
   await user().click(within(sheet).getByRole('button', { name: 'Make a new photo' }));
-  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons', true);
+  await user().type(screen.getByLabelText('What should it show? (optional)'), 'thinner strips');
+  await user().click(screen.getByRole('button', { name: 'Make it' }));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons', true, 'thinner strips');
   fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
   await act(async () => { vi.advanceTimersByTime(600); });
   await user().upload(screen.getByLabelText('Use my own photo'), new File(['x'], 'c.jpg', { type: 'image/jpeg' }));
