@@ -8,12 +8,12 @@ interface Rows {
   frozen?: { recipe_id: string | null; portions: number }[]; // in-date freezer portions
   weekStart: string;
   householdId: string;
-  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; balance?: Partial<Balance>; breakfasts?: unknown[]; day_rules?: { weekday: number; protein: Protein; note?: string | null }[] } | null;
+  settings: { default_plan_days?: number; weekday_dinner_max_min?: number; hour_minutes?: number; balance?: Partial<Balance>; breakfasts?: unknown[]; day_rules?: { weekday: number; protein: Protein; note?: string | null }[] } | null;
   members: { id: string; kind: string; portion_weight: number | string }[];
   pattern: { member_id: string; weekday: number; office: boolean }[];
   recipes: {
     id: string; title: string; kind: string; status: string; protein: string | null;
-    finish_minutes: number; reheats_well: boolean; base_portions: number | string; rating?: string | null; tags?: string[] | null;
+    finish_minutes: number; prep_minutes?: number | null; hands_off_minutes?: number | null; reheats_well: boolean; base_portions: number | string; rating?: string | null; tags?: string[] | null;
   }[];
   recentDinnerRecipeIds: (string | null)[];
 }
@@ -42,6 +42,8 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
     .map((r) => ({
       id: r.id, title: r.title, protein: (r.protein as Protein | null) ?? null, finishMinutes: r.finish_minutes,
       reheatsWell: r.reheats_well, basePortions: Number(r.base_portions),
+      ...(typeof r.prep_minutes === 'number' && typeof r.hands_off_minutes === 'number'
+        ? { handsOn: Math.max(0, r.prep_minutes + r.finish_minutes - r.hands_off_minutes) } : {}),
     }));
   const s = rows.settings ?? {};
   return {
@@ -52,6 +54,8 @@ export function buildPlannerInput(rows: Rows): PlannerInput {
     officeDays,
     balance: { ...DEFAULT_BALANCE, ...(s.balance ?? {}) },
     weekdayMaxMin: s.weekday_dinner_max_min ?? 30,
+    // Today's hour (Settings → Today's hour): 60 minutes until the household changes it.
+    hourMinutes: typeof s.hour_minutes === 'number' ? s.hour_minutes : 60,
     householdPortions: Math.round(portions * 100) / 100 || 3,
     seed: weekSeed(rows.householdId, rows.weekStart),
     ...(Array.isArray(s.breakfasts) && s.breakfasts.length ? { breakfasts: s.breakfasts.filter((b: unknown): b is string => typeof b === 'string') } : {}),

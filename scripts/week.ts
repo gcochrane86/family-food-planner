@@ -103,6 +103,7 @@ async function context() {
   const all = data(recipes, 'Reading recipes') as { id: string; slug: string; recipe_ingredients: Ing[]; [k: string]: unknown }[];
   const slugOf = new Map(all.map((x) => [x.id, x.slug]));
   const plannable = new Set(input.recipes.map((x) => x.id));
+  const handsOnOf = new Map(input.recipes.map((x) => [x.id, x.handsOn]));
   const lastCooked = new Map<string, string>();
   const recentDinners: { date: string; recipe: string | null; mode: string }[] = [];
   for (const w of data(recent, 'Reading recent weeks') as { meal_slots: { date: string; slot: string; mode: string; recipe_id: string | null }[] }[]) {
@@ -124,12 +125,13 @@ async function context() {
     },
     rules: {
       proteinBalance: input.balance, weekdayDinnerMaxMinutes: input.weekdayMaxMin, officeDayMaxMinutes: Math.min(OFFICE_MAX, input.weekdayMaxMin),
+      todaysHour: { start: typeof s.hour_start === 'string' ? s.hour_start : '17:30', minutes: input.hourMinutes ?? 60, weekdayHandsOnMax: (input.hourMinutes ?? 60) - 15 },
       dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: s.adventure ?? 1,
       whatMakesAMeal: MEAL_SPEC, houseRules: data(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
     },
     members: data(members, 'Reading members'),
     recipes: all.filter((x) => plannable.has(x.id)).map(({ id, recipe_ingredients: ings, ...x }) => ({
-      ...x, lastCooked: lastCooked.get(id) ?? null,
+      ...x, handsOn: handsOnOf.get(id) ?? null, lastCooked: lastCooked.get(id) ?? null,
       ingredients: (ings ?? []).map((i) => [i.qty, i.unit, i.name].filter((v) => v !== null && v !== '').join(' ')),
     })),
     recentDinners: recentDinners.sort((a, b) => a.date.localeCompare(b.date)),

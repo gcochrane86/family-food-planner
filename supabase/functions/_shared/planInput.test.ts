@@ -98,3 +98,15 @@ test('day rules reach the planner', () => {
   expect(buildPlannerInput({ ...rows, settings: { day_rules: [{ weekday: 3, protein: 'fish', note: 'Fishmonger' }] } }).dayRules).toEqual([{ weekday: 3, protein: 'fish', note: 'Fishmonger' }]);
   expect(buildPlannerInput(rows).dayRules).toEqual([]);
 });
+
+test("Today's hour reaches the planner: hands-on minutes per recipe and the hour's length", () => {
+  const input = buildPlannerInput({
+    ...rows,
+    settings: { ...rows.settings, hour_minutes: 75 },
+    recipes: [{ id: 'a', title: 'A', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, prep_minutes: 10, hands_off_minutes: 20, reheats_well: true, base_portions: 4 }],
+  });
+  expect(input.hourMinutes).toBe(75);
+  expect(input.recipes[0].handsOn).toBe(20);
+  expect(buildPlannerInput(rows).hourMinutes).toBe(60);
+  expect(buildPlannerInput(rows).recipes[0].handsOn).toBeUndefined();
+});

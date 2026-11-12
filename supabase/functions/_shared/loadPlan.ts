@@ -11,7 +11,7 @@ export async function loadPlannerInput(db: Db, householdId: string, weekStart: s
   const [settings, members, recipes, weeks] = await Promise.all([
     db.from('settings').select('data').eq('household_id', householdId).maybeSingle(),
     db.from('members').select('id, kind, portion_weight').eq('household_id', householdId),
-    db.from('recipes').select('id, title, kind, status, protein, finish_minutes, reheats_well, base_portions, rating, tags').eq('household_id', householdId),
+    db.from('recipes').select('id, title, kind, status, protein, finish_minutes, prep_minutes, hands_off_minutes, reheats_well, base_portions, rating, tags').eq('household_id', householdId),
     db.from('plan_weeks').select('id').eq('household_id', householdId).gte('week_start', addDays(weekStart, -14)).lt('week_start', weekStart),
   ]);
   for (const r of [settings, members, recipes, weeks]) if (r.error) throw r.error;

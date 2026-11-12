@@ -294,3 +294,26 @@ describe("Claude's dinners", () => {
     expect(LIBRARY.some((x) => x.id === dinnerOn(p, '2026-10-22').recipeId)).toBe(true);
   });
 });
+
+describe("weeknights fit Today's hour", () => {
+  // Every dinner fits the 30-minute limit; one needs 50 minutes hands-on (with tomorrow's prep).
+  const lib = LIBRARY.map((x) => ({ ...x, handsOn: x.id === 'crispy-thighs' ? 50 : 15 }));
+  test('a recipe too busy for the hour is not chosen on a weekday', () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const plan = proposeWeek(input({ recipes: lib, hourMinutes: 60, seed }));
+      const weekdays = dinners(plan).filter((s) => s.date < '2026-10-24').map((s) => s.recipeId);
+      expect(weekdays).not.toContain('crispy-thighs');
+    }
+  });
+  test('but it can be chosen at the weekend', () => {
+    const plan = proposeWeek(input({ recipes: lib, hourMinutes: 60 }));
+    expect(alternatives(plan, '2026-10-24', input({ recipes: lib, hourMinutes: 60 }), 20).map((a) => a.recipeId)).toContain('crispy-thighs');
+    expect(alternatives(plan, '2026-10-21', input({ recipes: lib, hourMinutes: 60 }), 20).map((a) => a.recipeId)).not.toContain('crispy-thighs');
+  });
+  test('without an hour, or without hands-on minutes, nothing changes', () => {
+    const plan = proposeWeek(input({ recipes: lib }));
+    expect(alternatives(plan, '2026-10-21', input({ recipes: lib }), 20).map((a) => a.recipeId)).toContain('crispy-thighs');
+    const noHandsOn = proposeWeek(input({ hourMinutes: 60 }));
+    expect(noHandsOn).toEqual(proposeWeek(input()));
+  });
+});

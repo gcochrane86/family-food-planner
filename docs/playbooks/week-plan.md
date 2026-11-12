@@ -25,9 +25,9 @@ request itself. Claude chooses the **dinners**; the built-in planner then fills 
 3. `npm run -s week -- context --request <id>` prints:
    - `request.note`: the household's note, if any
    - `week`: the dates, which are office days, household portions
-   - `rules`: protein balance, weeknight and office-day time limits, day rules (fish on Thursday from the
+   - `rules`: protein balance, weeknight and office-day time limits, Today's hour (`todaysHour`), day rules (fish on Thursday from the
      fishmonger), other shops, how many new recipes are allowed, What makes a meal, house rules, private rules
-   - `recipes`: every plannable dinner with protein, times, reheats/freezes, tags, rating, when it was last cooked,
+   - `recipes`: every plannable dinner with protein, times (`handsOn`: prep plus the busy part of the cook), reheats/freezes, tags, rating, when it was last cooked,
      and its ingredients
    - `recentDinners` (4 weeks), `freezer`, `pantry` (staples have/low/out, fridge and cupboard items), `packSizes`
      (the Sainsbury's packs the household buys)
@@ -39,6 +39,8 @@ request itself. Claude chooses the **dinners**; the built-in planner then fills 
       built on what it sells (Thursday's fish from what the fishmonger has); a some-weeks shop only when it's on.
    3. Protein balance (`proteinBalance`), never the same protein two nights running.
    4. Time: Monday to Friday within `weekdayDinnerMaxMinutes`, office days within `officeDayMaxMinutes`; weekends free.
+      And the day's hands-on time, tonight's dinner plus tomorrow's prep, fits the household's hour (Settings →
+      Today's hour, default 17:30–18:30): on weekdays a dinner's `handsOn` is at most `todaysHour.weekdayHandsOnMax`.
    5. Flavour variety: no two dinners in a row from the same cuisine, at most two of one cuisine a week, no flavour
       (spicy, creamy, tomato…) more than twice.
    6. No repeats: nothing cooked in the last two weeks, nothing twice in the week.

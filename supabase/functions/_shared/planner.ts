@@ -12,6 +12,8 @@ export interface PlannerRecipe {
   finishMinutes: number;
   reheatsWell: boolean;
   basePortions: number;
+  /** Hands-on minutes in Today's hour: the night-before prep plus the busy part of the cook. */
+  handsOn?: number;
 }
 
 export interface Balance { chicken: number; fish: number; red_meat: number; veggie: number }
@@ -30,6 +32,7 @@ export interface PlannerInput {
   frozen?: { recipeId: string; portions: number }[]; // batch portions in the freezer, in date
   dayRules?: { weekday: number; protein: Protein; note?: string | null }[]; // e.g. fish on Thursday
   chosenDinners?: { date: string; recipeId: string; reason: string }[]; // dinners Claude picked; the rest is planned around them
+  hourMinutes?: number;       // Today's hour: Monday to Friday, a dinner's hands-on time leaves 15 minutes of it spare
 }
 
 export interface ProposedSlot {
@@ -84,6 +87,13 @@ function timeLimit(input: PlannerInput, i: number): number {
   return input.officeDays.includes(i) ? Math.min(OFFICE_MAX, input.weekdayMaxMin) : input.weekdayMaxMin;
 }
 
+/** The time limit, and on weekdays Today's hour: hands-on time within the hour less 15 minutes for tomorrow's extras
+ *  and the cleaning. Recipes without hands-on minutes count as fitting. */
+function fitsDay(input: PlannerInput, r: PlannerRecipe, i: number): boolean {
+  if (r.finishMinutes > timeLimit(input, i)) return false;
+  return i >= 5 || input.hourMinutes === undefined || r.handsOn === undefined || r.handsOn <= input.hourMinutes - 15;
+}
+
 /** Order of proteins across the dinner nights: meets the targets, avoids two in a row, and has a recipe for each. */
 function proteinSequence(input: PlannerInput, nights: number[], rnd: () => number, fixed: Map<number, Protein | null>): (Protein | null)[] {
   const b = input.balance;
@@ -107,7 +117,7 @@ function proteinSequence(input: PlannerInput, nights: number[], rnd: () => numbe
   const score = (seq: (Protein | null)[]) => seq.reduce((s, p, k) => {
     let v = s;
     if (k > 0 && p && p === seq[k - 1]) v -= 5;
-    if (p && !fresh.some((r) => r.protein === p && r.finishMinutes <= timeLimit(input, nights[k]))) v -= 1;
+    if (p && !fresh.some((r) => r.protein === p && fitsDay(input, r, nights[k]))) v -= 1;
     return v;
   }, 0);
   let best = place(wanted);
@@ -155,7 +165,7 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
     const before = chosenProtein(k - 1);
     const after = chosen.get(nights[k + 1])?.recipe?.protein ?? plannedProtein[k + 1] ?? null;
     const notNeighbour = (r: PlannerRecipe) => r.protein !== before && r.protein !== after;
-    const fits = (r: PlannerRecipe) => r.finishMinutes <= timeLimit(input, i);
+    const fits = (r: PlannerRecipe) => fitsDay(input, r, i);
     const unused = (r: PlannerRecipe) => !used.has(r.id);
     const wantedKind = (r: PlannerRecipe) => (p ? r.protein === p : notNeighbour(r));
     const rules: { test: (r: PlannerRecipe) => boolean; note: (r: PlannerRecipe) => string | null }[] = [
@@ -269,7 +279,7 @@ export function alternatives(plan: ProposedSlot[], date: string, input: PlannerI
   const target = (p: Protein | null) => (p && p in input.balance ? input.balance[p as keyof Balance] : 0);
 
   return input.recipes
-    .filter((r) => r.id !== current && !used.has(r.id) && r.finishMinutes <= timeLimit(input, i))
+    .filter((r) => r.id !== current && !used.has(r.id) && fitsDay(input, r, i))
     .map((r) => {
       const p = r.protein;
       let score = rnd() * 0.5;
