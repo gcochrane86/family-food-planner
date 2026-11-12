@@ -4,6 +4,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { makeStepPhotos } from '../../lib/stepPhotos';
+import { repo } from '../../lib/repo';
 import type { ChopGroup, HourInput, HourStep } from '../../lib/todayHour';
 import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
@@ -34,10 +35,16 @@ export default function TodayHour() {
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
   async function addPhotos(recipes: RecipeDetail[]) {
-    const total = recipes.reduce((n, r) => n + missing(r), 0);
+    const total = recipes.reduce((n, r) => n + photosNeeded(r), 0);
     let before = 0;
     setPhotos({ done: 0, total });
     for (const r of recipes) {
+      // Step photos are made in the style of the main photo, so a recipe without one gets it first.
+      if (!r.hero_image_path) {
+        try { await repo.generateHero(r.id); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the main photo for ${r.title}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+        before += 1;
+        setPhotos({ done: before, total });
+      }
       const result = await makeStepPhotos(r.id, r.steps, (done) => setPhotos({ done: before + done, total }), { asked: true });
       before += result.made;
       if (result.error) { setPhotos({ done: before, total, error: `Couldn't make step photos: ${result.error}` }); return; }
@@ -129,17 +136,19 @@ function hourRecipes(input: HourInput): RecipeDetail[] {
   return all.filter((r): r is RecipeDetail => !!r).filter((r, i, rs) => rs.findIndex((x) => x.id === r.id) === i);
 }
 const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && !s.image_path).length;
+/** The photos a recipe needs: its missing step photos, and its main photo first if it has none. */
+const photosNeeded = (r: RecipeDetail) => missing(r) + (missing(r) > 0 && !r.hero_image_path ? 1 : 0);
 
 /** "Add step photos" for the hour's recipes, and how it's getting on. */
 function MissingPhotos({ recipes, state, onStart }: { recipes: RecipeDetail[]; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
-  const n = recipes.reduce((t, r) => t + missing(r), 0);
+  const n = recipes.reduce((t, r) => t + photosNeeded(r), 0);
   if (state?.error) return <p className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{state.error}</p>;
   if (state?.finished) return <p className="m-0 text-[#C9D3CC]">Step photos made ({state.done}).</p>;
   if (state) return <p role="status" className="m-0 text-[#C9D3CC]">Making step photos: {state.done} of {state.total}… (you can carry on)</p>;
   if (!n) return null;
   return (
     <button type="button" onClick={() => onStart(recipes.filter((r) => missing(r) > 0))} className="justify-self-start rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">
-      Add step photos ✨ ({n} missing, about {photoCost(n)})
+      Add step photos ✨ ({n} photos, about {photoCost(n)})
     </button>
   );
 }

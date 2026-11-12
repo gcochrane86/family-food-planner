@@ -105,8 +105,18 @@ test("steps show their recipe's pictures, and cleaning steps an icon", async () 
 test('the first page offers to make the missing step photos, and makes them in the background', async () => {
   open();
   const button = await screen.findByRole('button', { name: /Add step photos/ });
-  expect(button).toHaveTextContent(/3 missing/);
+  expect(button).toHaveTextContent(/4 photos/);
   await user().click(button);
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true);
   expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
+});
+
+test('a recipe with no main photo gets one first, then its step photos, and the count includes it', async () => {
+  open();
+  const button = await screen.findByRole('button', { name: /Add step photos/ });
+  expect(button).toHaveTextContent(/4 photos, about 12p/);
+  await user().click(button);
+  await screen.findByText(/Step photos made/);
+  expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
+  expect(h.repo.generateHero.mock.invocationCallOrder[0]).toBeLessThan(h.repo.generateStepPhoto.mock.invocationCallOrder[0]);
 });
