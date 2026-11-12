@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
-import type { ChopGroup, HourInput, HourStep } from '../../lib/todayHour';
+import type { ChopGroup, HourInput, HourPlan, HourStep } from '../../lib/todayHour';
 import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
@@ -23,6 +24,7 @@ const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one 
 /** Today's hour: the plan for the evening's cooking hour, then one step at a time, with timers and the screen kept on. */
 export default function TodayHour() {
   useWakeLock();
+  const { householdId } = useAuth();
   const { data, error, loading, reload } = useTodayHour();
   const key = `today-hour:${todayInLondon()}`;
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
@@ -34,10 +36,16 @@ export default function TodayHour() {
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
-  async function addPhotos(recipes: RecipeDetail[]) {
-    const total = recipes.reduce((n, r) => n + photosNeeded(r), 0);
+  async function addPhotos(recipes: RecipeDetail[], prep: HourPlan['prepMissing']) {
+    const total = prep.length + recipes.reduce((n, r) => n + photosNeeded(r), 0);
     let before = 0;
     setPhotos({ done: 0, total });
+    // The chopping-board photos first: one per cut, reused by every recipe that cuts it the same way.
+    for (const c of prep) {
+      try { await repo.generatePrepPhoto(householdId!, c.name, c.note); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+      before += 1;
+      setPhotos({ done: before, total });
+    }
     for (const r of recipes) {
       // Step photos are made in the style of the main photo, so a recipe without one gets it first.
       if (!r.hero_image_path) {
@@ -87,7 +95,7 @@ export default function TodayHour() {
               </section>
             )}
             {plan.toWash.length > 0 && <p className="m-0 text-[#C9D3CC]">To wash: {plan.toWash.join(', ')}. One dishwasher load.</p>}
-            <MissingPhotos recipes={hourRecipes(input)} state={photos} onStart={(rs) => void addPhotos(rs)} />
+            <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-lcd-ink px-8 py-3.5 text-lg font-semibold text-[#0A0E0B]">Start</button>
             )}
@@ -140,8 +148,8 @@ const missing = (r: RecipeDetail) => r.steps.filter((s) => s.id && !s.image_path
 const photosNeeded = (r: RecipeDetail) => missing(r) + (missing(r) > 0 && !r.hero_image_path ? 1 : 0);
 
 /** "Add step photos" for the hour's recipes, and how it's getting on. */
-function MissingPhotos({ recipes, state, onStart }: { recipes: RecipeDetail[]; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
-  const n = recipes.reduce((t, r) => t + photosNeeded(r), 0);
+function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetail[]; prep: HourPlan['prepMissing']; state: { done: number; total: number; finished?: boolean; error?: string } | null; onStart: (rs: RecipeDetail[]) => void }) {
+  const n = prep.length + recipes.reduce((t, r) => t + photosNeeded(r), 0);
   if (state?.error) return <p className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{state.error}</p>;
   if (state?.finished) return <p className="m-0 text-[#C9D3CC]">Step photos made ({state.done}).</p>;
   if (state) return <p role="status" className="m-0 text-[#C9D3CC]">Making step photos: {state.done} of {state.total}… (you can carry on)</p>;

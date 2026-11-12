@@ -187,4 +187,13 @@ describe('review fixes', () => {
     const rinse = tm7.steps.find((x) => x.title === 'Rinse the TM7 bowl');
     expect(rinse?.photos).toEqual([{ path: 'h1/kit/tm7.jpg', alt: 'Thermomix TM7' }]);
   });
+
+  it('the chopping step shows a board photo for each cut, and lists the cuts still without one', () => {
+    const plan = planHour(input({ prepPhotos: { 'onion|chunks': 'h1/prep/onion.jpg', 'garlic|crushed': 'h1/prep/garlic.jpg' } }));
+    const chop = titled(plan, 'Chop everything')!;
+    expect(chop.photos).toEqual([{ path: 'h1/prep/onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/garlic.jpg', alt: 'garlic, crushed' }]);
+    expect(plan.prepMissing.map((m) => m.label)).toEqual(['ginger, sliced', 'coriander, chopped', 'carrot, diced', 'chicken thigh, diced', 'beef, diced']);
+    expect(plan.prepMissing[0]).toMatchObject({ name: 'ginger', note: 'peeled and sliced' });
+    expect(titled(planHour(input()), 'Chop everything')!.photos.every((p) => !p.path.includes('/prep/'))).toBe(true);
+  });
 });

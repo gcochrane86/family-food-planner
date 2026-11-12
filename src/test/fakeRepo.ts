@@ -1,4 +1,4 @@
-import type { Equipment, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
+import type { Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -23,6 +23,8 @@ export function fakeRepo() {
     listEquipment: vi.fn(async (): Promise<Equipment[]> => []),
     saveEquipment: vi.fn(),
     deleteEquipment: vi.fn(async () => {}),
+    listPrepPhotos: vi.fn(async (_hid: string): Promise<PrepPhoto[]> => []),
+    generatePrepPhoto: vi.fn(async (_hid: string, name: string, _note: string | null) => `h1/prep/${name.replace(/\W+/g, '-')}.jpg`),
     uploadEquipmentPhoto: vi.fn(async (_hid: string, item: { code: string }, _photo: Blob) => `h1/kit/${item.code}-1.jpg`),
     listStaples: vi.fn(async (): Promise<Staple[]> => [
       { id: 'p-paprika', ingredient_id: 'i1', name: 'Paprika', status: 'have' },

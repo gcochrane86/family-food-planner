@@ -1,6 +1,7 @@
 import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
 import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
+import { prepKey } from '../../supabase/functions/_shared/prepCut.ts';
 
 /**
  * Today's hour: one cooking hour a day (17:30–18:30 by default). Chopping first, in one session; then tonight's
@@ -22,6 +23,8 @@ export interface HourInput {
   yesterdayPlanned: boolean;
   /** Your photos of your machines, by machine code (Settings → Kitchen), for steps that are only about a machine. */
   kitPhotos?: Record<string, { path: string; name: string }>;
+  /** Saved chopping photos, by ingredient-and-cut key (prepCut.ts). */
+  prepPhotos?: Record<string, string>;
   tomorrow?: {
     dinner?: Cooked | null;
     lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | null;
@@ -54,6 +57,8 @@ export interface HourStep {
 
 export interface HourPlan {
   chop: ChopGroup[];
+  /** The cuts being chopped that have no chopping photo yet (one each), for "Add step photos". */
+  prepMissing: { name: string; note: string | null; key: string; label: string }[];
   steps: HourStep[];
   /** Minutes you're busy (not counting the waits). */
   handsOn: number;
@@ -100,8 +105,14 @@ export function planHour(input: HourInput): HourPlan {
   const hero = (r: RecipeDetail | null | undefined) => (r?.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : []);
   // The chopping is for tonight, tomorrow's dinner, and whatever else is made in the hour.
   const lunchRecipe = tomorrow?.lunch?.kind === 'make' ? tomorrow.lunch.recipe : null;
-  const chopPhotos = [input.tonight?.recipe, tomorrow?.dinner?.recipe, tomorrow?.breakfast?.recipe, lunchRecipe].flatMap(hero)
+  // A chopping-board photo for each cut, in chopping order; until there are any, the recipes' own photos.
+  const cuts = chop.filter((g) => g.where !== 'fridge').flatMap((g) => g.items).map((i) => ({ name: i.name, note: i.note, ...prepKey(i.name, i.note) }))
+    .filter((c, n, all) => all.findIndex((x) => x.key === c.key) === n);
+  const prepMissing = cuts.filter((c) => !input.prepPhotos?.[c.key]).map(({ name, note, key, label }) => ({ name, note, key, label }));
+  const boards = cuts.filter((c) => input.prepPhotos?.[c.key]).map((c) => ({ path: input.prepPhotos![c.key], alt: c.label }));
+  const recipePhotos = [input.tonight?.recipe, tomorrow?.dinner?.recipe, tomorrow?.breakfast?.recipe, lunchRecipe].flatMap(hero)
     .filter((p, i, all) => all.findIndex((q) => q.path === p.path) === i);
+  const chopPhotos = boards.length ? boards : recipePhotos;
 
   // 2. The chopping block, then the board and knife into the dishwasher.
   let base = start;
@@ -167,7 +178,7 @@ export function planHour(input: HourInput): HourPlan {
   const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
   const steps = ordered.map((s) => s.step);
   const handsOn = ordered.filter((s) => s.busy).reduce((n, s) => n + (s.end - s.start), 0);
-  return { chop, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
+  return { chop, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
 }
 
 function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'at' | 'end'> {

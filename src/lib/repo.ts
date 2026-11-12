@@ -3,7 +3,7 @@ import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
 import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
-import type {
+import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest } from './types';
 import { CANCELLED } from './types';
@@ -80,6 +80,21 @@ export const repo = {
     const rows = must<(Equipment & { capabilities?: { photo?: unknown } | null })[]>(
       await db().from('equipment').select('id, household_id, code, name, capabilities').eq('household_id', householdId).order('name'));
     return rows.map(({ capabilities, ...e }) => ({ ...e, photo: typeof capabilities?.photo === 'string' ? capabilities.photo : null }));
+  },
+  /** The household's chopping photos (none before migration 0016 runs). */
+  async listPrepPhotos(householdId: string): Promise<PrepPhoto[]> {
+    const { data, error } = await db().from('prep_photos').select('key, label, path, source').eq('household_id', householdId);
+    return error ? [] : (data as PrepPhoto[]);
+  },
+  /** Makes (or finds) the chopping photo for an ingredient cut the way the recipe says (about 3p, once). */
+  async generatePrepPhoto(householdId: string, name: string, note: string | null): Promise<string> {
+    const { data, error } = await getSupabase().functions.invoke('generate-prep-photo', { body: { householdId, name, note } });
+    if (error) {
+      const context = (error as { context?: Response }).context;
+      const detail = context ? await context.json().then((b: { error?: string }) => b.error).catch(() => null) : null;
+      throw new Error(detail ?? error.message);
+    }
+    return (data as { path: string }).path;
   },
   /** Saves your photo of a machine (any picture from Photos or Files), kept in the machine's capabilities. */
   async uploadEquipmentPhoto(householdId: string, item: Equipment, photo: Blob): Promise<string> {

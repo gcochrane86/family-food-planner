@@ -105,7 +105,7 @@ test("steps show their recipe's pictures, and cleaning steps an icon", async () 
 test('the first page offers to make the missing step photos, and makes them in the background', async () => {
   open();
   const button = await screen.findByRole('button', { name: /Add step photos/ });
-  expect(button).toHaveTextContent(/4 photos/);
+  expect(button).toHaveTextContent(/5 photos/);
   await user().click(button);
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith('r-honey', 's-rice', false, true);
   expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
@@ -114,7 +114,7 @@ test('the first page offers to make the missing step photos, and makes them in t
 test('a recipe with no main photo gets one first, then its step photos, and the count includes it', async () => {
   open();
   const button = await screen.findByRole('button', { name: /Add step photos/ });
-  expect(button).toHaveTextContent(/4 photos, about 12p/);
+  expect(button).toHaveTextContent(/5 photos, about 15p/);
   await user().click(button);
   await screen.findByText(/Step photos made/);
   expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
@@ -131,4 +131,20 @@ test('a machine-only step shows your photo of the machine', async () => {
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   while (!screen.queryByRole('heading', { name: 'Heat the Anova' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('img', { name: 'Anova Precision Oven' })).toBeInTheDocument();
+});
+
+test('Add step photos also makes the chopping-board photos, once per cut, and the chop step shows them', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([]);
+  open();
+  await user().click(await screen.findByRole('button', { name: /Add step photos/ }));
+  await screen.findByText(/Step photos made/);
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons');
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledTimes(1);
+});
+
+test('saved chopping photos show on the chop step', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/chicken.jpg', source: 'generated' }]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  expect(screen.getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' })).toBeInTheDocument();
 });

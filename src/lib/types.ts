@@ -71,6 +71,9 @@ export interface HouseRule {
   note: string | null;
 }
 
+/** A chopping photo: one ingredient cut one way, on a board (supabase/functions/_shared/prepCut.ts). */
+export interface PrepPhoto { key: string; label: string; path: string; source: 'generated' | 'own' }
+
 export interface Equipment {
   id: string;
   household_id: string;
