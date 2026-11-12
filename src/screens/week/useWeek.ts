@@ -11,6 +11,7 @@ import {
   type PlannerInput, type ProposedSlot,
 } from '../../../supabase/functions/_shared/planner.ts';
 import { londonParts, nextMonday } from '../../../supabase/functions/_shared/schedule.ts';
+import { mergePlan as merge, toProposed } from '../../../supabase/functions/_shared/slotMerge.ts';
 import { useAsync } from '../settings/useAsync';
 
 export function addDays(iso: string, n: number): string {
@@ -23,31 +24,6 @@ export function addDays(iso: string, n: number): string {
 export function weekStarts(now = new Date()) {
   const { date, weekday } = londonParts(now);
   return { thisWeek: addDays(date, 1 - weekday), nextWeek: nextMonday(date), london: londonParts(now) };
-}
-
-const toProposed = (s: MealSlot): ProposedSlot => ({
-  date: s.date, slot: s.slot, recipeId: s.recipe_id, mode: s.mode, portions: s.portions, guests: s.guests,
-  locked: s.locked, reason: s.reason, sourceDate: s.source_date,
-});
-
-/** Applies the planner's version of each slot onto the saved slots and returns only those that changed. */
-function merge(slots: MealSlot[], plan: ProposedSlot[]): { next: MealSlot[]; changed: MealSlot[] } {
-  const changed: MealSlot[] = [];
-  const next = slots.map((s) => {
-    const p = plan.find((x) => x.date === s.date && x.slot === s.slot);
-    if (!p) return s;
-    const updated: MealSlot = {
-      ...s, recipe_id: p.recipeId, mode: p.mode, portions: p.portions, guests: p.guests, locked: p.locked, reason: p.reason, source_date: p.sourceDate,
-    };
-    // A batch plan belongs to that dinner: a different recipe, or no cooking, drops it.
-    if (s.batch && (updated.recipe_id !== s.recipe_id || updated.mode !== 'cook')) updated.batch = null;
-    // So does a roast: a different dinner, or none, isn't the roast any more.
-    if (s.roast && (updated.recipe_id !== s.recipe_id || updated.mode !== 'cook')) updated.roast = null;
-    const differs = (['recipe_id', 'mode', 'portions', 'guests', 'locked', 'reason', 'source_date', 'batch', 'roast'] as const).some((k) => updated[k] !== s[k]);
-    if (differs) changed.push(updated);
-    return updated;
-  });
-  return { next, changed };
 }
 
 export function useWeek() {
