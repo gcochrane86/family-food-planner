@@ -62,3 +62,17 @@ describe('ingredient icons', () => {
     expect(p).toMatch(/in a green bottle/);
   });
 });
+
+test('chopping photos are drawn in the same cartoon style as the get-out pictures, keeping board, knife and cut', async () => {
+  const { isCartoonPrep } = await import('./prepCut.ts');
+  const p = prepPhotoPrompt(prepKey('new potatoes', 'halved'));
+  expect(p).toMatch(/cartoon/i);
+  expect(p).toMatch(/chopping board/i);
+  expect(p).toMatch(/knife/i);
+  expect(p).toContain('halved');
+  expect(p).not.toMatch(/realistic photo/i);
+  expect(prepPhotoPrompt(prepKey('potatoes', 'halved'), null, true)).toMatch(/cartoon of that same board/i);
+  expect(isCartoonPrep('h1/prep/cartoon-new-potato-halved-1.jpg')).toBe(true);
+  expect(isCartoonPrep('h1/prep/new-potato-halved-1.jpg')).toBe(false);
+  expect(isCartoonPrep('h1/prep/own-new-potato-1.jpg')).toBe(true);
+});

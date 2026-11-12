@@ -257,3 +257,17 @@ test('Add step photos makes the missing get-out pictures too, and holding one of
   await user().click(screen.getByRole('button', { name: 'Make it' }));
   expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'basmati rice', null, true, undefined, true);
 });
+
+test('the step pages show the same pictures: tiles for what a step uses, and beside each thing to chop', async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([
+    { key: 'icon:basmati rice', label: 'basmati rice', path: 'h1/prep/icon-rice.jpg', source: 'generated' },
+    { key: 'icon:chicken breast or thigh', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
+  ]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  expect(screen.getByRole('img', { name: 'chicken breast or thigh' })).toHaveAttribute('src', expect.stringContaining('icon-chicken.jpg'));
+  while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  const uses = screen.getByRole('list', { name: 'For this step' });
+  expect(within(uses).getByText('Basmati rice')).toBeInTheDocument();
+  expect(within(uses).getByRole('img', { name: 'basmati rice' })).toHaveAttribute('src', expect.stringContaining('icon-rice.jpg'));
+});

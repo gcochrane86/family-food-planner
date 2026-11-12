@@ -1,7 +1,7 @@
 import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
 import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
-import { prepKey } from '../../supabase/functions/_shared/prepCut.ts';
+import { isCartoonPrep, prepKey } from '../../supabase/functions/_shared/prepCut.ts';
 import { getOutList, type GetOutGroup } from './getOut';
 
 /**
@@ -65,7 +65,7 @@ export interface HourPlan {
   /** Ingredients on that list without a picture yet, for "Add step photos". */
   iconsMissing: { name: string; key: string }[];
   /** The cuts being chopped that have no chopping photo yet (one each), for "Add step photos". */
-  prepMissing: { name: string; note: string | null; key: string; label: string }[];
+  prepMissing: { name: string; note: string | null; key: string; label: string; redraw?: boolean }[];
   steps: HourStep[];
   /** Minutes you're busy (not counting the waits). */
   handsOn: number;
@@ -116,7 +116,9 @@ export function planHour(input: HourInput): HourPlan {
   // A chopping-board photo for each cut, in chopping order; until there are any, the recipes' own photos.
   const cuts = chop.filter((g) => g.where !== 'fridge').flatMap((g) => g.items).map((i) => ({ name: i.name, note: i.note, ...prepKey(i.name, i.note) }))
     .filter((c, n, all) => all.findIndex((x) => x.key === c.key) === n);
-  const prepMissing = cuts.filter((c) => !input.prepPhotos?.[c.key]).map(({ name, note, key, label }) => ({ name, note, key, label }));
+  // Cuts with no chopping picture, and older realistic ones to redraw in the cartoon style.
+  const prepMissing = cuts.filter((c) => !input.prepPhotos?.[c.key] || !isCartoonPrep(input.prepPhotos[c.key]))
+    .map(({ name, note, key, label }) => ({ name, note, key, label, ...(input.prepPhotos?.[key] ? { redraw: true } : {}) }));
   const boards = cuts.filter((c) => input.prepPhotos?.[c.key])
     .map((c) => ({ path: input.prepPhotos![c.key], alt: c.label, prep: { name: c.name, note: c.note, key: c.key, label: c.label } }));
   const recipePhotos = [input.tonight?.recipe, tomorrow?.dinner?.recipe, tomorrow?.breakfast?.recipe, lunchRecipe].flatMap(hero)

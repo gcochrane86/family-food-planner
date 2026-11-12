@@ -201,12 +201,21 @@ describe('review fixes', () => {
   });
 
   it('the chopping step shows a board photo for each cut, and lists the cuts still without one', () => {
-    const plan = planHour(input({ prepPhotos: { 'onion|chunks': 'h1/prep/onion.jpg', 'garlic|crushed': 'h1/prep/garlic.jpg' } }));
+    const plan = planHour(input({ prepPhotos: { 'onion|chunks': 'h1/prep/cartoon-onion.jpg', 'garlic|crushed': 'h1/prep/cartoon-garlic.jpg' } }));
     const chop = titled(plan, 'Chop everything')!;
-    expect(chop.photos.map(({ path, alt }) => ({ path, alt }))).toEqual([{ path: 'h1/prep/onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/garlic.jpg', alt: 'garlic, crushed' }]);
+    expect(chop.photos.map(({ path, alt }) => ({ path, alt }))).toEqual([{ path: 'h1/prep/cartoon-onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/cartoon-garlic.jpg', alt: 'garlic, crushed' }]);
     expect(chop.photos[0].prep).toMatchObject({ name: 'onion', note: 'roughly chopped', key: 'onion|chunks' });
     expect(plan.prepMissing.map((m) => m.label)).toEqual(['ginger, sliced', 'coriander, chopped', 'carrot, diced', 'chicken thigh, diced', 'beef, diced']);
     expect(plan.prepMissing[0]).toMatchObject({ name: 'ginger', note: 'peeled and sliced' });
     expect(titled(planHour(input()), 'Chop everything')!.photos.every((p) => !p.path.includes('/prep/'))).toBe(true);
+  });
+
+  it('an older realistic chopping photo is redrawn as a cartoon; your own photo and a cartoon are kept', () => {
+    const plan = planHour(input({ prepPhotos: {
+      'ginger|sliced': 'h1/prep/ginger-sliced-1.jpg', 'coriander|chopped': 'h1/prep/cartoon-coriander-1.jpg', 'carrot|diced': 'h1/prep/own-carrot-1.jpg',
+    } }));
+    expect(plan.prepMissing.find((m) => m.label === 'ginger, sliced')).toMatchObject({ redraw: true });
+    expect(plan.prepMissing.map((m) => m.label)).not.toContain('coriander, chopped');
+    expect(plan.prepMissing.map((m) => m.label)).not.toContain('carrot, diced');
   });
 });

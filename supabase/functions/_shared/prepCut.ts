@@ -45,19 +45,24 @@ export function prepKey(name: string, note: string | null | undefined): { key: s
   return { key: `${ingredient}|${cut}`, ingredient, cut, label: `${ingredient}, ${cut}` };
 }
 
-/** What the photo maker is asked for: just that ingredient, cut that way, on a chopping board. `hint`: your own words
- *  for this photo. `ownBoard`: a photo of the household's board goes with the request as a reference. */
+/** What the picture maker is asked for: a friendly cartoon (the same style as the get-out pictures) of a chopping board
+ *  and knife with just that ingredient, cut that way. `hint`: your own words for this picture. `ownBoard`: a photo of
+ *  the household's board goes with the request as a reference, drawn as a cartoon. */
 export function prepPhotoPrompt(p: { ingredient: string; cut: string }, hint?: string | null, ownBoard = false): string {
   const extra = hint?.trim().replace(/[.\s]+$/, '');
   return [
     ownBoard
-      ? `The reference photo shows the household's own chopping board. Make a realistic photo of that same board (any angle or rotation that shows the food best) with ${p.ingredient}, freshly prepared and ready to cook.`
-      : `A realistic photo, from directly above, of a wooden chopping board with ${p.ingredient}, freshly prepared and ready to cook.`,
+      ? `The reference photo shows the household's own chopping board. Draw a friendly cartoon of that same board (any angle or rotation that shows the food best) with ${p.ingredient} on it, freshly prepared and ready to cook, and a chef's knife beside it.`
+      : `A friendly cartoon illustration, from above at a slight angle, of a wooden chopping board with ${p.ingredient} on it, freshly prepared and ready to cook, and a chef's knife beside it.`,
     `Show only the ${p.ingredient}, cut exactly like this: ${p.cut}. Show enough pieces that the size and shape of the cut are clear.`,
+    'Bright flat colours with soft shading and clean outlines, like an illustrated picture-vocabulary card, on a plain white background.',
     extra ? `Also: ${extra.slice(0, 200)}.` : '',
-    'Natural kitchen light. A knife may lie beside the board. No hands, no text, no labels, no packaging, no other ingredients.',
+    'No hands, no text, no labels, no packaging, no other ingredients.',
   ].filter(Boolean).join(' ');
 }
+
+/** Chopping pictures drawn in the cartoon style (and your own photos) are kept; older realistic ones are redrawn. */
+export const isCartoonPrep = (path: string) => /\/prep\/(cartoon|own)-/.test(path);
 
 /** The "get it out" picture for an ingredient: one per ingredient, however it's cut. Kept with the chopping photos
  *  (prep_photos) under an `icon:` key. */

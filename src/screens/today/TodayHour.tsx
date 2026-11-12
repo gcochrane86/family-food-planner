@@ -15,10 +15,10 @@ import { StepText } from '../recipes/MachineBadge';
 import { Hold } from '../../components/PhotoFrame';
 import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_SMALL } from '../../lib/photoSizes';
-import type { GetOutGroup, GetOutItem } from '../../lib/getOut';
+import { ingredientTiles, type GetOutGroup, type GetOutItem } from '../../lib/getOut';
+import { iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import ListenSwitch from '../../components/ListenSwitch';
 import { speakable } from '../../lib/voice';
-import StepUses from '../recipes/StepUses';
 import { todayInLondon, useTodayHour } from './useTodayHour';
 
 const addMinutes = (hhmm: string, n: number) => {
@@ -64,7 +64,7 @@ export default function TodayHour() {
     }
     // The chopping-board photos first: one per cut, reused by every recipe that cuts it the same way.
     for (const c of prep) {
-      try { await repo.generatePrepPhoto(householdId!, c.name, c.note); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}` }); return; }
+      try { await (c.redraw ? repo.generatePrepPhoto(householdId!, c.name, c.note, true) : repo.generatePrepPhoto(householdId!, c.name, c.note)); } catch (e) { setPhotos({ done: before, total, error: `Couldn't make the chopping photo for ${c.label}: ${e instanceof Error ? e.message : String(e)}` }); return; }
       before += 1;
       setPhotos({ done: before, total });
     }
@@ -149,7 +149,8 @@ export default function TodayHour() {
                     <b className="text-[clamp(17px,2.2vw,22px)] text-white">{g.label}{g.raw ? ' · last, on its own mat' : ''}</b>
                     <ul className="m-0 grid list-none gap-1.5 p-0">
                       {g.items.map((it) => (
-                        <li key={it.name} className="grid grid-cols-[84px_minmax(0,1fr)] items-baseline gap-3 rounded-xl bg-white/5 px-3 py-2 text-[clamp(17px,2.2vw,22px)]">
+                        <li key={it.name} className="grid grid-cols-[48px_84px_minmax(0,1fr)] items-center gap-3 rounded-xl bg-white/5 px-3 py-2 text-[clamp(17px,2.2vw,22px)]">
+                          <Icon path={data.input.prepPhotos?.[iconKey(it.name).key] ?? null} name={iconKey(it.name).ingredient} className="h-12 w-12 rounded-lg bg-white" />
                           <span className="font-mono font-bold text-lcd-ink tabular-nums">{it.qty}</span>
                           <span className="text-[#DDE5DF]">{it.name}{it.note && <span className="text-[#9AA89F]"> · {it.note}</span>}</span>
                         </li>
@@ -161,7 +162,13 @@ export default function TodayHour() {
             ) : (
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             )}
-            {step.ingredients.length > 0 && <StepUses body={step.body} ingredients={step.ingredients} factor={step.factor} />}
+            {step.ingredients.length > 0 && data && (
+              <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
+                {ingredientTiles(step.ingredients.map((i) => ({ i, factor: step.factor })), data.input.prepPhotos ?? {}, { water: true }).map((t) => (
+                  <Tile key={t.key} item={t} note={t.note} onHold={() => setMenu({ prep: { name: t.name, note: null, key: t.key, label: t.name, icon: true } })} />
+                ))}
+              </ul>
+            )}
             </div>
             <StepPictures step={step} onHold={setMenu} />
           </section>
@@ -290,20 +297,28 @@ function GetOut({ groups, onHold }: { groups: GetOutGroup[]; onHold: (it: GetOut
         <div key={g.where} className="grid gap-2">
           <b>{KEPT[g.where]}</b>
           <ul aria-label={KEPT[g.where]} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4 md:grid-cols-6">
-            {g.items.map((it) => (
-              <li key={it.key} className="grid content-start justify-items-center gap-1.5 rounded-2xl bg-white p-2 pb-2.5 text-center">
-                <Hold onHold={() => onHold(it)}>
-                  {it.icon
-                    ? <StoredPhoto path={it.icon} width={PHOTO_SMALL} alt={it.name} draggable={false} className="aspect-square w-full rounded-xl object-contain" />
-                    : <span aria-hidden="true" className="grid aspect-square w-full place-items-center rounded-xl bg-[#EEF3EF] text-4xl font-bold text-[#9AA89F]">{it.name.charAt(0).toUpperCase()}</span>}
-                </Hold>
-                <span className="rounded-lg bg-[#0A0E0B] px-2 py-0.5 text-sm font-semibold leading-tight text-white">{cap(it.name)}</span>
-                {it.qty && <span className="text-xs font-semibold text-[#3F4A43]">{it.qty}</span>}
-              </li>
-            ))}
+            {g.items.map((it) => <Tile key={it.key} item={it} onHold={() => onHold(it)} />)}
           </ul>
         </div>
       ))}
     </section>
+  );
+}
+
+/** A cartoon of an ingredient, or its first letter until one is made. */
+function Icon({ path, name, className }: { path: string | null; name: string; className: string }) {
+  return path
+    ? <StoredPhoto path={path} width={PHOTO_SMALL} alt={name} draggable={false} className={`object-contain ${className}`} />
+    : <span aria-hidden="true" className={`grid place-items-center font-bold text-[#9AA89F] ${className} bg-[#EEF3EF]`}>{name.charAt(0).toUpperCase()}</span>;
+}
+
+/** One ingredient as a card: its cartoon, its name in a label, the amount (and how it's prepared) underneath. */
+function Tile({ item, note, onHold }: { item: GetOutItem; note?: string | null; onHold: () => void }) {
+  return (
+    <li className="grid content-start justify-items-center gap-1.5 rounded-2xl bg-white p-2 pb-2.5 text-center">
+      <Hold onHold={onHold}><Icon path={item.icon} name={item.name} className="aspect-square w-full rounded-xl text-4xl" /></Hold>
+      <span className="rounded-lg bg-[#0A0E0B] px-2 py-0.5 text-sm font-semibold leading-tight text-white">{cap(item.name)}</span>
+      {(item.qty || note) && <span className="text-xs font-semibold leading-snug text-[#3F4A43]">{[item.qty, note].filter(Boolean).join(' · ')}</span>}
+    </li>
   );
 }

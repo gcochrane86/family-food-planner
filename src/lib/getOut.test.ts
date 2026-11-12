@@ -38,3 +38,16 @@ test('the get-out list: everything once, amounts added up, grouped fridge, freez
   expect(groups[1].items[0]).toMatchObject({ name: 'frozen peas', qty: '100g', icon: null });
   expect(groups[2].items.map((i) => [i.name, i.qty])).toEqual([['basmati rice', '400g'], ['salt', '']]);
 });
+
+test("a step's tiles: its ingredients in order, merged, with the note, keeping water", async () => {
+  const { ingredientTiles } = await import('./getOut');
+  const tiles = ingredientTiles([
+    { i: ing('salmon fillets', 3, '', { note: 'skin on' }), factor: 1 },
+    { i: ing('water', 100, 'ml'), factor: 2 },
+    { i: ing('Water', 50, 'ml'), factor: 2 },
+  ], { 'icon:salmon fillet': 'h1/prep/icon-salmon.jpg' }, { water: true });
+  expect(tiles).toEqual([
+    { name: 'salmon fillet', qty: '3', key: 'icon:salmon fillet', icon: 'h1/prep/icon-salmon.jpg', where: 'fridge', note: 'skin on' },
+    { name: 'water', qty: '300ml', key: 'icon:water', icon: null, where: 'fridge', note: null },
+  ]);
+});

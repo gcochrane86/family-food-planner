@@ -24,28 +24,37 @@ export function keptIn(name: string): Kept {
 
 const WATER = /^(cold|hot|boiling|warm|tap|ice)?\s*water$|^ice( cube)?$/;
 
-/** Each ingredient once (the same recipe line counted once), amounts in the same unit added up. */
-export function getOutList(used: { i: RecipeIngredient; factor: number }[], icons: Record<string, string> = {}): GetOutGroup[] {
+export type IngredientTile = GetOutItem & { where: Kept; note: string | null };
+
+/** Each ingredient once (the same recipe line counted once), in order, amounts in the same unit added up. Water is
+ *  left out unless asked for (a step needs it; the get-out list doesn't). */
+export function ingredientTiles(used: { i: RecipeIngredient; factor: number }[], icons: Record<string, string> = {}, opts: { water?: boolean } = {}): IngredientTile[] {
   const seen = new Set<RecipeIngredient>();
-  const byKey = new Map<string, { name: string; where: Kept; parts: { qty: number | null; unit: string; approx: boolean }[] }>();
+  const byKey = new Map<string, { name: string; where: Kept; note: string | null; parts: { qty: number | null; unit: string; approx: boolean }[] }>();
   for (const { i, factor } of used) {
     if (seen.has(i)) continue;
     seen.add(i);
     const k = iconKey(i.name);
-    if (WATER.test(k.ingredient)) continue;
-    const e = byKey.get(k.key) ?? { name: k.ingredient, where: keptIn(i.name), parts: [] };
+    if (!opts.water && WATER.test(k.ingredient)) continue;
+    const e = byKey.get(k.key) ?? { name: k.ingredient, where: keptIn(i.name), note: i.note, parts: [] };
     e.parts.push({ qty: i.qty === null ? null : i.qty * factor, unit: i.unit, approx: i.qty_approx });
     byKey.set(k.key, e);
   }
-  const groups: GetOutGroup[] = (['fridge', 'freezer', 'cupboard'] as const).map((where) => ({ where, items: [] }));
-  for (const [key, e] of byKey) {
+  return [...byKey].map(([key, e]) => {
     const units = new Map<string, { qty: number | null; approx: boolean }>();
     for (const p of e.parts) {
       const u = units.get(p.unit);
       units.set(p.unit, { qty: u ? (u.qty === null || p.qty === null ? (u.qty ?? p.qty) : u.qty + p.qty) : p.qty, approx: (u?.approx ?? false) || p.approx });
     }
     const qty = [...units].map(([unit, u]) => (u.qty === null ? '' : formatQty(u.qty, unit, u.approx))).filter(Boolean).join(' + ');
-    groups.find((g) => g.where === e.where)!.items.push({ name: e.name, qty, key, icon: icons[key] ?? null });
-  }
-  return groups.filter((g) => g.items.length);
+    return { name: e.name, qty, key, icon: icons[key] ?? null, where: e.where, note: e.note };
+  });
+}
+
+/** The get-out list: those tiles by where they're kept, fridge first. */
+export function getOutList(used: { i: RecipeIngredient; factor: number }[], icons: Record<string, string> = {}): GetOutGroup[] {
+  const tiles = ingredientTiles(used, icons);
+  return (['fridge', 'freezer', 'cupboard'] as const)
+    .map((where) => ({ where, items: tiles.filter((t) => t.where === where).map(({ name, qty, key, icon }) => ({ name, qty, key, icon })) }))
+    .filter((g) => g.items.length);
 }
