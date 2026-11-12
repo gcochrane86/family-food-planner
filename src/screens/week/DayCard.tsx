@@ -117,7 +117,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       );
     } else if (dinner.mode === 'cook' && dinnerRecipe) {
       dinnerCard = (
-        <HoldCard label={`Dinner: ${dinnerRecipe.title}`} to={`/recipes/${dinnerRecipe.id}`} onHold={open}>
+        <HoldCard label={`Dinner: ${dinnerRecipe.title}`} to={`/recipes/${dinnerRecipe.id}?day=${date}&slot=dinner`} onHold={open}>
           <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
           {caption(dinnerRecipe.title, `${formatPortions(dinner.portions ?? 0)} portions${lunchExtra > 0 ? ` + ${formatPortions(lunchExtra)} for ${nextDayName}'s lunch` : ''}${dinner.guests ? ` · ${dinner.guests} guest${dinner.guests === 1 ? '' : 's'}` : ''} · ${dinnerRecipe.finish_minutes} min`)}
         </HoldCard>
@@ -140,7 +140,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       const name = opt?.name ?? picked;
       const r = opt?.recipe;
       lunchCard = (
-        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}` : undefined} onHold={() => setSheet('lunch')}>
+        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined} onHold={() => setSheet('lunch')}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
           {caption(name)}
         </HoldCard>
@@ -151,7 +151,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       const name = packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : w.mealOptions.lunch[0];
       const r = packed ? routineRecipe('Packed lunch', w.recipes) : reheat ?? routineRecipe(w.mealOptions.lunch[0], w.recipes);
       lunchCard = (
-        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}` : undefined}>
+        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
           {caption(name, undefined, false)}
         </HoldCard>
@@ -161,7 +161,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
 
   const breakfastRecipe = routineRecipe(breakfastName, w.recipes);
   const breakfastCard = breakfast && (
-    <HoldCard label={`Breakfast: ${breakfastName}`} to={breakfastRecipe ? `/recipes/${breakfastRecipe.id}` : undefined} onHold={() => setSheet('breakfast')}>
+    <HoldCard label={`Breakfast: ${breakfastName}`} to={breakfastRecipe ? `/recipes/${breakfastRecipe.id}?day=${date}&slot=breakfast` : undefined} onHold={() => setSheet('breakfast')}>
       <MealPhoto recipe={breakfastRecipe} alt={breakfastName} className="aspect-[16/9]" />
       {caption(breakfastName)}
     </HoldCard>

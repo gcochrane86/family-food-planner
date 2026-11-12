@@ -1,4 +1,5 @@
 import { londonParts } from '../../../supabase/functions/_shared/schedule.ts';
+import { applyVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { planHour, type HourInput } from '../../lib/todayHour';
@@ -32,10 +33,15 @@ export function useTodayHour(now = new Date()) {
       if (!cache.has(id)) cache.set(id, repo.getRecipe(id).catch(() => null));
       return cache.get(id)!;
     };
+    // A day's meal is cooked as its tonight's version, when it has one.
+    const forSlot = async (s: MealSlot | undefined) => {
+      const r = await detail(s?.recipe_id);
+      return r && s ? applyVersion(r, s.version) : r;
+    };
     const cooked = (s: MealSlot | undefined) => (s?.mode === 'cook' && s.recipe_id ? s : undefined);
 
     const tonightSlot = cooked(find(today, 'dinner'));
-    const tonightRecipe = await detail(tonightSlot?.recipe_id);
+    const tonightRecipe = await forSlot(tonightSlot);
     // Cooked for the household plus tomorrow's leftovers lunch, as the shopping list and Cookidoo count it.
     const portionsOf = (slot: MealSlot, r: RecipeDetail) => (slot.portions ?? r.base_portions) + leftoverLunchPortions(slot, slots, byId);
     const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: portionsOf(tonightSlot, tonightRecipe) } : null;
@@ -44,7 +50,7 @@ export function useTodayHour(now = new Date()) {
     let next: HourInput['tomorrow'] = null;
     if (anyTomorrow) {
       const dSlot = cooked(find(tomorrow, 'dinner'));
-      const dRecipe = await detail(dSlot?.recipe_id);
+      const dRecipe = await forSlot(dSlot);
       const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: portionsOf(dSlot, dRecipe) } : null;
 
       // Tomorrow's lunch: tonight's leftovers (picked, or packed/reheated from tonight), else a lunch recipe to make.
@@ -55,7 +61,7 @@ export function useTodayHour(now = new Date()) {
         : (l?.mode === 'packed' || l?.mode === 'reheat') && l.source_date === today);
       if (leftovers) lunch = { kind: 'leftovers', title: tonight!.recipe.title };
       else if (l?.recipe_id && l.mode !== 'reheat') {
-        const r = await detail(l.recipe_id);
+        const r = await forSlot(l);
         if (hasSteps(r)) lunch = { kind: 'make', title: r!.title, recipe: r! };
       }
 

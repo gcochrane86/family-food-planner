@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { DEFAULT_SETTINGS } from '../../lib/household';
 import type { MealSlot, PlanWeek } from '../../lib/types';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
-import { NEXT_WEEK } from '../../test/fixtures';
+import { HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
 import TodayHour from './TodayHour';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -84,4 +84,12 @@ test("tonight's amounts include the portions for tomorrow's leftovers lunch", as
   const list = await screen.findByRole('region', { name: 'Chopping' });
   // 3 portions tonight plus 3 for Tuesday's lunch, of a 6-portion recipe: the full 1.2kg.
   expect(within(list).getByText(/1\.2kg chicken breast or thigh/)).toBeInTheDocument();
+});
+
+test("tonight's version is what gets chopped", async () => {
+  h.repo.getWeek.mockImplementation(week((s) => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, version: HONEY_VERSION } : s)));
+  open();
+  const list = await screen.findByRole('region', { name: 'Chopping' });
+  expect(within(list).getByText(/turkey breast/)).toBeInTheDocument();
+  expect(within(list).queryByText(/chicken breast/)).not.toBeInTheDocument();
 });

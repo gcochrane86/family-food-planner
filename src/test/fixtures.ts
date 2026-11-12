@@ -1,4 +1,5 @@
 import type { MealSlot, PlanWeek, Recipe, RecipeDetail } from '../lib/types';
+import { buildVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 
 const base: Omit<Recipe, 'id' | 'slug' | 'title'> = {
   household_id: 'h1', subtitle: null, kind: 'meal', component_role: null, source: 'own_doc', protein: 'chicken', base_portions: 6,
@@ -76,3 +77,17 @@ export const NEXT_WEEK: { week: PlanWeek; slots: MealSlot[] } = {
     slot('2026-10-25', 'dinner', { mode: 'leftovers', reason: 'Use it up: the shop arrives 7–8pm' }),
   ],
 };
+
+/** Tonight's version of the honey chilli chicken: turkey instead of chicken, and the rice step changed. */
+export const HONEY_VERSION = (() => {
+  const r = buildVersion(HONEY, {
+    note: 'Turkey instead of chicken',
+    ingredients: [
+      { group_name: 'The meat', name: 'turkey breast', qty: 1200, unit: 'g', note: '10mm batons', replaces: 'chicken breast or thigh' },
+      { group_name: 'The carb', name: 'basmati rice', qty: 400, unit: 'g', note: null },
+    ],
+    steps: HONEY.steps.map(({ id: _id, image_path: _p, image_source: _s, ...s }) => (s.title === 'Rice on' ? { ...s, body: 'Rinse the **rice** twice and start.' } : s)),
+  });
+  if (!('version' in r)) throw new Error(r.error);
+  return r.version;
+})();

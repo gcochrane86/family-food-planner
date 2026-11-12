@@ -1,3 +1,4 @@
+import { applyVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 import { parseRoastChoice, roastPartSlugs } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
@@ -79,8 +80,10 @@ export function buildShoppingList(
 
   for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
     if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
-    const recipe = recipes.get(slot.recipe_id);
-    if (!recipe) continue;
+    const saved = recipes.get(slot.recipe_id);
+    if (!saved) continue;
+    // Tonight's version (when there is one, made from this recipe) is what gets cooked, so it's what gets bought.
+    const recipe = applyVersion(saved, slot.version);
     const day = SHORT[weekdayIndex(slot.date)];
     // A roast buys its main, any other mains (Christmas ham) and every chosen side, each scaled to the people eating.
     const roast = parseRoastChoice(slot.roast);

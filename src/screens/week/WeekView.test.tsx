@@ -391,7 +391,7 @@ describe('one photo per meal', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Tue');
     const card = within(day(/Tuesday/)).getByRole('link', { name: /^Dinner:/ });
-    expect(card).toHaveAttribute('href', '/recipes/r-salmon');
+    expect(card).toHaveAttribute('href', '/recipes/r-salmon?day=2026-10-20&slot=dinner');
     fireEvent.pointerDown(card, { clientX: 10, clientY: 10 });
     await act(async () => { vi.advanceTimersByTime(600); });
     fireEvent.pointerUp(card);

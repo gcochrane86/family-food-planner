@@ -255,3 +255,18 @@ describe('other shops', () => {
     expect([...notGoing.sun, ...notGoing.tue].map((i) => i.name)).toEqual(expect.arrayContaining(['milk', 'Eggs']));
   });
 });
+
+test("a day's tonight's version is what gets bought, and a stale one is ignored", () => {
+  const withCream = recipe('pasta', 4, [['crème fraîche', 200, 'ml'], ['penne', 400, 'g']]);
+  const version = { based_on: 'pasta', note: 'Yoghurt tonight', ingredients: [
+    { group_name: null, name: 'Greek yoghurt', qty: 200, unit: 'g', note: null, qty_approx: false, changed: true },
+    { group_name: null, name: 'penne', qty: 400, unit: 'g', note: null, qty_approx: false, changed: false },
+  ], steps: [] };
+  const names = (v: unknown) => {
+    const list = buildShoppingList([{ ...dinner('2026-10-19', 'pasta', 4), version: v as MealSlot['version'] }], new Map([['pasta', withCream]]), [], 2);
+    return [...list.sun, ...list.tue].map((i) => i.name.toLowerCase()).join(', ');
+  };
+  expect(names(version)).toContain('greek yoghurt');
+  expect(names(version)).not.toContain('crème fraîche');
+  expect(names({ ...version, based_on: 'other' })).toContain('crème fraîche');
+});

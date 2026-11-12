@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
-import { HONEY } from '../../test/fixtures';
+import { HONEY, HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
 import RecipeCard from './RecipeCard';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -13,7 +13,7 @@ beforeEach(() => { h.repo = fakeRepo(); localStorage.clear(); });
 
 function open(id: string) {
   return render(
-    <MemoryRouter initialEntries={[`/recipes/${id}`]}>
+    <MemoryRouter initialEntries={[id.includes('/') ? id : `/recipes/${id}`]}>
       <Routes>
         <Route path="/recipes/:id" element={<RecipeCard />} />
         <Route path="/recipes/:id/edit" element={<p>Editor</p>} />
@@ -332,4 +332,25 @@ test('a batch step carries the batch tip; a batch naming no real step shows none
   open('r-honey');
   await screen.findByRole('heading', { name: HONEY.title });
   expect(screen.queryByText(/Batch tip/)).not.toBeInTheDocument();
+});
+
+const withVersion = () => h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === NEXT_WEEK.week.week_start
+  ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, version: HONEY_VERSION } : s)) }
+  : { week: null, slots: [] }));
+
+test("opened from a day with tonight's version, the card shows that version and a way back to the saved recipe", async () => {
+  withVersion();
+  open('/recipes/r-honey?day=2026-10-19&slot=dinner');
+  expect(await screen.findByText(/Tonight's version: Turkey instead of chicken/)).toBeInTheDocument();
+  expect(screen.getByText('turkey breast').closest('li')).toHaveTextContent(/changed/i);
+  expect(screen.queryByText('chicken breast or thigh')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'See the saved recipe' })).toHaveAttribute('href', '/recipes/r-honey');
+  expect(screen.getByRole('link', { name: 'Cook mode' }).getAttribute('href')).toMatch(/day=2026-10-19&slot=dinner/);
+});
+
+test('opened from the recipe list, the card shows the saved recipe', async () => {
+  withVersion();
+  open('r-honey');
+  expect(await screen.findByText('chicken breast or thigh')).toBeInTheDocument();
+  expect(screen.queryByText(/Tonight's version/)).not.toBeInTheDocument();
 });

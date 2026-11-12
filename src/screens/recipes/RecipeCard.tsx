@@ -1,11 +1,12 @@
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions } from '../../lib/household';
 import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
+import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import type { Machine, RecipeBatch, RecipeStep } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
@@ -84,10 +85,13 @@ export default function RecipeCard() {
   const closeRework = useCallback(() => setReworking(false), []);
   const { id = '' } = useParams();
   const { householdId } = useAuth();
+  // Opened from a day (…?day=&slot=), it's that day's tonight's version if there is one.
+  const [params] = useSearchParams();
+  const at = dayParams(params);
   const { data, setData, error, loading, reload } = useAsync(async () => {
-    const [recipe, members] = await Promise.all([repo.getRecipe(id), repo.listMembers(householdId!)]);
+    const [recipe, members] = await Promise.all([loadDayRecipe(id, householdId, at), repo.listMembers(householdId!)]);
     return { recipe, members };
-  }, [id, householdId]);
+  }, [id, householdId, at?.day, at?.slot]);
   const [portions, setPortions] = useState<number | null>(null);
   const [prepAhead, setPrepAhead] = usePrepAhead();
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -225,11 +229,17 @@ export default function RecipeCard() {
             { label: 'Print', onSelect: () => window.print() },
           ]} />
           {finish.length > 0 && (
-            <Link to={`/recipes/${recipe.id}/cook?portions=${target}`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
+            <Link to={`/recipes/${recipe.id}/cook?portions=${target}${at ? `&${dayQuery(at)}` : ''}`} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink no-underline">Cook mode</Link>
           )}
         </div>
       </div>
 
+      {recipe.versionNote && (
+        <p className="m-0 flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-accent-soft px-4 py-3">
+          <span className="font-semibold">Tonight's version: {recipe.versionNote}</span>
+          <Link to={`/recipes/${recipe.id}`} className="text-sm font-semibold text-accent underline">See the saved recipe</Link>
+        </p>
+      )}
       {photoError && <ErrorBanner message={photoError} />}
       {tickError && <ErrorBanner message={tickError} />}
       {photoPanel && (
@@ -337,7 +347,7 @@ export default function RecipeCard() {
                 {g.items.map((item, i) => (
                   <li key={item.id ?? i} className="grid grid-cols-[76px_minmax(0,1fr)] items-baseline gap-2 border-b border-line py-1.5 md:py-2">
                     <span className="font-bold tabular-nums">{formatQty(item.qty === null ? null : item.qty * factor, item.unit, item.qty_approx)}</span>
-                    <span><span>{item.name}</span>{item.note && <span className="text-[12.5px] text-muted"> · {item.note}</span>}</span>
+                    <span><span>{item.name}</span>{item.note && <span className="text-[12.5px] text-muted"> · {item.note}</span>}{recipe.versionNote && (item as { changed?: boolean }).changed && <span className="ml-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold">changed</span>}</span>
                   </li>
                 ))}
               </ul>

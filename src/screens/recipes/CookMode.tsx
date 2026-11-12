@@ -6,6 +6,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { resizeImage } from '../../lib/image';
 import { machineLabel } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
+import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { photoCost } from './RecipeCard';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 import { remaining } from '../../lib/timer';
@@ -21,7 +22,10 @@ export default function CookMode() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const { householdId } = useAuth();
-  const { data: recipe, setData, error, loading, reload } = useAsync(() => repo.getRecipe(id), [id]);
+  // Opened from a day (…&day=&slot=), it's that day's tonight's version if there is one.
+  const [dayP] = useSearchParams();
+  const at = dayParams(dayP);
+  const { data: recipe, setData, error, loading, reload } = useAsync(() => loadDayRecipe(id, householdId, at), [id, householdId, at?.day, at?.slot]);
   const [phase, setPhase] = useState<Phase>('finish');
   const [prepAhead, setPrepAhead] = usePrepAhead();
   const [index, setIndex] = useState(0);
@@ -33,7 +37,7 @@ export default function CookMode() {
   useWakeLock();
   const { timers, now, start: startTimer, dismiss } = useTimers(id);
 
-  const close = () => navigate(`/recipes/${id}`);
+  const close = () => navigate(`/recipes/${id}${at ? `?${dayQuery(at)}` : ''}`);
   // The portions picked on the recipe page, so each step's amounts match the ingredients list.
   const [params] = useSearchParams();
   const portions = Number(params.get('portions'));
@@ -172,7 +176,9 @@ export default function CookMode() {
             <p className="font-mono text-sm text-lcd-ink">
               {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}
             </p>
+            {recipe.versionNote && <p className="self-start rounded-xl bg-[#3A2A12] px-3 py-1.5 text-sm text-[#FFD9A0]">Tonight's version: {recipe.versionNote}</p>}
             <h1 className="text-[clamp(28px,5vw,46px)] font-bold text-white">{step.title}</h1>
+            {(step as { changed?: boolean }).changed && recipe.versionNote && <span className="self-start rounded-full bg-lcd-ink px-3 py-0.5 text-sm font-semibold text-[#0A0E0B]">Changed tonight</span>}
             {step.machine && (
               <div className="self-start rounded-2xl border border-lcd-ink/35 px-4 py-3 font-mono text-[clamp(18px,3vw,30px)] text-lcd-ink">
                 <small className="mb-0.5 block text-xs text-[#9AA89F]">{machineLabel(step.machine)}</small>

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
-import { HONEY } from '../../test/fixtures';
+import { HONEY, HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
 import CookMode from './CookMode';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -205,4 +205,15 @@ test('without portions it uses the recipe as written', async () => {
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
   expect(within(screen.getByRole('list', { name: 'For this step' })).getByRole('listitem')).toHaveTextContent('400gbasmati rice');
+});
+
+test("from a day with tonight's version, cook mode shows the changed step", async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === NEXT_WEEK.week.week_start
+    ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, version: HONEY_VERSION } : s)) }
+    : { week: null, slots: [] }));
+  open('?portions=3&day=2026-10-19&slot=dinner');
+  expect(await screen.findByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  expect(screen.getByText(/twice and start/)).toBeInTheDocument();
+  expect(screen.getByText('Changed tonight')).toBeInTheDocument();
+  expect(screen.getByText(/Tonight's version: Turkey instead of chicken/)).toBeInTheDocument();
 });
