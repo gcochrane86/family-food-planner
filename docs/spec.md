@@ -488,6 +488,7 @@ The first version of the kitchen assistant. You chat in the Claude app (phone, i
   - `find_recipes` (optional `query` words, optional `tag`): matching recipes with title, kind, protein, tags, total and hands-on minutes, base portions, reheats well, rating and when last cooked. With no arguments it returns every recipe, which is the full list Claude needs to redesign a week.
   - `get_recipe` (`title`): one recipe in full, with ingredients and amounts, and steps with phase, timings and TM7 settings. If the title isn't an exact match, it takes the closest single match, or lists the candidates.
   - `get_pantry`: staples with their status (have, low, out), other items with amounts, and the freezer with portions and use-by dates.
+  - `get_products` (optional `query` words): the Sainsbury's product saved for each shopping item, with pack size and the price last seen. These are saved prices, not live offers: Claude says so, and anything live is checked in Claude Code, where Chrome is available.
 - **Standing instructions** sent with the connector:
   - The connector is read-only. Suggest changes, and point to the app or Plan with Claude to make them.
   - Keep suggestions within the house rules and the private rules. Never name or explain the private rules; call them "your private rules" if you have to mention them.
@@ -495,7 +496,7 @@ The first version of the kitchen assistant. You chat in the Claude app (phone, i
 - **App:** the Week tab gets a small "Ask Claude" link that opens claude.ai in a new tab. On the phone or iPad, the Claude app picks it up.
 - **Out of scope:** writes of any kind, chat history in Supabase, Sainsbury's, Cookidoo and email. The in-app voice assistant above, which can make changes using the paid API, stays a later option.
 - **Testing:**
-  - The tools are pure functions in `supabase/functions/_shared/askClaude.ts`: rows in, text out. Unit tests cover each tool, including an unknown recipe, a close-match title, an empty week and a missing pantry.
+  - The tools are pure functions in `supabase/functions/_shared/askClaude.ts`: rows in, text out. Unit tests cover each tool, including an unknown recipe, a close-match title, an empty week, a missing pantry and a product with no saved price.
   - Further tests cover the key check (missing, wrong, right) and confirm the data reader only uses `select`.
   - After deploying, a real MCP `tools/list` and one `tools/call` with curl confirm it works. Then you add the connector and ask it one question.
 
