@@ -500,6 +500,52 @@ The first version of the kitchen assistant. You chat in the Claude app (phone, i
   - Further tests cover the key check (missing, wrong, right) and confirm the data reader only uses `select`.
   - After deploying, a real MCP `tools/list` and one `tools/call` with curl confirm it works. Then you add the connector and ask it one question.
 
+### Ask Claude: changes you approve (12 Nov 2026)
+The same connector gains four tools that change things. In Claude, each change tool is set to **Needs approval**, so you see exactly what it will do and tap to allow it. The lookups stay **Always allow**. This replaces "read-only" and "writes of any kind" above. The lock (the secret link) is unchanged; if it leaked, someone could now change the plan as well as read it, until the key is changed.
+
+- **Tonight's version.** A day's meal can carry its own version of the recipe, for when you're out of something or want to cook it differently. The saved recipe stays as it is.
+  - **Data:** a new `meal_slots.version` jsonb column, added in a new numbered migration that you run in the SQL Editor. It holds:
+    - `note`: one line, e.g. "Greek yoghurt instead of crème fraîche".
+    - `ingredients`: the full list for that day, in the recipe's shape (group, name, qty, unit, note), each marked `changed` when it differs from the saved recipe.
+    - `steps`: the full steps (phase, position, at minute, title, body, machine, settings, timer), each marked `changed` the same way.
+    - `based_on`: the recipe ID it was made from.
+  - **Claude builds it** from the saved recipe plus the changes. The connector refuses it if an ingredient or step from the saved recipe disappears without being marked as removed, or if `based_on` isn't the day's recipe.
+  - **Where it shows:**
+    - **Cook mode:** opened from that day (the day sheet or Today's hour), it shows tonight's version, with a "Tonight's version" banner and the changes marked.
+    - **Today's hour** plans its chopping and steps from it.
+    - **The shopping list** uses its ingredients for that day.
+    - **The recipe card,** opened from the day, shows the banner and a "See the saved recipe" link.
+    - Opened from the recipe list, cook mode and the recipe card show the saved recipe as before.
+  - **Cleared** whenever the day's recipe changes or the meal stops being cooked: in the app (with the batch and roast plans, as now) and in the connector.
+- **The change tools:**
+  - `set_tonights_version` (`date`, `slot`, `note`, `ingredients`, `steps`).
+  - `clear_tonights_version` (`date`, `slot`).
+  - `swap_meal` (`date`, `slot`, `recipe` title, or `out` for eating out). It uses the app's own swap rules, so leftovers lunches are released, portions are set, and the meal is kept from being replanned.
+  - `set_pantry` (`item`, `status`: have, low or out), for staples. For a non-staple item, it says to use the app.
+- **The rules every change tool follows:**
+  - Only this week and next, from today on; never a past day.
+  - Only a week that exists; a swap only uses an active recipe from your list.
+  - Every write is limited to your household.
+  - Each reply says plainly what changed and what follows:
+    - In an approved week, Cookidoo re-syncs a swapped dinner by itself.
+    - If the Sainsbury's basket for that week is already filled, the shopping may need "Empty and refill" or a Spar trip.
+    - Tonight's version isn't sent to Cookidoo, which keeps the saved recipe.
+- **Standing instructions** gain: suggest first, change only when asked; prefer tonight's version over swapping the meal when one ingredient is the problem; never edit saved recipes (that's Claude Code's job).
+- **Still out of scope:** editing saved recipes, approving weeks, Sainsbury's, Cookidoo, email and chat history.
+- **Shared logic:**
+  - The step that drops a day's batch and roast plans (and now tonight's version) when its dinner changes moves out of the Week screen into `supabase/functions/_shared/`, so the app and the connector use the same code.
+  - Applying tonight's version to a recipe is a pure function there too, used by cook mode, Today's hour and the shopping list.
+- **Testing:**
+  - Unit tests cover:
+    - a past date, or a date outside this week and next, being refused
+    - an unknown recipe
+    - leftovers released on a swap
+    - tonight's version cleared on a swap
+    - a version that drops an ingredient silently being refused
+    - pantry status on a staple and on a non-staple
+  - Screen tests cover cook mode, Today's hour and the shopping list using tonight's version.
+  - After deploying, a live check sets and clears a version on a future day and swaps a meal, then puts it back.
+
 ---
 
 ## 11. Build plan
