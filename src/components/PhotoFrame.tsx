@@ -30,12 +30,15 @@ const MOVE_PX = 8; // further than this is a scroll, not a hold
 /** Press and hold (or right-click) to call `onHold`; without it, just the photo. */
 export function Hold({ onHold, children }: { onHold?: () => void; children: ReactNode }) {
   const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  // A hold that opened the options isn't also a tap (on a tile you can tick off, say).
+  const held = useRef(false);
   const cancel = () => { if (hold.current) clearTimeout(hold.current.timer); hold.current = null; };
   useEffect(() => cancel, []);
   if (!onHold) return <>{children}</>;
   return (
     <div className="select-none [-webkit-touch-callout:none]"
-      onPointerDown={(e) => { cancel(); hold.current = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { hold.current = null; onHold(); }, HOLD_MS) }; }}
+      onPointerDown={(e) => { cancel(); held.current = false; hold.current = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { hold.current = null; held.current = true; onHold(); }, HOLD_MS) }; }}
+      onClickCapture={(e) => { if (held.current) { held.current = false; e.preventDefault(); e.stopPropagation(); } }}
       onPointerMove={(e) => { if (hold.current && Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > MOVE_PX) cancel(); }}
       onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel}
       onContextMenu={(e) => { e.preventDefault(); cancel(); onHold(); }}>

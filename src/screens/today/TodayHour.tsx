@@ -34,6 +34,14 @@ export default function TodayHour() {
   const { householdId } = useAuth();
   const { data, error, loading, reload } = useTodayHour();
   const key = `today-hour:${todayInLondon()}`;
+  // What's been got out today (ticked on the first page), kept on this device until tomorrow.
+  const gotKey = `today-got:${todayInLondon()}`;
+  const [got, setGot] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(gotKey) ?? '[]'); } catch { return []; } });
+  const tick = (k: string) => setGot((g) => {
+    const next = g.includes(k) ? g.filter((x) => x !== k) : [...g, k];
+    try { localStorage.setItem(gotKey, JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const [menu, setMenu] = useState<Held | null>(null);
@@ -114,7 +122,7 @@ export default function TodayHour() {
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
-            {plan.getOut.length > 0 && <GetOut groups={plan.getOut} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
+            {plan.getOut.length > 0 && <GetOut groups={plan.getOut} got={got} onTick={tick} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
             <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} icons={plan.iconsMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing, plan.iconsMissing)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-[#2D6A3E] px-8 py-3.5 text-lg font-semibold text-white">Start</button>
@@ -289,18 +297,34 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "Get it out": a small cartoon of each thing the hour uses, with its name and amount underneath, by where it's
  *  kept. Hold a picture to remake it or use your own. */
-function GetOut({ groups, onHold }: { groups: GetOutGroup[]; onHold: (it: GetOutItem) => void }) {
+function GetOut({ groups, got, onTick, onHold }: { groups: GetOutGroup[]; got: string[]; onTick: (key: string) => void; onHold: (it: GetOutItem) => void }) {
   return (
-    <section aria-label="Get it out" className="grid gap-4 rounded-2xl bg-white/5 p-4">
+    <section aria-label="Get it out" className="grid gap-4 rounded-2xl bg-[#F3F4EF] p-4">
       <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">Get it out</h2>
-      {groups.map((g) => (
-        <div key={g.where} className="grid gap-2">
-          <b>{KEPT[g.where]}</b>
-          <ul aria-label={KEPT[g.where]} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4 md:grid-cols-6">
-            {g.items.map((it) => <Tile key={it.key} item={it} onHold={() => onHold(it)} />)}
-          </ul>
-        </div>
-      ))}
+      <p className="m-0 -mt-2 text-sm text-[#5D6760]">Tap each one as you get it out.</p>
+      {groups.map((g) => {
+        // Still to get first; what's out drops to the end.
+        const items = [...g.items.filter((it) => !got.includes(it.key)), ...g.items.filter((it) => got.includes(it.key))];
+        return (
+          <div key={g.where} className="grid gap-2">
+            <b>{KEPT[g.where]}</b>
+            <ul aria-label={KEPT[g.where]} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4 md:grid-cols-6">
+              {items.map((it) => {
+                const done = got.includes(it.key);
+                return (
+                  <li key={it.key} className="grid">
+                    <button type="button" role="checkbox" aria-checked={done} aria-label={it.name} onClick={() => onTick(it.key)}
+                      className={`relative grid text-left transition-opacity ${done ? 'opacity-45' : ''}`}>
+                      <Card item={it} onHold={() => onHold(it)} />
+                      {done && <span aria-hidden="true" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-[#2D6A3E] text-lg font-bold text-white">✓</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </section>
   );
 }

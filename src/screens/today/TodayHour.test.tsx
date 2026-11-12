@@ -296,3 +296,20 @@ test('if making photos stops on an error, it says why and Try again carries on',
   await user().click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByText(/Step photos made/)).toBeInTheDocument();
 });
+
+test('tapping a get-out item ticks it off and drops it to the bottom; it stays ticked for today', async () => {
+  localStorage.clear();
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, ingredients: [
+    ...HONEY.ingredients, { position: 3, group_name: null, name: 'red pepper', qty: 2, unit: '', note: 'strips', qty_approx: false },
+  ] } : null));
+  const view = open();
+  const fridge = await screen.findByRole('list', { name: 'Fridge' });
+  const names = () => within(fridge).getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'));
+  expect(names()).toEqual(['chicken breast or thigh', 'red pepper']);
+  await user().click(within(fridge).getByRole('checkbox', { name: 'chicken breast or thigh' }));
+  expect(within(fridge).getByRole('checkbox', { name: 'chicken breast or thigh' })).toHaveAttribute('aria-checked', 'true');
+  expect(names()).toEqual(['red pepper', 'chicken breast or thigh']);
+  view.unmount();
+  open();
+  expect(within(await screen.findByRole('list', { name: 'Fridge' })).getByRole('checkbox', { name: 'chicken breast or thigh' })).toHaveAttribute('aria-checked', 'true');
+});
