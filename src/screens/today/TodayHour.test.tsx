@@ -313,3 +313,23 @@ test('tapping a get-out item ticks it off and drops it to the bottom; it stays t
   open();
   expect(within(await screen.findByRole('list', { name: 'Fridge' })).getByRole('checkbox', { name: 'chicken breast or thigh' })).toHaveAttribute('aria-checked', 'true');
 });
+
+test('swiping moves between the steps; oven settings show °F too, large', async () => {
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const area = () => screen.getByRole('region', { name: /^Step \d+ of/ });
+  expect(screen.getByRole('heading', { name: 'Chop all the ingredients below' })).toBeInTheDocument();
+  fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 200 }] });
+  fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 100, clientY: 210 }] });
+  expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
+  fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 200 }] });
+  fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 100, clientY: 210 }] });
+  expect(screen.getByText(/100°C \/ 210°F/)).toBeInTheDocument();
+  fireEvent.touchStart(area(), { touches: [{ clientX: 100, clientY: 200 }] });
+  fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 300, clientY: 205 }] });
+  expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
+  // A mostly-up-and-down drag is a scroll, not a swipe.
+  fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 100 }] });
+  fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 260, clientY: 400 }] });
+  expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
+});

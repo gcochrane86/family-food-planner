@@ -1,4 +1,4 @@
-import { machineLabel } from '../../lib/recipes';
+import { machineLabel, withFahrenheit } from '../../lib/recipes';
 import type { Machine } from '../../lib/types';
 
 /** "TM7 | 12 min · Varoma · speed 2", styled like the machine's own display. */
@@ -6,7 +6,7 @@ export default function MachineBadge({ machine, settings }: { machine: Machine; 
   return (
     <span className="inline-flex max-w-full overflow-hidden rounded-lg border border-line font-mono text-xs">
       <span className="whitespace-nowrap bg-ink px-2 py-0.5 font-bold text-bg">{machineLabel(machine)}</span>
-      {settings && <span className="bg-lcd px-2 py-0.5 text-lcd-ink [overflow-wrap:anywhere]">{settings}</span>}
+      {settings && <span className="bg-lcd px-2 py-0.5 text-lcd-ink [overflow-wrap:anywhere]">{withFahrenheit(settings)}</span>}
     </span>
   );
 }

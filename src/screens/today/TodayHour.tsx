@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ProgressLine from '../../components/ProgressLine';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -12,6 +12,7 @@ import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
+import { withFahrenheit } from '../../lib/recipes';
 import { Hold } from '../../components/PhotoFrame';
 import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_SMALL } from '../../lib/photoSizes';
@@ -52,6 +53,19 @@ export default function TodayHour() {
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
   useEffect(() => { if (data && index > steps.length - 1) setIndex(steps.length - 1); }, [data, index, steps.length]);
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
+  /** Swipe left for the next step, right to go back; a mostly up-and-down drag scrolls instead. */
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touch.current;
+    touch.current = null;
+    const t = e.changedTouches[0];
+    if (!start || !t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) setIndex((i) => Math.min(i + 1, steps.length - 1));
+    else setIndex((i) => Math.max(i - 1, -1));
+  }
 
   /** Remakes a chopping photo, or saves your own, then shows it (everywhere that cut is used). */
   async function fixPrep(label: string, run: () => Promise<unknown>) {
@@ -134,13 +148,14 @@ export default function TodayHour() {
       {step && (() => {
         return (
           <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`}
+            onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
             className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10">
             <div className="grid content-start gap-3">
             {step.afterDinner
               ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">After dinner</span>
               : <span className="font-mono text-5xl font-bold tabular-nums">{step.at}<span className="ml-2 text-xl text-[#5D6760]">to {step.end}</span></span>}
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
-            {step.kit && <span className="text-lg text-[#3F4A43]">{step.kit}</span>}
+            {step.kit && <span className="font-mono text-[clamp(22px,3vw,32px)] font-bold leading-tight text-[#1B211D]">{withFahrenheit(step.kit)}</span>}
             {step.kind === 'chop' && data ? (
               <div className="grid gap-4">
                 {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => (

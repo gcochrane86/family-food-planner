@@ -126,3 +126,13 @@ describe('stepIngredients', () => {
     expect(stepIngredients('Toss with the warm **sauce**.', [...list, ing('soy sauce', 30, 'ml')])).toEqual([]);
   });
 });
+
+test('oven and machine temperatures get Fahrenheit beside them (to the nearest 5°F), once', async () => {
+  const { withFahrenheit } = await import('./recipes');
+  expect(withFahrenheit('APO · 190°C · 40% steam')).toBe('APO · 190°C / 375°F · 40% steam');
+  expect(withFahrenheit('12 min · 100°C · speed 2')).toBe('12 min · 100°C / 210°F · speed 2');
+  expect(withFahrenheit('Probe 63°C / 145°F')).toBe('Probe 63°C / 145°F');
+  expect(withFahrenheit('core 75°C')).toBe('core 75°C / 165°F');
+  expect(withFahrenheit('speed 4')).toBe('speed 4');
+  expect(withFahrenheit(null)).toBe(null);
+});

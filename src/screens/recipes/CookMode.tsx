@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { resizeImage } from '../../lib/image';
-import { machineLabel } from '../../lib/recipes';
+import { machineLabel, withFahrenheit } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { stepPhotos } from '../../lib/todayHour';
@@ -173,7 +173,7 @@ export default function CookMode() {
             {step.machine && (
               <div className="self-start rounded-2xl border border-lcd-ink/35 px-4 py-3 font-mono text-[clamp(18px,3vw,30px)] text-lcd-ink">
                 <small className="mb-0.5 block text-xs text-[#9AA89F]">{machineLabel(step.machine)}</small>
-                {step.settings}
+                {withFahrenheit(step.settings)}
               </div>
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>

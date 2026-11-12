@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions } from '../../lib/household';
-import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote } from '../../lib/recipes';
+import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote, withFahrenheit } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { makeStepPhotos } from '../../lib/stepPhotos';
@@ -397,7 +397,7 @@ export default function RecipeCard() {
                   {settings.map((s, i) => (
                     <tr key={s.id ?? i} className="border-t border-line align-top">
                       <td className="whitespace-nowrap py-1.5 pr-3 font-bold">{machineLabel(s.machine!)}</td>
-                      <td className="py-1.5">{s.title}: {s.settings}</td>
+                      <td className="py-1.5">{s.title}: {withFahrenheit(s.settings)}</td>
                     </tr>
                   ))}
                 </tbody>

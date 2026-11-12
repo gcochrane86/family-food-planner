@@ -81,7 +81,7 @@ test('both phases, machine badges and bold ingredients are shown', async () => {
   const finish = screen.getByRole('region', { name: 'On the night' });
   expect(within(finish).getByText('Rice on')).toBeInTheDocument();
   expect(within(finish).getAllByText('TM7')[0]).toBeInTheDocument();
-  expect(within(finish).getByText('20 min · 100°C · speed 4')).toBeInTheDocument();
+  expect(within(finish).getByText('20 min · 100°C / 210°F · speed 4')).toBeInTheDocument();
   expect(within(finish).getByText('rice', { selector: 'b' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Cook mode' })).toHaveAttribute('href', '/recipes/r-honey/cook?portions=3');
 });

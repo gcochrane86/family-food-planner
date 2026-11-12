@@ -119,3 +119,9 @@ export function stepIngredients<T extends RecipeIngredient>(body: string, ingred
   }
   return found;
 }
+
+/** "190°C" → "190°C / 375°F" (to the nearest 5°F), for settings shown while cooking. Already-paired ones are left. */
+export function withFahrenheit<T extends string | null | undefined>(text: T): T {
+  if (!text) return text;
+  return text.replace(/(-?\d+(?:\.\d+)?)\s*°C(?!\s*\/\s*-?\d+\s*°F)/g, (_m, c: string) => `${c}°C / ${Math.round((Number(c) * 9) / 5 / 5 + 32 / 5) * 5}°F`) as T;
+}
