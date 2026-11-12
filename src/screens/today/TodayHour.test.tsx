@@ -379,3 +379,15 @@ test("tomorrow's chicken sandwich lunch: the hour roasts the chicken, unless tod
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(await titles()).not.toContain("For tomorrow's lunch: Roast in the Anova");
 });
+
+test("the chopping picture is the board with a small cartoon of each thing to chop beside it, as one picture", async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([
+    { key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/cartoon-chicken.jpg', source: 'generated' },
+    { key: 'icon:chicken breast or thigh', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
+  ]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const pic = screen.getByRole('figure', { name: /Everything to chop/ });
+  expect(within(pic).getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' })).toBeInTheDocument();
+  expect([...pic.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(expect.arrayContaining([expect.stringContaining('icon-chicken.jpg')]));
+});

@@ -14,6 +14,9 @@ import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
 import { withFahrenheit } from '../../lib/recipes';
 import { Card, Tile } from '../../components/IngredientCard';
+import { Hold } from '../../components/PhotoFrame';
+import StoredPhoto from '../../components/StoredPhoto';
+import { PHOTO_LARGE, PHOTO_SMALL } from '../../lib/photoSizes';
 import { ingredientTiles, type GetOutGroup, type GetOutItem } from '../../lib/getOut';
 import { chopInstruction, iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import ListenSwitch from '../../components/ListenSwitch';
@@ -197,7 +200,7 @@ export default function TodayHour() {
               </ul>
             )}
             </div>
-            <div className={centred(step) ? 'grid w-full max-w-4xl justify-items-center' : ''}><StepPictures step={step} onHold={setMenu} big={centred(step)} /></div>
+            <div className={centred(step) ? 'grid w-full max-w-4xl justify-items-center' : ''}><StepPictures step={step} onHold={setMenu} big={centred(step)} icons={step.kind === 'chop' ? chopIcons(data) : []} /></div>
           </section>
         );
       })()}
@@ -266,7 +269,33 @@ type Held = { prep?: Prep & { icon?: boolean }; step?: NonNullable<HourStep['pho
 /** Plating up and clean-up steps are laid out centred, the picture large under the text. */
 const centred = (s: HourStep) => s.kind === 'serve' || s.kind === 'clean';
 
-function StepPictures({ step, onHold, big = false }: { step: HourStep; onHold: (h: Held) => void; big?: boolean }) {
+/** The cartoons of everything chopped in the hour (those made so far), for the chopping picture. */
+function chopIcons(data: { input: HourInput; plan: HourPlan } | null | undefined): { name: string; path: string }[] {
+  if (!data) return [];
+  const seen = new Set<string>();
+  return data.plan.chop.filter((g) => g.where !== 'fridge').flatMap((g) => g.items).map((it) => iconKey(it.name))
+    .filter((k) => !seen.has(k.key) && seen.add(k.key) && data.input.prepPhotos?.[k.key])
+    .map((k) => ({ name: k.ingredient, path: data.input.prepPhotos![k.key] }));
+}
+
+function StepPictures({ step, onHold, big = false, icons = [] }: { step: HourStep; onHold: (h: Held) => void; big?: boolean; icons?: { name: string; path: string }[] }) {
+  if (step.kind === 'chop' && icons.length) {
+    // One picture: the chopping board, with a small cartoon of each thing to chop beside it, all on white.
+    const board = step.photos.find((p) => p.prep);
+    return (
+      <figure aria-label={`Everything to chop: ${icons.map((i) => i.name).join(', ')}`}
+        className={`m-0 grid aspect-[4/3] w-full items-center gap-2 overflow-hidden rounded-2xl bg-white p-3 ${board ? 'grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]' : ''}`}>
+        {board && (
+          <Hold onHold={() => onHold({ prep: board.prep })}>
+            <StoredPhoto path={board.path} width={PHOTO_LARGE} alt={board.alt} draggable={false} className="w-full object-contain mix-blend-multiply" />
+          </Hold>
+        )}
+        <div className={`grid content-center justify-items-center gap-1 ${icons.length > 3 || !board ? 'grid-cols-2' : ''} ${!board && icons.length > 4 ? 'grid-cols-3' : ''}`}>
+          {icons.map((i) => <StoredPhoto key={i.path} path={i.path} width={PHOTO_SMALL} alt="" draggable={false} className="aspect-square w-full max-w-[160px] object-contain mix-blend-multiply" />)}
+        </div>
+      </figure>
+    );
+  }
   if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className={big ? 'text-[clamp(120px,22vw,220px)] leading-none' : 'text-6xl'}>🧽</span> : null;
   return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt,
     onHold: p.prep ? () => onHold({ prep: p.prep }) : p.step ? () => onHold({ step: p.step }) : undefined }))} />;
