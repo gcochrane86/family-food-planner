@@ -9,6 +9,7 @@ import RecipeEditor from './screens/recipes/RecipeEditor';
 import Pantry from './screens/pantry/Pantry';
 import OtherShops from './screens/settings/OtherShops';
 import TodayHourSettings from './screens/settings/TodayHourSettings';
+import TodayHour from './screens/today/TodayHour';
 import PlanningRules from './screens/settings/PlanningRules';
 import RoastCook from './screens/recipes/RoastCook';
 import RoastBuilder from './screens/recipes/RoastBuilder';
@@ -70,6 +71,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/week" replace />} />
       <Route path="/week" element={<WeekView />} />
+      <Route path="/today" element={<TodayHour />} />
       <Route path="/recipes" element={<RecipeLibrary />} />
       <Route path="/recipes/roast" element={<RoastBuilder />} />
       <Route path="/recipes/roast/cook" element={<RoastCook />} />

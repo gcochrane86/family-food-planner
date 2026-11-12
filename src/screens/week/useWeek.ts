@@ -174,6 +174,8 @@ export function useWeek() {
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     baskets: (shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? [],
     shopsPerWeek: (data?.settings?.shops_per_week === 1 ? 1 : 2) as 1 | 2,
+    /** When Today's hour starts (Settings → Today's hour). */
+    hourStart: (data?.settings as { hour_start?: string } | undefined)?.hour_start ?? '17:30',
     slots: current?.slots ?? [],
     officeDays: input?.officeDays ?? [],
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),

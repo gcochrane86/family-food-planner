@@ -965,3 +965,12 @@ test('a 5-day week still shows a Sunday that has a dinner (a roast added from th
   expect(await tile('Sunday 25')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /^Saturday 24/ })).not.toBeInTheDocument();
 });
+
+test("on a planned day, a Today's hour card links to /today", async () => {
+  vi.setSystemTime(new Date('2026-10-19T12:00:00Z')); // Monday of the planned week
+  h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1, hour_start: '17:45' });
+  render(<WeekView />, { wrapper: MemoryRouter });
+  const card = await screen.findByRole('link', { name: /Today's hour · 17:45/ });
+  expect(card).toHaveAttribute('href', '/today');
+  expect(card).toHaveTextContent('Almond-Crusted Honey Chilli Chicken');
+});
