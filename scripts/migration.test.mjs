@@ -585,3 +585,11 @@ test('0014: members only ask (requested, on a Monday) or cancel; only the Mac pl
   await as(OWNER, `update week_plan_requests set status = 'failed', summary = 'Cancelled' where id = '${req}'`);
   expect(await one(OWNER, `select status from week_plan_requests where id = '${req}'`)).toBe('failed');
 });
+
+test("0015: a day's meal can carry tonight's version, and members can set it", async () => {
+  const hid = await one(OWNER, `select create_household('Home')`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-11-16') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, version) values ('${wid}', '2026-11-16', 'dinner', 'cook', '{"based_on":"x","note":"Yoghurt tonight"}'::jsonb)`);
+  expect(await one(OWNER, `select version->>'note' from meal_slots`)).toBe('Yoghurt tonight');
+  expect(await as(STRANGER, 'select version from meal_slots')).toHaveLength(0);
+});

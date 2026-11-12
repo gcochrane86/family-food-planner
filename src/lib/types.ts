@@ -1,3 +1,6 @@
+import type { SlotVersion } from '../../supabase/functions/_shared/slotVersion.ts';
+export type { SlotVersion };
+
 export type MemberKind = 'adult' | 'child';
 
 export interface Member {
@@ -219,6 +222,8 @@ export interface MealSlot {
   batch?: BatchPlan | null;
   /** A dinner planned as a roast: { main, sides, people, serve }. */
   roast?: unknown;
+  /** Tonight's version of this day's recipe (Ask Claude), or none. Use `applyVersion`, which ignores a stale one. */
+  version?: SlotVersion | null;
 }
 
 // Shopping (Phase 4) -------------------------------------------------------------
