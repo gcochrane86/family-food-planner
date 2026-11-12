@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { PHOTO_LARGE } from '../lib/photoSizes';
 import StoredPhoto from './StoredPhoto';
 
-export interface FramePhoto { path: string; alt: string; caption?: ReactNode }
+export interface FramePhoto { path: string; alt: string; caption?: ReactNode; /** Holding the photo (or right-clicking) opens its options. */ onHold?: () => void }
 
 /** The app's standard photo: always 4:3, full width, rounded. Several photos sit in a grid of equal tiles, two to a
  *  row, each with an optional caption underneath. Used by cook mode and Today's hour. */
@@ -13,11 +13,33 @@ export default function PhotoFrame({ photos }: { photos: FramePhoto[] }) {
       {photos.map((p) => (
         <li key={p.path}>
           <figure className="m-0 grid gap-1.5">
-            <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} className="aspect-[4/3] w-full rounded-2xl object-cover" />
+            <Hold onHold={p.onHold}>
+              <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} draggable={false} className="aspect-[4/3] w-full rounded-2xl object-cover" />
+            </Hold>
             {p.caption && <figcaption className="text-sm text-[#9AA89F]">{p.caption}</figcaption>}
           </figure>
         </li>
       ))}
     </ul>
+  );
+}
+
+const HOLD_MS = 550;
+const MOVE_PX = 8; // further than this is a scroll, not a hold
+
+/** Press and hold (or right-click) to call `onHold`; without it, just the photo. */
+function Hold({ onHold, children }: { onHold?: () => void; children: ReactNode }) {
+  const hold = useRef<{ timer: ReturnType<typeof setTimeout>; x: number; y: number } | null>(null);
+  const cancel = () => { if (hold.current) clearTimeout(hold.current.timer); hold.current = null; };
+  useEffect(() => cancel, []);
+  if (!onHold) return <>{children}</>;
+  return (
+    <div className="select-none [-webkit-touch-callout:none]"
+      onPointerDown={(e) => { cancel(); hold.current = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { hold.current = null; onHold(); }, HOLD_MS) }; }}
+      onPointerMove={(e) => { if (hold.current && Math.hypot(e.clientX - hold.current.x, e.clientY - hold.current.y) > MOVE_PX) cancel(); }}
+      onPointerUp={cancel} onPointerLeave={cancel} onPointerCancel={cancel}
+      onContextMenu={(e) => { e.preventDefault(); cancel(); onHold(); }}>
+      {children}
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DEFAULT_SETTINGS } from '../../lib/household';
@@ -150,12 +150,20 @@ test('saved chopping photos show on the chop step', async () => {
   expect(screen.getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' })).toBeInTheDocument();
 });
 
-test('a chopping photo that came out wrong can be remade, or replaced with your own', async () => {
+test('holding a chopping photo offers a new photo, or your own; nothing shows under the photo', async () => {
   h.repo.listPrepPhotos.mockResolvedValue([{ key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/chicken.jpg', source: 'generated' }]);
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
-  await user().click(screen.getByRole('button', { name: 'Remake chicken breast or thigh, strips (10mm)' }));
+  expect(screen.queryByText('Remake')).not.toBeInTheDocument();
+  const photo = screen.getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' });
+  fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  fireEvent.pointerUp(photo);
+  const sheet = screen.getByRole('dialog', { name: 'chicken breast or thigh, strips (10mm)' });
+  await user().click(within(sheet).getByRole('button', { name: 'Make a new photo' }));
   expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons', true);
-  await user().upload(screen.getByLabelText('Use my photo for chicken breast or thigh, strips (10mm)'), new File(['x'], 'c.jpg', { type: 'image/jpeg' }));
+  fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  await user().upload(screen.getByLabelText('Use my own photo'), new File(['x'], 'c.jpg', { type: 'image/jpeg' }));
   expect(h.repo.uploadPrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh|strips (10mm)', 'chicken breast or thigh, strips (10mm)', expect.any(Blob));
 });
