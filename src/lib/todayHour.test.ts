@@ -36,6 +36,20 @@ const input = (over: Partial<HourInput> = {}): HourInput => ({
 const titled = (plan: ReturnType<typeof planHour>, t: string) => plan.steps.find((s) => s.title.includes(t));
 
 describe('planHour', () => {
+  it("a home lunch's night-before part (the roast chicken) is done in the hour, but not the lunch itself", () => {
+    const SANDWICH = recipe('sandwich', 'Chicken Sandwich', [ing(1, 'whole chicken', 1, '', 'spatchcocked'), ing(2, 'sourdough', 4, 'slices', null)], [
+      step('prep_8pm', 1, null, 'Spatchcock the chicken', 'Flatten the **whole chicken**.', null, null, 5),
+      step('prep_8pm', 2, null, 'Roast in the Anova', 'Roast it.', 'apo', '200°C', 45),
+      step('finish', 1, 0, 'Build', 'Spread the **sourdough**.', null, null, null),
+    ]);
+    const plan = planHour(input({ tonight: null, tomorrow: { dinner: null, lunch: { kind: 'ahead', title: 'Chicken Sandwich', recipe: SANDWICH }, breakfast: null } }));
+    const titles = [...plan.steps, ...plan.after].map((s) => s.title);
+    expect(titles).toContain("For tomorrow's lunch: Spatchcock the chicken");
+    expect(titles).toContain("For tomorrow's lunch: Roast in the Anova");
+    expect(titles.some((t) => t.includes('Build'))).toBe(false);
+    expect(plan.getOut.flatMap((g) => g.items).map((i) => i.name)).toContain('whole chicken');
+  });
+
   it("lists what to get out for the whole hour: tonight's dinner, tomorrow's prep and the boxed veg, with icons once made", () => {
     const plan = planHour(input({ prepPhotos: { 'icon:onion': 'h1/prep/icon-onion.jpg' } }));
     const where = Object.fromEntries(plan.getOut.flatMap((g) => g.items.map((i) => [i.name, g.where])));

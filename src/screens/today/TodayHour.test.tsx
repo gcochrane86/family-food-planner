@@ -355,3 +355,27 @@ test('clean-up steps are centred, with a big sponge under the text', async () =>
   expect(step).toHaveAttribute('data-layout', 'centred');
   expect(within(step).getByRole('img', { name: 'Cleaning' })).toHaveClass('text-[clamp(120px,22vw,220px)]');
 });
+
+test("tomorrow's chicken sandwich lunch: the hour roasts the chicken, unless today's sandwiches came from last night's roast", async () => {
+  const SANDWICH = { ...HONEY, id: 'r-sandwich', slug: 'chicken-sandwich', title: 'Chicken Sandwich', kind: 'component' as const, reheats_well: false,
+    ingredients: [{ position: 1, group_name: null, name: 'whole chicken', qty: 1, unit: '', note: 'spatchcocked', qty_approx: true }],
+    steps: [
+      { id: 's-roast', phase: 'prep_8pm' as const, position: 1, at_minute: null, title: 'Roast in the Anova', body: 'Roast the **whole chicken**.', machine: 'apo' as const, settings: '200°C', timer_minutes: 45, image_path: null, image_source: null },
+      { id: 's-build', phase: 'finish' as const, position: 1, at_minute: 0, title: 'Build', body: 'Build.', machine: null, settings: null, timer_minutes: null, image_path: null, image_source: null },
+    ] };
+  h.repo.listRecipes.mockResolvedValue([HONEY, SANDWICH]);
+  h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY, 'r-sandwich': SANDWICH } as Record<string, typeof HONEY>)[id] ?? null);
+  const sandwichOn = (dates: string[]) => week((s) => (s.slot === 'lunch' && dates.includes(s.date) ? { ...s, recipe_id: null, mode: 'routine' as const, source_date: null, routine_choice: 'Chicken sandwich' } : s));
+  h.repo.getWeek.mockImplementation(sandwichOn(['2026-10-20']));
+  const first = open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const titles = async () => { const out: string[] = []; for (;;) { out.push(screen.getByRole('heading', { level: 1 }).textContent ?? ''); const next = screen.queryByRole('button', { name: 'Next' }); if (!next) return out; await user().click(next); } };
+  expect(await titles()).toContain("For tomorrow's lunch: Roast in the Anova");
+  first.unmount();
+  sessionStorage.clear();
+  // Monday's lunch was a chicken sandwich too, so Sunday's roast still covers Tuesday.
+  h.repo.getWeek.mockImplementation(sandwichOn(['2026-10-19', '2026-10-20']));
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  expect(await titles()).not.toContain("For tomorrow's lunch: Roast in the Anova");
+});

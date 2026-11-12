@@ -5,6 +5,7 @@ import { repo } from '../../lib/repo';
 import { planHour, type HourInput } from '../../lib/todayHour';
 import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
+import { aheadRecipeId, homeLunchOn } from '../../lib/lunchAhead';
 import { useAsync } from '../settings/useAsync';
 import { addDays } from '../week/useWeek';
 
@@ -22,7 +23,8 @@ export function useTodayHour(now = new Date()) {
   return useAsync(async () => {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);
-    const weeks = [...new Set([yesterday, today, tomorrow].map(mondayOf))];
+    // The past week too, to see whether a run of chicken-sandwich lunches is still covered by an earlier roast.
+    const weeks = [...new Set([addDays(today, -7), yesterday, today, tomorrow].map(mondayOf))];
     const [settings, recipes, kit, prep, ...loaded] = await Promise.all([repo.getSettings(hid), repo.listRecipes(hid), repo.listEquipment(hid).catch(() => []), repo.listPrepPhotos(hid).catch(() => []), ...weeks.map((w) => repo.getWeek(hid, w))]);
     const slots: MealSlot[] = loaded.flatMap((w) => w.slots);
     const find = (date: string, kind: MealSlot['slot']) => slots.find((s) => s.date === date && s.slot === kind);
@@ -63,6 +65,12 @@ export function useTodayHour(now = new Date()) {
       else if (l?.recipe_id && l.mode !== 'reheat') {
         const r = await forSlot(l);
         if (hasSteps(r)) lunch = { kind: 'make', title: r!.title, recipe: r! };
+      } else {
+        // A home lunch made on the day, with a part done the evening before (the chicken sandwich's roast chicken).
+        const home = homeLunchOn(tomorrow, slots, recipes, byId);
+        const r = home ? await detail(home.id) : null;
+        const ahead = !!r?.steps.some((x) => x.phase === 'prep_8pm');
+        if (r && aheadRecipeId(tomorrow, slots, recipes, byId, (id) => ahead && id === r.id)) lunch = { kind: 'ahead', title: r.title, recipe: r };
       }
 
       // Tomorrow's breakfast, only when it's one made the night before.

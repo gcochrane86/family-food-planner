@@ -28,7 +28,9 @@ export interface HourInput {
   prepPhotos?: Record<string, string>;
   tomorrow?: {
     dinner?: Cooked | null;
-    lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | null;
+    /** leftovers: pack tonight's; make: make it tonight; ahead: a home lunch made on the day, whose night-before part
+     *  (the chicken sandwich's roast chicken) is done tonight. */
+    lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | { kind: 'ahead'; title: string; recipe: RecipeDetail } | null;
     /** Only a breakfast made the night before. */
     breakfast?: { title: string; recipe?: RecipeDetail } | null;
   } | null;
@@ -250,6 +252,10 @@ function extras(tomorrow: HourInput['tomorrow'], kit?: Kit): Extra[][] {
     chains.push(steps.length ? fromSteps(b.recipe!, steps, `${b.title}: `, 1) : simple(`Make the ${b.title.toLowerCase()}`, 'Make it now and keep it in the fridge for the morning.'));
   }
   const l = tomorrow.lunch;
+  if (l?.kind === 'ahead') {
+    const prep = l.recipe.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+    if (prep.length) chains.push(fromSteps(l.recipe, prep, "For tomorrow's lunch: ", 1));
+  }
   if (l?.kind === 'make') {
     const steps = l.recipe ? finishSteps(l.recipe) : [];
     chains.push(steps.length ? fromSteps(l.recipe!, steps, "Tomorrow's lunch: ", 1) : simple(`Make tomorrow's lunch: ${l.title}`, 'Make it and box it up for the fridge.'));
