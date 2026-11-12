@@ -1,4 +1,3 @@
-import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -15,7 +14,7 @@ import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
 import StepUses from './StepUses';
-import StoredPhoto from '../../components/StoredPhoto';
+import PhotoFrame from '../../components/PhotoFrame';
 
 export default function CookMode() {
   const { id = '' } = useParams();
@@ -183,7 +182,7 @@ export default function CookMode() {
                 if (!pic) return null;
                 const path = pic.path;
                 const alt = !step.image_path ? pic.alt : step.image_source === 'generated' ? 'Photo of this step' : 'Your photo of this step';
-                return <StoredPhoto path={path} width={PHOTO_LARGE} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
+                return <PhotoFrame photos={[{ path, alt }]} />;
               })()}
             {photoError && <ErrorBanner message={photoError} />}
             {saving && <p className="m-0 text-sm font-semibold text-lcd-ink">Saving photo…</p>}

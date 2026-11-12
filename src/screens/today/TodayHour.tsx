@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
-import StoredPhoto from '../../components/StoredPhoto';
-import { PHOTO_LARGE } from '../../lib/photoSizes';
+import PhotoFrame from '../../components/PhotoFrame';
 import { makeStepPhotos } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
@@ -69,7 +68,7 @@ export default function TodayHour() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-lcd p-4 pt-[calc(16px+env(safe-area-inset-top,0px))] pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-white md:p-8">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+      <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 md:max-w-6xl">
         <b className="text-lg">Today's hour{step ? ` · ${Math.min(index, steps.length - 1) + 1} of ${steps.length}` : ''}</b>
         <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl text-white no-underline">×</Link>
       </div>
@@ -111,13 +110,13 @@ export default function TodayHour() {
 
       {step && (() => {
         return (
-          <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`} className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-3">
+          <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`}
+            className="mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10">
+            <div className="grid content-start gap-3">
             {step.afterDinner
               ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-lcd-ink">After dinner</span>
               : <span className="font-mono text-5xl font-bold tabular-nums">{step.at}<span className="ml-2 text-xl text-[#9AA89F]">to {step.end}</span></span>}
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
-            <StepPictures step={step} onRemake={(p) => void fixPrep(() => repo.generatePrepPhoto(householdId!, p.name, p.note, true))}
-              onOwn={(p, file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />
             {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}</span>}
             {step.kind === 'chop' && data ? (
               <ul className="m-0 grid list-none gap-2 p-0 text-[clamp(18px,2.4vw,24px)] text-[#DDE5DF]">
@@ -127,12 +126,15 @@ export default function TodayHour() {
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
             )}
             {step.ingredients.length > 0 && <StepUses body={step.body} ingredients={step.ingredients} factor={step.factor} />}
+            </div>
+            <StepPictures step={step} onRemake={(p) => void fixPrep(() => repo.generatePrepPhoto(householdId!, p.name, p.note, true))}
+              onOwn={(p, file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />
           </section>
         );
       })()}
 
       {step && (
-        <div className="mx-auto flex w-full max-w-3xl justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-3xl justify-between gap-3 md:max-w-6xl">
           <button type="button" onClick={() => setIndex((i) => i - 1)}
             className="rounded-xl bg-white/10 px-6 py-3.5 text-base font-semibold text-white">Back</button>
           {index < steps.length - 1
@@ -171,28 +173,20 @@ function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetai
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
 type Prep = NonNullable<HourStep['photos'][number]['prep']>;
 function StepPictures({ step, onRemake, onOwn }: { step: HourStep; onRemake: (p: Prep) => void; onOwn: (p: Prep, file: File) => void }) {
-  if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-5xl">🧽</span> : null;
-  if (step.photos.length > 1 || step.photos.some((p) => p.prep)) {
-    return (
-      <div className="flex gap-2 overflow-x-auto">
-        {step.photos.map((p) => (
-          <figure key={p.path} className="m-0 grid shrink-0 gap-1">
-            <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} className="h-28 w-40 rounded-xl object-cover md:h-36 md:w-52" />
-            {p.prep && (
-              <figcaption className="flex items-center gap-2 text-xs text-[#9AA89F]">
-                <span className="min-w-0 flex-1 truncate">{p.prep.label}</span>
-                <button type="button" aria-label={`Remake ${p.prep.label}`} onClick={() => onRemake(p.prep!)} className="underline">Remake</button>
-                <label className="cursor-pointer underline">Mine
-                  <input type="file" accept="image/*" className="sr-only" aria-label={`Use my photo for ${p.prep.label}`}
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) onOwn(p.prep!, f); }} />
-                </label>
-              </figcaption>
-            )}
-          </figure>
-        ))}
-      </div>
-    );
-  }
-  const [p] = step.photos;
-  return <StoredPhoto path={p.path} width={PHOTO_LARGE} alt={p.alt} className="aspect-[4/3] w-full max-h-72 rounded-2xl object-cover" />;
+  if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-6xl">🧽</span> : null;
+  return (
+    <PhotoFrame photos={step.photos.map((p) => ({
+      path: p.path, alt: p.alt,
+      caption: p.prep && (
+        <span className="flex items-center gap-3">
+          <span className="min-w-0 flex-1 truncate">{p.prep.label}</span>
+          <button type="button" aria-label={`Remake ${p.prep.label}`} onClick={() => onRemake(p.prep!)} className="underline">Remake</button>
+          <label className="cursor-pointer underline">Mine
+            <input type="file" accept="image/*" className="sr-only" aria-label={`Use my photo for ${p.prep.label}`}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) onOwn(p.prep!, f); }} />
+          </label>
+        </span>
+      ),
+    }))} />
+  );
 }
