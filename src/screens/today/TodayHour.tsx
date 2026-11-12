@@ -26,7 +26,7 @@ const addMinutes = (hhmm: string, n: number) => {
   const t = h * 60 + m + n;
   return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
-const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one bowl (into the TM7)', box: 'a lidded box, into the fridge', fridge: 'check they are there' };
+const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one bowl (for the TM7)', box: 'a lidded box, into the fridge', fridge: 'the fridge box: check they are there' };
 
 /** Today's hour: the plan for the evening's cooking hour, then one step at a time, with timers and the screen kept on. */
 export default function TodayHour() {
@@ -109,21 +109,6 @@ export default function TodayHour() {
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
             {plan.getOut.length > 0 && <GetOut groups={plan.getOut} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
-            {plan.chop.length > 0 && (
-              <section aria-label="Chopping" className="grid gap-3 rounded-2xl bg-[#F3F4EF] p-4">
-                <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">Chop first, all in one go</h2>
-                {plan.chop.map((g, i) => (
-                  <div key={`${g.label}-${i}`} className="grid gap-1">
-                    <b>{g.label}</b>
-                    <span className="text-sm text-[#5D6760]">{g.raw ? 'Raw: last, on its own mat · ' : ''}{WHERE[g.where]}</span>
-                    <ul className="m-0 grid list-none gap-0.5 p-0 text-[#1B211D]">
-                      {g.items.map((it) => <li key={it.name}>{[it.qty, it.name].filter(Boolean).join(' ')}{it.note ? `, ${it.note}` : ''}</li>)}
-                    </ul>
-                  </div>
-                ))}
-              </section>
-            )}
-            {plan.toWash.length > 0 && <p className="m-0 text-[#3F4A43]">To wash: {plan.toWash.join(', ')}. One dishwasher load.</p>}
             <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} icons={plan.iconsMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing, plan.iconsMissing)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-[#2D6A3E] px-8 py-3.5 text-lg font-semibold text-white">Start</button>
@@ -147,6 +132,7 @@ export default function TodayHour() {
                 {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => (
                   <div key={i} className="grid gap-1.5">
                     <b className="text-[clamp(17px,2.2vw,22px)] text-[#1B211D]">{g.label}{g.raw ? ' · last, on its own mat' : ''}</b>
+                    <span className="text-sm text-[#5D6760]">Into {WHERE[g.where]}</span>
                     <ul aria-label={g.label} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
                       {g.items.map((it) => {
                         const k = iconKey(it.name);
@@ -315,7 +301,7 @@ function Tile({ item, note, onHold }: { item: GetOutItem; note?: string | null; 
   return (
     <li className="grid content-start justify-items-center gap-1.5 rounded-2xl border border-[#D9DDD3] bg-white p-2 pb-2.5 text-center shadow-sm">
       <Hold onHold={onHold}><Icon path={item.icon} name={item.name} className="aspect-square w-full rounded-xl text-4xl" /></Hold>
-      <span className="rounded-lg bg-[#0A0E0B] px-2 py-0.5 text-sm font-semibold leading-tight text-white">{cap(item.name)}</span>
+      <span className="text-sm font-bold leading-tight text-[#1B211D]">{cap(item.name)}</span>
       {(item.qty || note) && <span className="text-xs font-semibold leading-snug text-[#3F4A43]">{[item.qty, note].filter(Boolean).join(' · ')}</span>}
     </li>
   );

@@ -28,15 +28,16 @@ const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 import { FakeRec, installFakeSpeech } from '../../test/fakeSpeech';
 const open = () => render(<TodayHour />, { wrapper: MemoryRouter });
 
-test('the first page shows the hour, the chopping list and what to wash', async () => {
+test('the first page is just the hour, what to get out, and Start; the chopping is on its own step', async () => {
   open();
   expect(await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" })).toBeInTheDocument();
-  const list = screen.getByRole('region', { name: 'Chopping' });
-  expect(within(list).getByText('For Almond-Crusted Honey Chilli Chicken')).toBeInTheDocument();
-  expect(within(list).getByText(/chicken breast or thigh/)).toBeInTheDocument();
-  expect(within(list).getByText(/on its own mat/)).toBeInTheDocument();
-  expect(screen.getByText(/To wash: Board, Knife/)).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Get it out' })).getByText('Chicken breast or thigh')).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Chopping' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/To wash/)).not.toBeInTheDocument();
   expect(screen.getByText(/minutes hands-on/)).toBeInTheDocument();
+  await user().click(screen.getByRole('button', { name: 'Start' }));
+  expect(screen.getByText(/on its own mat/)).toBeInTheDocument();
+  expect(screen.getAllByText(/^Into one bowl$/).length).toBeGreaterThan(0);
 });
 
 test('Start goes to the first step and Next steps through, with no timers', async () => {
@@ -80,17 +81,17 @@ test('coming back mid-hour keeps your step', async () => {
 
 test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
   open();
-  const list = await screen.findByRole('region', { name: 'Chopping' });
+  const list = await screen.findByRole('region', { name: 'Get it out' });
   // 3 portions tonight plus 3 for Tuesday's lunch, of a 6-portion recipe: the full 1.2kg.
-  expect(within(list).getByText(/1\.2kg chicken breast or thigh/)).toBeInTheDocument();
+  expect(within(list).getByText('1.2kg')).toBeInTheDocument();
 });
 
 test("tonight's version is what gets chopped", async () => {
   h.repo.getWeek.mockImplementation(week((s) => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, version: HONEY_VERSION } : s)));
   open();
-  const list = await screen.findByRole('region', { name: 'Chopping' });
-  expect(within(list).getByText(/turkey breast/)).toBeInTheDocument();
-  expect(within(list).queryByText(/chicken breast/)).not.toBeInTheDocument();
+  const list = await screen.findByRole('region', { name: 'Get it out' });
+  expect(within(list).getByText(/turkey breast/i)).toBeInTheDocument();
+  expect(within(list).queryByText(/chicken breast/i)).not.toBeInTheDocument();
 });
 
 test("steps show their recipe's pictures, and cleaning steps an icon", async () => {
