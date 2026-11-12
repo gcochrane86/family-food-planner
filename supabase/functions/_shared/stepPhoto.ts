@@ -5,8 +5,11 @@
 
 interface PromptStep { title: string; body: string; machine: string | null; phase: string }
 
+// The TM7's bowl, in words: image models otherwise draw an ordinary mixing bowl.
+const TM7_BOWL = 'the Thermomix TM7 mixing bowl: a tall, narrow stainless-steel jug with a handle on one side, the blade in the centre of the base and ribs inside, not a mixing bowl or a saucepan';
+
 function container(machine: string | null): string {
-  if (machine === 'tm7') return 'inside a stainless steel mixing bowl';
+  if (machine === 'tm7') return `inside ${TM7_BOWL}`;
   if (machine === 'hob') return 'in a pan';
   if (machine === 'apo' || machine === 'hy24' || machine === 'oven') return 'on a baking tray';
   return 'on a chopping board or in a bowl';
@@ -29,8 +32,13 @@ const KIT_FOR: Record<string, string[]> = { tm7: ['tm7'], apo: ['apo'], hy24: ['
 const MAX_KIT_PHOTOS = 3;
 
 /** The household's photos of the kit a step uses (at most 3), or null when there are none. */
-export function kitReference(machine: string | null, kit: { code: string; name: string; photos: string[] }[]): { name: string; photos: string[] } | null {
-  const items = (machine ? KIT_FOR[machine] ?? [machine] : []).map((c) => kit.find((k) => k.code === c)).filter((k): k is NonNullable<typeof k> => !!k && k.photos.length > 0);
+/** Kit named in your own words for the photo ("…into the TM7 bowl"). */
+const MENTIONS: [RegExp, string][] = [[/\btm7\b|thermomix/i, 'tm7'], [/\banova\b|\bapo\b/i, 'apo'], [/air[- ]?fryer|\bhy24\b/i, 'hy24'], [/\bpan\b|\bpans\b|saucepan|frying/i, 'hob']];
+
+export function kitReference(machine: string | null, kit: { code: string; name: string; photos: string[] }[], hint?: string | null): { name: string; photos: string[] } | null {
+  const machines = [...(hint ? MENTIONS.filter(([re]) => re.test(hint)).map(([, m]) => m) : []), ...(machine ? [machine] : [])];
+  const codes = [...new Set(machines.flatMap((m) => KIT_FOR[m] ?? [m]))];
+  const items = codes.map((c) => kit.find((k) => k.code === c)).filter((k): k is NonNullable<typeof k> => !!k && k.photos.length > 0);
   if (!items.length) return null;
   const photos: string[] = [];
   // Take one photo of each item in turn, so every piece of kit is seen.
@@ -45,9 +53,13 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
   const step = steps[index];
   const ingredients = ingredientsSoFar(steps, index);
   const prep = step.phase === 'prep_8pm';
-  const intro = `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`;
+  const intro = kit
+    ? `Image 1 is the finished dish "${recipeTitle}": use it only for the table, light and colours. Make a realistic photo of one cooking step for this same dish.`
+    : `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`;
+  const which = kit && (kit.count === 1 ? 'Image 2 shows' : `Images 2 to ${kit.count + 1} show`);
+  const tm7 = kit && /tm7|thermomix/i.test(kit.name) ? ` The Thermomix part is ${TM7_BOWL}.` : '';
   const rules = kit
-    ? `The next ${kit.count} reference photo${kit.count === 1 ? '' : 's'} show${kit.count === 1 ? 's' : ''} the household's own ${kit.name}: show the food in it: the same kit (shape, colour, finish), seen from any angle or rotation that makes the photo clearest, close up and showing only the part that holds the food. No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
+    ? `${which} the household's own ${kit.name}: the food must be in that exact kit (same shape, colour and finish), seen from any angle or rotation that makes the photo clearest, close up and showing only the part that holds the food.${tm7} No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
     : 'Close up from directly above. No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
   const own = hint?.trim().replace(/[.\s]+$/, '');
   if (own) return [intro, `The step: ${step.title}.`, `Show this: ${own}.`, rules].join(' ');

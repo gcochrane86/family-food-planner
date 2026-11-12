@@ -20,7 +20,7 @@ test('the prompt is a close-up of food with no machine', () => {
   expect(p).toContain('No appliance');
   expect(p).toContain('No text');
   expect(p).not.toContain('**');
-  expect(p).toContain('stainless steel mixing bowl');
+  expect(p).toContain('Thermomix TM7 mixing bowl');
   expect(stepPhotoPrompt('X', [step('Fry the **beef**.', 'hob')], 0)).toContain('pan');
   for (const m of ['apo', 'hy24', 'oven']) expect(stepPhotoPrompt('X', [step('Roast the **squash**.', m)], 0)).toContain('baking tray');
   expect(stepPhotoPrompt('X', [step('Slice the **lemon**.', null)], 0)).toContain('chopping board');
@@ -80,7 +80,7 @@ test('a new photo you ask for in cook mode can replace your own photo, and only 
 
 test("with photos of the household's own kit, the food is shown in that kit, matching them", () => {
   const p = stepPhotoPrompt('Chickpea Curry', curry, 1, null, { name: 'Thermomix TM7', count: 2 });
-  expect(p).toContain("The next 2 reference photos show the household's own Thermomix TM7");
+  expect(p).toContain("Images 2 to 3 show the household's own Thermomix TM7");
   expect(p).toMatch(/only the part that holds the food/i);
   expect(p).toMatch(/any angle or rotation/i);
   expect(p).not.toContain('exactly');
@@ -99,4 +99,27 @@ test('which of your kit goes with a step', () => {
   expect(kitReference('hob', kit)).toEqual({ name: 'Frying pans and Saucepans', photos: ['f1', 's1', 's2'] });
   expect(kitReference('apo', kit)).toBeNull();
   expect(kitReference(null, kit)).toBeNull();
+});
+
+test('the images are numbered: the dish for style only, then your kit, and the TM7 bowl is described too', () => {
+  const p = stepPhotoPrompt('Ginger Chicken', curry, 1, 'Show the ingredients being added to the TM7 bowl', { name: 'Thermomix TM7', count: 3 });
+  expect(p).toContain('Image 1 is the finished dish "Ginger Chicken": use it only for the table, light and colours.');
+  expect(p).toContain("Images 2 to 4 show the household's own Thermomix TM7");
+  expect(p).toMatch(/tall, narrow stainless-steel jug with a handle/);
+  expect(p).toMatch(/not a mixing bowl or a saucepan/);
+  const plain = stepPhotoPrompt('Curry', curry, 1);
+  expect(plain).toMatch(/tall, narrow stainless-steel jug/);
+  expect(plain).toContain('The reference photo shows the finished dish');
+});
+
+test('mentioning the TM7, the Anova or a pan in your words sends that kit too', () => {
+  const kit = [
+    { code: 'tm7', name: 'Thermomix TM7', photos: ['t1'] },
+    { code: 'apo', name: 'Anova Precision Oven', photos: ['a1'] },
+    { code: 'frying-pans', name: 'Frying pans', photos: ['f1'] },
+  ];
+  expect(kitReference(null, kit, 'add it to the Thermomix bowl')).toEqual({ name: 'Thermomix TM7', photos: ['t1'] });
+  expect(kitReference('hob', kit, 'then into the TM7')).toEqual({ name: 'Thermomix TM7 and Frying pans', photos: ['t1', 'f1'] });
+  expect(kitReference(null, kit, 'on the Anova tray')?.photos).toEqual(['a1']);
+  expect(kitReference(null, kit, 'nothing special')).toBeNull();
 });

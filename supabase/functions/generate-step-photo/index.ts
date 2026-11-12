@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     photos: Array.isArray(k.capabilities?.photos) ? (k.capabilities!.photos as unknown[]).filter((p): p is string => typeof p === 'string')
       : typeof k.capabilities?.photo === 'string' ? [k.capabilities.photo] : [],
   }));
-  const ref = kitReference(steps[index].machine, kitList);
+  const ref = kitReference(steps[index].machine, kitList, ownHint ?? steps[index].photo_hint);
   const kitImages: { type: 'image'; data: string; mime_type: string }[] = [];
   for (const path of ref?.photos ?? []) {
     const { data: img } = await db.storage.from('recipe-images').download(path);
