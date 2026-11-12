@@ -66,3 +66,22 @@ test("out tonight: no dinner to cook, but tomorrow's night-before breakfast", as
   await user().click(screen.getByRole('button', { name: 'Start' }));
   expect(screen.getByRole('heading', { name: 'Make the overnight oats' })).toBeInTheDocument();
 });
+
+test('coming back mid-hour keeps your step and your timers', async () => {
+  const first = open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  await user().click(screen.getByRole('button', { name: 'Next' }));
+  await user().click(screen.getByRole('button', { name: 'Next' }));
+  await user().click(screen.getByRole('button', { name: 'Start 20-min timer' }));
+  first.unmount();
+  open();
+  expect(await screen.findByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  expect(screen.getByRole('timer', { name: 'Rice on timer' })).toBeInTheDocument();
+});
+
+test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
+  open();
+  const list = await screen.findByRole('region', { name: 'Chopping' });
+  // 3 portions tonight plus 3 for Tuesday's lunch, of a 6-portion recipe: the full 1.2kg.
+  expect(within(list).getByText(/1\.2kg chicken breast or thigh/)).toBeInTheDocument();
+});

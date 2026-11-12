@@ -54,7 +54,7 @@ describe('planHour', () => {
   });
 
   it("leaves out what was chopped yesterday, unless yesterday wasn't planned", () => {
-    const names = (p: ReturnType<typeof planHour>) => p.chop.filter((g) => g.where !== 'box').flatMap((g) => g.items.map((i) => i.name));
+    const names = (p: ReturnType<typeof planHour>) => p.chop.filter((g) => g.where !== 'box' && g.where !== 'fridge').flatMap((g) => g.items.map((i) => i.name));
     expect(names(planHour(input({ yesterdayPlanned: true })))).toEqual(['coriander', 'beef']);
     expect(names(planHour(input()))).toContain('onion');
   });
@@ -119,5 +119,43 @@ describe('planHour', () => {
     for (const k of ['Board', 'Knife', 'TM7 bowl', 'Pan']) expect(plan.toWash.filter((x) => x === k)).toHaveLength(1);
     // chop 8 + rinse-down 2 + aromatics 5 + chicken 8 + serve 5 + plate up 5 + clean 5
     expect(plan.handsOn).toBe(38);
+  });
+});
+
+describe('review fixes', () => {
+  const PREP_CHAIN = recipe('ragu', 'Ragu', [ing(1, 'carrot', 1, '', 'diced')], [
+    step('prep_8pm', 1, null, 'Chop the soffritto', 'Chop the **carrot**.', 'tm7', '5 sec · speed 5', 5),
+    step('prep_8pm', 2, null, 'Saute', 'Saute it.', 'tm7', '8 min · 120°C · speed 1', 8),
+    step('finish', 1, 0, 'Cook', 'Cook it.', 'hob', null, 30),
+  ]);
+  it("no rinse between one extra recipe's own TM7 steps", () => {
+    const plan = planHour(input({ tonight: null, tomorrow: { dinner: { recipe: PREP_CHAIN, portions: 4 } } }));
+    expect(plan.steps.filter((s) => s.title.includes('Rinse'))).toEqual([]);
+    expect(titled(plan, 'Saute')!.at).toBe(titled(plan, 'Chop the soffritto')!.end);
+  });
+
+  it("never slots a TM7 extra between tonight's own TM7 steps when there's one bowl", () => {
+    const SPLIT = recipe('split', 'Split Sauce', [], [
+      step('finish', 1, 0, 'Sauce', 'Make the sauce.', 'tm7', '5 min · 100°C', 5),
+      step('finish', 2, null, 'Roast', 'Roast it.', 'oven', '25 min · 200°C', 25),
+      step('finish', 3, null, 'Finish sauce', 'Finish it.', 'tm7', '5 min · 100°C', 5),
+    ]);
+    const plan = planHour(input({ minutes: 90, tonight: { recipe: SPLIT, portions: 4 }, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    const sauce = titled(plan, 'Make the sauce')!;
+    expect(sauce.at >= titled(plan, 'Finish sauce')!.end).toBe(true);
+  });
+
+  it("the rinse after tonight's TM7 cooking says to tip the dinner out first", () => {
+    const plan = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    expect(titled(plan, 'Rinse the TM7 bowl')!.body).toMatch(/Tip tonight's dinner into a warm dish/);
+  });
+
+  it("what was chopped yesterday shows as a fridge box to check, not as chopping", () => {
+    const plan = planHour(input({ yesterdayPlanned: true, tomorrow: null }));
+    const fridge = plan.chop.find((g) => g.where === 'fridge')!;
+    expect(fridge.label).toBe('From the fridge box (chopped yesterday)');
+    expect(fridge.items.map((i) => i.name)).toEqual(['onion', 'garlic', 'ginger', 'chicken thigh']);
+    // Only the coriander is chopped: the 5-minute minimum.
+    expect(titled(plan, 'Chop everything')).toMatchObject({ at: '17:30', end: '17:35' });
   });
 });

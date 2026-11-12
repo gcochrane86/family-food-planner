@@ -30,7 +30,8 @@ export interface HourInput {
 
 export interface ChopGroup {
   label: string;
-  where: 'bowl' | 'tm7' | 'box';
+  /** bowl / tm7: chop now; box: chop now for tomorrow; fridge: chopped yesterday, just check it's there. */
+  where: 'bowl' | 'tm7' | 'box' | 'fridge';
   items: { name: string; qty: string; note: string | null }[];
   raw: boolean;
 }
@@ -73,7 +74,7 @@ const kitOf = (s: RecipeStep) => (s.machine ? [machineLabel(s.machine), s.settin
 const factorOf = (c: Cooked) => c.portions / (c.recipe.base_portions || c.portions || 1);
 
 /** Something on the timeline. `busy` is when you're needed; `machine` is what it takes up. */
-interface Slot { start: number; end: number; busy: boolean; machine: Machine | null; step: HourStep }
+interface Slot { start: number; end: number; busy: boolean; machine: Machine | null; step: HourStep; chain: number | 'dinner' | null }
 
 export function planHour(input: HourInput): HourPlan {
   const start = toMin(input.start);
@@ -83,11 +84,11 @@ export function planHour(input: HourInput): HourPlan {
 
   // 1. What to chop, grouped by the step it goes into; raw meat and fish last.
   const chop = chopList(input);
-  const items = chop.reduce((n, g) => n + g.items.length, 0);
+  const items = chop.filter((g) => g.where !== 'fridge').reduce((n, g) => n + g.items.length, 0);
 
   const slots: Slot[] = [];
-  const add = (start: number, length: number, busy: boolean, machine: Machine | null, step: Omit<HourStep, 'at' | 'end'>) => {
-    const slot = { start, end: start + length, busy, machine, step: { ...step, at: clock(start), end: clock(start + length) } };
+  const add = (start: number, length: number, busy: boolean, machine: Machine | null, step: Omit<HourStep, 'at' | 'end'>, chain: Slot['chain'] = null) => {
+    const slot: Slot = { start, end: start + length, busy, machine, chain, step: { ...step, at: clock(start), end: clock(start + length) } };
     slots.push(slot);
     return slot;
   };
@@ -97,7 +98,7 @@ export function planHour(input: HourInput): HourPlan {
   let base = start;
   if (items) {
     const length = Math.max(5, Math.ceil(1.5 * items));
-    add(start, length, true, null, { ...plain, kind: 'chop', title: 'Chop everything', body: chop.map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
+    add(start, length, true, null, { ...plain, kind: 'chop', title: 'Chop everything', body: chop.filter((g) => g.where !== 'fridge').map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
     add(start + length, CHOP_CLEAN, true, null, { ...plain, kind: 'clean', title: 'Board, knife and bowls into the dishwasher', body: 'Rinse the board, knife and bowls and load them now, so the side is clear.' });
     base = start + length + CHOP_CLEAN;
   }
@@ -110,7 +111,7 @@ export function planHour(input: HourInput): HourPlan {
     let prevEnd = base;
     for (const s of finishSteps(r)) {
       const at = s.at_minute !== null ? base + s.at_minute : prevEnd;
-      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor });
+      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
@@ -121,20 +122,20 @@ export function planHour(input: HourInput): HourPlan {
   // 4. Extras into the waits, each chain in order; what doesn't fit goes after dinner.
   const after: HourStep[] = [];
   const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
-  for (const chain of extras(tomorrow)) {
+  for (const [ci, chain] of extras(tomorrow).entries()) {
     let earliest = base;
     let stuck = false;
     for (const e of chain) {
-      const placed = stuck ? null : place(e, earliest, endAt, slots, input.tm7Machines, bowls);
+      const placed = stuck ? null : place(e, earliest, endAt, slots, input.tm7Machines, bowls, ci);
       if (!placed) {
         stuck = true;
         after.push({ ...e.step, at: '', end: '' });
         warnings.push(`Not enough time for ${e.step.title}: do it after dinner`);
         continue;
       }
-      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse());
-      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse());
-      const slot = add(placed.at, e.length, !e.handsOff, e.machine, e.step);
+      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse(placed.afterDinner));
+      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false));
+      const slot = add(placed.at, e.length, !e.handsOff, e.machine, e.step, ci);
       earliest = slot.end;
     }
   }
@@ -160,8 +161,11 @@ export function planHour(input: HourInput): HourPlan {
   return { chop, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
 }
 
-function rinse(): Omit<HourStep, 'at' | 'end'> {
-  return { kind: 'clean', title: 'Rinse the TM7 bowl', body: 'Rinse the TM7 bowl so it is ready for the next job.', kit: 'TM7', timer: null, ingredients: [], factor: 1 };
+function rinse(afterDinner: boolean): Omit<HourStep, 'at' | 'end'> {
+  const body = afterDinner
+    ? "Tip tonight's dinner into a warm dish and cover it, then rinse the TM7 bowl so it is ready for the next job."
+    : 'Rinse the TM7 bowl so it is ready for the next job.';
+  return { kind: 'clean', title: 'Rinse the TM7 bowl', body, kit: 'TM7', timer: null, ingredients: [], factor: 1 };
 }
 
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
@@ -201,8 +205,12 @@ const overlaps = (a: number, b: number, s: { start: number; end: number }) => a 
 
 /** The earliest time an extra fits: you're free (for its whole length, or just to set a machine going), its machine
  *  is free, and with one TM7 bowl there's time to rinse it between jobs. */
-function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machines: number, bowls: number):
-  { at: number; rinseBefore: number | null; rinseAfter: number | null } | null {
+function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machines: number, bowls: number, chain: number):
+  { at: number; rinseBefore: number | null; rinseAfter: number | null; afterDinner: boolean } | null {
+  // With one bowl, tonight's dinner holds the bowl from its first TM7 step to its last.
+  const dinnerTm7 = slots.filter((s) => s.machine === 'tm7' && s.chain === 'dinner');
+  const held = bowls < 2 && dinnerTm7.length > 1
+    ? { start: Math.min(...dinnerTm7.map((s) => s.start)), end: Math.max(...dinnerTm7.map((s) => s.end)) } : null;
   const free = (a: number, b: number) => !slots.some((s) => s.busy && overlaps(a, b, s));
   for (let t = earliest; t + e.length <= endAt; t++) {
     if (!free(t, e.handsOff ? t + 1 : t + e.length)) continue;
@@ -210,7 +218,9 @@ function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machine
     if (e.machine && SINGLE.has(e.machine) && slots.some((s) => s.machine === e.machine && overlaps(t, end, s))) continue;
     let rinseBefore: number | null = null;
     let rinseAfter: number | null = null;
+    let afterDinner = false;
     if (e.machine === 'tm7') {
+      if (held && overlaps(t, end, held)) continue;
       const tm7 = slots.filter((s) => s.machine === 'tm7');
       if (bowls < 2 || machines < 2) {
         if (tm7.some((s) => overlaps(t, end, s))) continue;
@@ -218,17 +228,19 @@ function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machine
       if (bowls < 2) {
         const before = tm7.filter((s) => s.end <= t).sort((a, b) => b.end - a.end)[0];
         const next = tm7.filter((s) => s.start >= end).sort((a, b) => a.start - b.start)[0];
-        if (before) {
+        // A recipe's own TM7 steps follow on in the bowl, so there's no rinse between them.
+        if (before && before.chain !== chain) {
+          afterDinner = before.chain === 'dinner';
           if (t - before.end < RINSE || !free(t - RINSE, t)) continue;
           rinseBefore = t - RINSE;
         }
-        if (next) {
+        if (next && next.chain !== chain) {
           if (next.start - end < RINSE || !free(end, end + RINSE)) continue;
           rinseAfter = end;
         }
       }
     }
-    return { at: t, rinseBefore, rinseAfter };
+    return { at: t, rinseBefore, rinseAfter, afterDinner };
   }
   return null;
 }
@@ -262,10 +274,17 @@ function chopList(input: HourInput): ChopGroup[] {
   if (input.tonight) {
     const r = input.tonight.recipe;
     const f = factorOf(input.tonight);
-    // Chopped in yesterday's hour, if there was one: anything that keeps a day or more.
-    const keep = (i: RecipeIngredient) => !(input.yesterdayPlanned && keepsDays(i.name) >= 1);
+    // Chopped in yesterday's hour, if there was one: anything that keeps a day or more. Listed to check, not dropped.
+    const fridge: RecipeIngredient[] = [];
+    const keep = (i: RecipeIngredient) => {
+      if (!(input.yesterdayPlanned && keepsDays(i.name) >= 1)) return true;
+      if (!fridge.includes(i)) fridge.push(i);
+      return false;
+    };
     fromSteps(r, finishSteps(r), f, (s) => `For ${s.title}`, keep);
     rest(r, f, `For ${r.title}`, 'bowl', keep);
+    fridge.forEach((i) => seen.add(i));
+    if (fridge.length) groups.unshift({ label: 'From the fridge box (chopped yesterday)', where: 'fridge', items: fridge.map((i) => item(i, f)), raw: false });
   }
   const t = input.tomorrow;
   const all = () => true;
@@ -307,7 +326,7 @@ function toWash(chopped: boolean, chop: ChopGroup[], steps: HourStep[], slots: S
   if (chopped) {
     addOne('Board');
     addOne('Knife');
-    if (chop.some((g) => g.where !== 'box')) addOne('Prep bowls');
+    if (chop.some((g) => g.where === 'bowl' || g.where === 'tm7')) addOne('Prep bowls');
   }
   const machineOf = new Map<string, Machine | null>();
   for (const s of slots) machineOf.set(s.step.title, s.machine);

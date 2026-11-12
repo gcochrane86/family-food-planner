@@ -32,7 +32,7 @@ export function keepsDays(name: string): 0 | 1 | 2 | 4 {
   return (best?.days ?? 1) as 0 | 1 | 2 | 4;
 }
 
-const CUT = /chop|dice|slice|grate|mince|cube|baton|strip|wedge|julienne|crush|halve|quarter|trim|floret|shred/i;
+const CUT = /chop|dice|slice|grate|mince|cube|baton|strip|wedge|julienne|crush|halve|quarter|trim|floret|shred|\bcut\b|\bpieces?\b|\bchunks?\b/i;
 
 export function needsChopping(ing: Pick<RecipeIngredient, 'name' | 'note'>): boolean {
   return CUT.test(ing.note ?? '');

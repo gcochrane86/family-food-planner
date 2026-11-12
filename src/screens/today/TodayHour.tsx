@@ -7,24 +7,26 @@ import type { ChopGroup, HourStep } from '../../lib/todayHour';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
 import StepUses from '../recipes/StepUses';
-import { useTodayHour } from './useTodayHour';
+import { todayInLondon, useTodayHour } from './useTodayHour';
 
 const addMinutes = (hhmm: string, n: number) => {
   const [h, m] = hhmm.split(':').map(Number);
   const t = h * 60 + m + n;
   return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
 };
-const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one bowl (into the TM7)', box: 'a lidded box, into the fridge' };
+const WHERE: Record<ChopGroup['where'], string> = { bowl: 'one bowl', tm7: 'one bowl (into the TM7)', box: 'a lidded box, into the fridge', fridge: 'check they are there' };
 
 /** Today's hour: the plan for the evening's cooking hour, then one step at a time, with timers and the screen kept on. */
 export default function TodayHour() {
   useWakeLock();
   const { data, error, loading, reload } = useTodayHour();
-  const key = `today-hour:${data?.input.date ?? ''}`;
+  const key = `today-hour:${todayInLondon()}`;
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
-  useEffect(() => { try { if (data) sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index, data]);
+  useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const { timers, now, start, dismiss } = useTimers(key);
   const steps: (HourStep & { afterDinner?: boolean })[] = data ? [...data.plan.steps, ...data.plan.after.map((s) => ({ ...s, afterDinner: true }))] : [];
+  // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
+  useEffect(() => { if (data && index > steps.length - 1) setIndex(steps.length - 1); }, [data, index, steps.length]);
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
 
   return (
@@ -92,7 +94,7 @@ export default function TodayHour() {
             {step.kit && <span className="text-lg text-[#C9D3CC]">{step.kit}</span>}
             {step.kind === 'chop' && data ? (
               <ul className="m-0 grid list-none gap-2 p-0 text-[clamp(18px,2.4vw,24px)] text-[#DDE5DF]">
-                {data.plan.chop.map((g, i) => <li key={i}><b className="text-white">{g.label}</b>{g.raw ? ' (last, on its own mat)' : ''}: {g.items.map((it) => it.name).join(', ')}</li>)}
+                {data.plan.chop.filter((g) => g.where !== 'fridge').map((g, i) => <li key={i}><b className="text-white">{g.label}</b>{g.raw ? ' (last, on its own mat)' : ''}: {g.items.map((it) => it.name).join(', ')}</li>)}
               </ul>
             ) : (
               <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>

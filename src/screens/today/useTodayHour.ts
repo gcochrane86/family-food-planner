@@ -3,19 +3,21 @@ import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { planHour, type HourInput } from '../../lib/todayHour';
 import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
-import { homeLunchChoice } from '../../lib/weekSummary';
+import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
 import { useAsync } from '../settings/useAsync';
 import { addDays } from '../week/useWeek';
 
 /** The Monday of the week a date is in. */
 const mondayOf = (iso: string) => addDays(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7));
+/** Today's date in London, known straight away (the screen keeps its place under it). */
+export const todayInLondon = (now = new Date()) => londonParts(now).date;
 const hasSteps = (r: RecipeDetail | null) => !!r?.steps.some((s) => s.phase === 'finish');
 
 /** Builds today's hour from yesterday's, today's and tomorrow's slots (tomorrow may be in next week's plan). */
 export function useTodayHour(now = new Date()) {
   const { householdId } = useAuth();
   const hid = householdId!;
-  const today = londonParts(now).date;
+  const today = todayInLondon(now);
   return useAsync(async () => {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);
@@ -34,14 +36,16 @@ export function useTodayHour(now = new Date()) {
 
     const tonightSlot = cooked(find(today, 'dinner'));
     const tonightRecipe = await detail(tonightSlot?.recipe_id);
-    const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: tonightSlot.portions ?? tonightRecipe.base_portions } : null;
+    // Cooked for the household plus tomorrow's leftovers lunch, as the shopping list and Cookidoo count it.
+    const portionsOf = (slot: MealSlot, r: RecipeDetail) => (slot.portions ?? r.base_portions) + leftoverLunchPortions(slot, slots, byId);
+    const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: portionsOf(tonightSlot, tonightRecipe) } : null;
 
     const anyTomorrow = slots.some((s) => s.date === tomorrow);
     let next: HourInput['tomorrow'] = null;
     if (anyTomorrow) {
       const dSlot = cooked(find(tomorrow, 'dinner'));
       const dRecipe = await detail(dSlot?.recipe_id);
-      const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: dSlot.portions ?? dRecipe.base_portions } : null;
+      const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: portionsOf(dSlot, dRecipe) } : null;
 
       // Tomorrow's lunch: tonight's leftovers (picked, or packed/reheated from tonight), else a lunch recipe to make.
       const l = find(tomorrow, 'lunch');
@@ -75,7 +79,8 @@ export function useTodayHour(now = new Date()) {
       tm7Bowls: settings.tm7_bowls ?? 1,
       tm7Machines: settings.tm7_machines ?? 1,
       tonight,
-      yesterdayPlanned: !!cooked(find(yesterday, 'dinner')),
+      // Yesterday was planned, so its hour boxed what keeps of tonight's dinner (shown as a fridge box to check).
+      yesterdayPlanned: slots.some((s) => s.date === yesterday),
       tomorrow: next,
     };
     return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null };

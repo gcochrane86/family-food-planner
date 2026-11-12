@@ -42,3 +42,9 @@ describe('isRawProtein', () => {
     expect(isRawProtein('chicken stock')).toBe(false);
   });
 });
+
+test('needsChopping knows "cut into pieces" and "in chunks"', () => {
+  expect(needsChopping({ name: 'carrot', note: 'cut into 3–4 cm pieces' })).toBe(true);
+  expect(needsChopping({ name: 'salmon', note: '3 cm pieces' })).toBe(true);
+  expect(needsChopping({ name: 'brisket', note: 'in 5cm chunks' })).toBe(true);
+});
