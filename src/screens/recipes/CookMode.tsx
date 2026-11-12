@@ -16,6 +16,8 @@ import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
 import StepUses from './StepUses';
 import PhotoFrame from '../../components/PhotoFrame';
+import ListenSwitch from '../../components/ListenSwitch';
+import { speakable } from '../../lib/voice';
 
 export default function CookMode() {
   const { id = '' } = useParams();
@@ -135,6 +137,7 @@ export default function CookMode() {
           )}
         </div>
         <div className="relative flex items-center gap-2">
+          <ListenSwitch onNext={goNext} onBack={goBack} text={() => (step ? speakable(step.title, step.body) : '')} />
           <button type="button" aria-label="Cook mode settings" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!step}
             onClick={() => setMenuOpen((o) => !o)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}
             className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-lg text-white disabled:opacity-35">⚙︎</button>

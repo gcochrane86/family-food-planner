@@ -12,6 +12,8 @@ import type { RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
+import ListenSwitch from '../../components/ListenSwitch';
+import { speakable } from '../../lib/voice';
 import StepUses from '../recipes/StepUses';
 import { todayInLondon, useTodayHour } from './useTodayHour';
 
@@ -75,7 +77,13 @@ export default function TodayHour() {
     <div className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-lcd p-4 pt-[calc(16px+env(safe-area-inset-top,0px))] pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-white md:p-8">
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 md:max-w-6xl">
         <b className="text-lg">Today's hour{step ? ` · ${Math.min(index, steps.length - 1) + 1} of ${steps.length}` : ''}</b>
-        <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl text-white no-underline">×</Link>
+        <div className="flex items-center gap-2">
+          {data && steps.length > 0 && (
+            <ListenSwitch onNext={() => setIndex((i) => Math.min(i + 1, steps.length - 1))} onBack={() => setIndex((i) => Math.max(i - 1, -1))}
+              text={() => (step ? speakable(step.title, step.kind === 'chop' ? data.plan.chop.flatMap((g) => g.items.map((it) => [it.qty, it.name, it.note].filter(Boolean).join(' '))).join('. ') : step.body) : '')} />
+          )}
+          <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl text-white no-underline">×</Link>
+        </div>
       </div>
 
 

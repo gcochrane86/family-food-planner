@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
 import { HONEY, HONEY_VERSION, NEXT_WEEK } from '../../test/fixtures';
+import { FakeRec, installFakeSpeech } from '../../test/fakeSpeech';
 import CookMode from './CookMode';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -186,4 +187,27 @@ test('a step that is only about a machine shows your photo of that machine', asy
   h.repo.listEquipment.mockResolvedValue([{ id: 'e1', household_id: 'h1', code: 'apo', name: 'Anova Precision Oven', photo: 'h1/kit/apo.jpg' }]);
   open();
   expect(await screen.findByRole('img', { name: 'Anova Precision Oven' })).toHaveAttribute('src', expect.stringContaining('h1/kit/apo.jpg'));
+});
+
+test('hands-free: Listen, then "planner next" and "planner back" move the steps; plain "next" does nothing', async () => {
+  const remove = installFakeSpeech();
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: /Listen/ }));
+  expect(screen.getByRole('button', { name: /Listening/ })).toHaveAttribute('aria-pressed', 'true');
+  act(() => FakeRec.last!.say('what comes next'));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  act(() => FakeRec.last!.say('what comes next planner next'));
+  expect(screen.getByRole('heading', { name: 'Final toss' })).toBeInTheDocument();
+  act(() => FakeRec.last!.say('planner back', 1));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  act(() => FakeRec.last!.say('planner stop', 2));
+  expect(screen.getByRole('button', { name: /Listen/ })).toHaveAttribute('aria-pressed', 'false');
+  remove();
+});
+
+test('no Listen switch where the browser has no speech recognition', async () => {
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(screen.queryByRole('button', { name: /Listen/ })).not.toBeInTheDocument();
 });

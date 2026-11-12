@@ -25,6 +25,7 @@ beforeEach(() => {
 });
 afterEach(() => { vi.useRealTimers(); });
 const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+import { FakeRec, installFakeSpeech } from '../../test/fakeSpeech';
 const open = () => render(<TodayHour />, { wrapper: MemoryRouter });
 
 test('the first page shows the hour, the chopping list and what to wash', async () => {
@@ -214,4 +215,16 @@ test('while a new photo is being made, a bar says so until it is done', async ()
   expect(screen.getByRole('status', { name: 'Making a new photo' })).toBeInTheDocument();
   await act(async () => { finish('h1/prep/new.jpg'); });
   expect(screen.queryByRole('status', { name: 'Making a new photo' })).not.toBeInTheDocument();
+});
+
+test('hands-free in Today\'s hour: "planner next" starts the hour and steps on', async () => {
+  const remove = installFakeSpeech();
+  open();
+  await screen.findByRole('button', { name: 'Start' });
+  await user().click(screen.getByRole('button', { name: /Listen/ }));
+  act(() => FakeRec.last!.say('planner next'));
+  expect(screen.getByRole('heading', { name: 'Chop everything' })).toBeInTheDocument();
+  act(() => FakeRec.last!.say('planner next planner next planner next'));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  remove();
 });

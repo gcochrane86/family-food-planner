@@ -473,6 +473,9 @@ A mic button available on every screen, made large in cook mode, so you can ask 
 - **Limits:** it's a separate Claude running through the API, not the planning run. It can't use your browser, so it **queues** Sainsbury's changes for the next basket fill rather than editing an order directly.
 - **Cost:** the Claude API is billed per use, using a key stored only on the server. Model choice and expected monthly cost will be confirmed during the build; casual kitchen use should cost very little.
 - **Hands-free:** in cook mode, the mic stays one big tap away. A wake word ("hey…") is a possible later addition but isn't planned for the first version.
+
+### Hands-free cooking (12 Nov 2026)
+A **🎤 Listen** switch in cook mode and Today's hour, off by default (hidden where the browser has no speech recognition). While it's on, say **"planner next"**, **"planner back"**, **"planner repeat"** (reads the step aloud in the device's own voice) or **"planner stop"** (stops listening). Only words straight after "planner" count (and its usual mishearings: planer, planter, plana, "plan a"), so "next" or "back" in conversation never moves the screen. It uses the browser's own speech recognition on the device: free, no Claude involved. Safari only finalises what it heard much later, so commands are read from the live transcript as you speak, each acted on once. The browser stops listening after a pause; the app starts it again while the switch is on, and turns it off with a note if the microphone is refused or it keeps stopping. Timers aren't voice commands (there are none in cook mode).
 - **Data:** `assistant_messages` (`member_id, context (screen/recipe/step), role, content, actions_taken`). This keeps a history, so you can see what was changed and why.
 
 ### Ask Claude (a read-only connector in the Claude app, 12 Nov 2026)

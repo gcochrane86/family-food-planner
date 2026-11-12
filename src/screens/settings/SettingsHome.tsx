@@ -35,7 +35,6 @@ export default function SettingsHome() {
         ))}
       </ul>
       {/* Temporary: the hands-free cooking test, reachable from the home-screen app (no address bar there). */}
-      <Link to="/listen-test" className="justify-self-start text-sm text-muted underline">Listening test</Link>
       <button type="button" className="justify-self-start text-sm text-muted underline" onClick={() => void signOut()}>Sign out</button>
       <p className="m-0 text-xs text-muted">Version {__APP_VERSION__} · built {new Date(__APP_BUILT__).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/London' }).replace(',', '')}</p>
     </section>
