@@ -51,3 +51,8 @@ button { font: inherit; color: inherit; }
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
+
+/* An indeterminate progress line (photo making and other waits). */
+@keyframes ffp-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+.ffp-progress { animation: ffp-slide 1.3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ffp-progress { animation: none; width: 100%; opacity: 0.6; } }

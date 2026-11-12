@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ProgressLine from '../../components/ProgressLine';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -30,6 +31,8 @@ export default function TodayHour() {
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const [menu, setMenu] = useState<Held | null>(null);
+  // A photo being made or saved in the background, shown as a bar along the bottom until it's done.
+  const [working, setWorking] = useState<{ label: string; error?: string } | null>(null);
   const [photos, setPhotos] = useState<{ done: number; total: number; finished?: boolean; error?: string } | null>(null);
   const steps: (HourStep & { afterDinner?: boolean })[] = data ? [...data.plan.steps, ...data.plan.after.map((s) => ({ ...s, afterDinner: true }))] : [];
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
@@ -37,8 +40,9 @@ export default function TodayHour() {
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
 
   /** Remakes a chopping photo, or saves your own, then shows it (everywhere that cut is used). */
-  async function fixPrep(run: () => Promise<unknown>) {
-    try { await run(); reload(); } catch (e) { setPhotos({ done: 0, total: 0, error: `Couldn't change that photo: ${e instanceof Error ? e.message : String(e)}` }); }
+  async function fixPrep(label: string, run: () => Promise<unknown>) {
+    setWorking({ label });
+    try { await run(); reload(); setWorking(null); } catch (e) { setWorking({ label, error: `Couldn't change that photo: ${e instanceof Error ? e.message : String(e)}` }); }
   }
 
   /** Makes the missing step photos for the hour's recipes, one at a time, then shows them. */
@@ -156,12 +160,13 @@ export default function TodayHour() {
       )}
       {menu?.prep && (() => { const p = menu.prep; return (
         <PhotoOptions title={p.label} note="Changes this photo wherever this cut is used." onClose={() => setMenu(null)}
-          onRemake={(hint) => void fixPrep(() => repo.generatePrepPhoto(householdId!, p.name, p.note, true, hint || undefined))}
-          onOwn={(file) => void fixPrep(async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />); })()}
+          onRemake={(hint) => void fixPrep('Making a new photo', () => repo.generatePrepPhoto(householdId!, p.name, p.note, true, hint || undefined))}
+          onOwn={(file) => void fixPrep('Saving your photo', async () => repo.uploadPrepPhoto(householdId!, p.key, p.label, await resizeImage(file, 1600)))} />); })()}
       {menu?.step && (() => { const st = menu.step; return (
         <PhotoOptions title={st.title} note="Gives this step its own photo, in cook mode too." onClose={() => setMenu(null)}
-          onRemake={(hint) => void fixPrep(() => repo.generateStepPhoto(st.recipeId, st.stepId, st.has, true, { ...(hint ? { hint } : {}), ...(st.own ? { replaceOwn: true } : {}) }))}
-          onOwn={(file) => void fixPrep(async () => repo.uploadStepPhoto(householdId!, st.stepId, await resizeImage(file, 1600)))} />); })()}
+          onRemake={(hint) => void fixPrep('Making a new photo', () => repo.generateStepPhoto(st.recipeId, st.stepId, st.has, true, { ...(hint ? { hint } : {}), ...(st.own ? { replaceOwn: true } : {}) }))}
+          onOwn={(file) => void fixPrep('Saving your photo', async () => repo.uploadStepPhoto(householdId!, st.stepId, await resizeImage(file, 1600)))} />); })()}
+      {working && <Working label={working.label} error={working.error} onClose={() => setWorking(null)} />}
     </div>
   );
 }
@@ -181,7 +186,12 @@ function MissingPhotos({ recipes, prep, state, onStart }: { recipes: RecipeDetai
   const n = prep.length + recipes.reduce((t, r) => t + photosNeeded(r), 0);
   if (state?.error) return <p className="m-0 rounded-xl bg-[#3A2A12] px-3 py-2 text-[#FFD9A0]">{state.error}</p>;
   if (state?.finished) return <p className="m-0 text-[#C9D3CC]">Step photos made ({state.done}).</p>;
-  if (state) return <p role="status" className="m-0 text-[#C9D3CC]">Making step photos: {state.done} of {state.total}… (you can carry on)</p>;
+  if (state) return (
+    <div role="status" aria-label="Making step photos" className="grid gap-2 text-[#C9D3CC]">
+      <span>Making step photos: {state.done} of {state.total}… (you can carry on)</span>
+      <ProgressLine />
+    </div>
+  );
   if (!n) return null;
   return (
     <button type="button" onClick={() => onStart(recipes.filter((r) => missing(r) > 0))} className="justify-self-start rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white">
@@ -225,6 +235,23 @@ function PhotoOptions({ title, note, onRemake, onOwn, onClose }: { title: string
         </label>
         <button type="button" className="mt-1 px-4 py-2 text-[#9AA89F]" onClick={onClose}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+
+/** A bar along the bottom while a photo is made or saved in the background; if it fails, it says why. */
+function Working({ label, error, onClose }: { label: string; error?: string; onClose: () => void }) {
+  return (
+    <div role="status" aria-label={error ? 'Photo failed' : label}
+      className="fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom,0px))] z-[55] mx-auto grid w-[min(92%,480px)] gap-2 rounded-2xl bg-[#26302A] px-4 py-3 text-white shadow-lg">
+      {error ? (
+        <span className="flex items-start gap-3 text-[#FFD9A0]"><span className="flex-1">{error}</span>
+          <button type="button" aria-label="Close" onClick={onClose} className="text-white/70">×</button></span>
+      ) : (<>
+        <span className="text-sm font-semibold">{label}… <span className="font-normal text-[#9AA89F]">usually 10–30 seconds, you can carry on</span></span>
+        <ProgressLine />
+      </>)}
     </div>
   );
 }

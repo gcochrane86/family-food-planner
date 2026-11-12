@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import ProgressLine from '../../components/ProgressLine';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -207,7 +208,7 @@ export default function CookMode() {
             <p className="m-0 text-sm text-[#9AA89F]">
               About {photoCost(1)}.{step.image_path && step.image_source !== 'generated' ? ' This replaces your own photo.' : ''}
             </p>
-            {newPhoto.busy && <p role="status" className="m-0 font-semibold text-lcd-ink">Making your photo… this takes about 10–20 seconds.</p>}
+            {newPhoto.busy && <div role="status" className="grid gap-2"><p className="m-0 font-semibold text-lcd-ink">Making your photo… this takes about 10–20 seconds.</p><ProgressLine /></div>}
             {newPhoto.error && <p role="alert" className="m-0 rounded-lg bg-warn-soft px-3 py-2 text-sm text-warn">{newPhoto.error}</p>}
             <div className="flex justify-end gap-2">
               <button type="button" disabled={newPhoto.busy} onClick={() => setNewPhoto(null)} className="rounded-xl bg-white/10 px-4 py-2.5 font-semibold disabled:opacity-40">Cancel</button>

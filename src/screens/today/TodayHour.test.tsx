@@ -198,3 +198,20 @@ test('the chopping step lists each item with its weight and how to cut it', asyn
   expect(within(step).getByText(/chicken breast or thigh/)).toBeInTheDocument();
   expect(within(step).getByText(/10mm batons/)).toBeInTheDocument();
 });
+
+test('while a new photo is being made, a bar says so until it is done', async () => {
+  let finish: (v: string) => void = () => {};
+  h.repo.generatePrepPhoto.mockImplementation(() => new Promise<string>((r) => { finish = r; }));
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/chicken.jpg', source: 'generated' }]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const photo = screen.getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' });
+  fireEvent.pointerDown(photo, { clientX: 10, clientY: 10 });
+  await act(async () => { vi.advanceTimersByTime(600); });
+  fireEvent.pointerUp(photo);
+  await user().click(screen.getByRole('button', { name: 'Make a new photo' }));
+  await user().click(screen.getByRole('button', { name: 'Make it' }));
+  expect(screen.getByRole('status', { name: 'Making a new photo' })).toBeInTheDocument();
+  await act(async () => { finish('h1/prep/new.jpg'); });
+  expect(screen.queryByRole('status', { name: 'Making a new photo' })).not.toBeInTheDocument();
+});

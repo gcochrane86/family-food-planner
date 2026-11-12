@@ -1,4 +1,5 @@
 import { PHOTO_LARGE } from '../../lib/photoSizes';
+import ProgressLine from '../../components/ProgressLine';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
@@ -217,7 +218,7 @@ export default function RecipeCard() {
       <div className="flex items-center justify-between gap-3 print:hidden">
         <Link to="/recipes" className="text-sm font-semibold text-muted no-underline">← Recipes</Link>
         <div className="flex items-center gap-2">
-          {photoBusy && <span className="text-sm font-semibold text-muted">Making photo…</span>}
+          {photoBusy && <span role="status" className="grid w-28 gap-1 text-sm font-semibold text-muted">Making photo…<ProgressLine className="bg-line" bar="bg-accent" /></span>}
           <RecipeMenu items={[
             { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
             ...(missingPhotos > 0
