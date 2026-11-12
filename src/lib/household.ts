@@ -39,6 +39,11 @@ export const DEFAULT_SETTINGS: Settings = {
   day_rules: [],
   other_shops: [],
   private_rules: [],
+  hour_start: '17:30',
+  hour_minutes: 60,
+  breakfast_ahead: ['Overnight oats', 'Baked oats'],
+  tm7_machines: 1,
+  tm7_bowls: 1,
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -107,6 +112,11 @@ export function validateSettings(raw: unknown): Settings {
     day_rules: dayRules(r.day_rules),
     other_shops: otherShops(r.other_shops),
     // Never shown in the app; kept here so saving other settings doesn't drop them.
+    hour_start: typeof r.hour_start === 'string' && TIME.test(r.hour_start) ? r.hour_start : d.hour_start,
+    hour_minutes: num(r.hour_minutes) !== undefined ? Math.min(120, Math.max(30, Math.round(r.hour_minutes as number))) : d.hour_minutes,
+    breakfast_ahead: Array.isArray(r.breakfast_ahead) ? (r.breakfast_ahead.length ? mealList(r.breakfast_ahead, []) : []) : d.breakfast_ahead,
+    tm7_machines: r.tm7_machines === 1 || r.tm7_machines === 2 ? r.tm7_machines : d.tm7_machines,
+    tm7_bowls: r.tm7_bowls === 1 || r.tm7_bowls === 2 ? r.tm7_bowls : d.tm7_bowls,
     private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
 }

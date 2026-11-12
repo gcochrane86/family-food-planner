@@ -8,6 +8,7 @@ const SECTIONS = [
   { to: 'kitchen', title: 'Kitchen', text: 'Thermomix, ovens, pans' },
   { to: 'rules', title: 'Meal specifications', text: 'Balance, flavour, from scratch, which kit does what' },
   { to: 'planning', title: 'Planner specifications', text: 'How the Friday menu is optimised' },
+  { to: 'hour', title: "Today's hour", text: 'The daily cooking hour, night-before breakfasts, TM7 bowls' },
   { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots, dinner time limit' },
   { to: 'shops', title: 'Fishmonger & farm shop', text: 'What each shop sells' },
   { to: 'staples', title: 'Cupboard staples', text: 'Have / low / out' },

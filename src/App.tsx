@@ -8,6 +8,7 @@ import ShopList from './screens/shop/ShopList';
 import RecipeEditor from './screens/recipes/RecipeEditor';
 import Pantry from './screens/pantry/Pantry';
 import OtherShops from './screens/settings/OtherShops';
+import TodayHourSettings from './screens/settings/TodayHourSettings';
 import PlanningRules from './screens/settings/PlanningRules';
 import RoastCook from './screens/recipes/RoastCook';
 import RoastBuilder from './screens/recipes/RoastBuilder';
@@ -85,6 +86,7 @@ export function AppRoutes() {
         <Route path="rules" element={<HouseRules />} />
         <Route path="planning" element={<PlanningRules />} />
         <Route path="shops" element={<OtherShops />} />
+        <Route path="hour" element={<TodayHourSettings />} />
         <Route path="fresh" element={<StartFresh />} />
         <Route path="shopping" element={<Shopping />} />
         <Route path="staples" element={<Staples />} />

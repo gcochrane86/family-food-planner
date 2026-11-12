@@ -51,7 +51,21 @@ describe('validateSettings', () => {
       day_rules: [],
       other_shops: [],
       private_rules: [],
+      hour_start: '17:30',
+      hour_minutes: 60,
+      breakfast_ahead: ['Overnight oats', 'Baked oats'],
+      tm7_machines: 1,
+      tm7_bowls: 1,
     });
+  });
+  test("Today's hour: a real start time, 30–120 minutes, 1 or 2 TM7s and bowls", () => {
+    expect(validateSettings({ hour_start: '25:00' }).hour_start).toBe('17:30');
+    expect(validateSettings({ hour_start: '18:00' }).hour_start).toBe('18:00');
+    expect(validateSettings({ hour_minutes: 5 }).hour_minutes).toBe(30);
+    expect(validateSettings({ hour_minutes: 500 }).hour_minutes).toBe(120);
+    expect(validateSettings({ tm7_machines: 3, tm7_bowls: 2 })).toMatchObject({ tm7_machines: 1, tm7_bowls: 2 });
+    expect(validateSettings({ breakfast_ahead: [] }).breakfast_ahead).toEqual([]);
+    expect(validateSettings({ breakfast_ahead: ['Baked oats', 'baked oats', 3] }).breakfast_ahead).toEqual(['Baked oats']);
   });
   test('ignores values of the wrong type', () => {
     expect(validateSettings({ default_plan_days: 6, shops_per_week: '2', delivery_pass: 'yes' })).toEqual(DEFAULT_SETTINGS);

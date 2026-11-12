@@ -41,6 +41,15 @@ export interface Settings {
   other_shops: OtherShop[];
   /** Rules Claude follows when it writes or changes recipes, kept out of the app's screens. */
   private_rules: string[];
+  /** Today's hour: when the daily cooking hour starts (HH:MM) and how long it is (30–120 minutes). Optional in the
+   *  type for older stored settings; `validateSettings` always fills them. */
+  hour_start?: string;
+  hour_minutes?: number;
+  /** Breakfasts made the night before, in the hour (the rest are made fresh in the morning). */
+  breakfast_ahead?: string[];
+  /** How many Thermomixes, and how many TM7 bowls. */
+  tm7_machines?: 1 | 2;
+  tm7_bowls?: 1 | 2;
 }
 
 export interface DayRule { weekday: number; protein: Protein; note: string | null }
