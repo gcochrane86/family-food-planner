@@ -77,7 +77,18 @@ export const repo = {
   },
 
   async listEquipment(householdId: string): Promise<Equipment[]> {
-    return must(await db().from('equipment').select('id, household_id, code, name').eq('household_id', householdId).order('name'));
+    const rows = must<(Equipment & { capabilities?: { photo?: unknown } | null })[]>(
+      await db().from('equipment').select('id, household_id, code, name, capabilities').eq('household_id', householdId).order('name'));
+    return rows.map(({ capabilities, ...e }) => ({ ...e, photo: typeof capabilities?.photo === 'string' ? capabilities.photo : null }));
+  },
+  /** Saves your photo of a machine (any picture from Photos or Files), kept in the machine's capabilities. */
+  async uploadEquipmentPhoto(householdId: string, item: Equipment, photo: Blob): Promise<string> {
+    const path = `${householdId}/kit/${item.code}-${Date.now()}.jpg`;
+    const { error } = await getSupabase().storage.from('recipe-images').upload(path, photo, { upsert: true, contentType: 'image/jpeg' });
+    if (error) throw new Error(error.message);
+    const current = must<{ capabilities: Record<string, unknown> | null }>(await db().from('equipment').select('capabilities').eq('id', item.id).single());
+    must(await db().from('equipment').update({ capabilities: { ...(current.capabilities ?? {}), photo: path } }).eq('id', item.id));
+    return path;
   },
   async saveEquipment(item: Omit<Equipment, 'id'> & { id?: string }): Promise<Equipment> {
     return must(await db().from('equipment').upsert(item).select('id, household_id, code, name').single());

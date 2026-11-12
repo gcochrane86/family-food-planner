@@ -120,3 +120,15 @@ test('a recipe with no main photo gets one first, then its step photos, and the 
   expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
   expect(h.repo.generateHero.mock.invocationCallOrder[0]).toBeLessThan(h.repo.generateStepPhoto.mock.invocationCallOrder[0]);
 });
+
+test('a machine-only step shows your photo of the machine', async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, steps: [
+    { id: 's-heat', phase: 'finish', position: 1, at_minute: 0, title: 'Heat the Anova', body: 'Preheat the Anova and line a tray.', machine: 'apo', settings: '190°C', timer_minutes: 5, image_path: null, image_source: null },
+    ...HONEY.steps.filter((s) => s.phase === 'finish').map((s) => ({ ...s, position: s.position + 1, at_minute: (s.at_minute ?? 0) + 5 })),
+  ] } : null));
+  h.repo.listEquipment.mockResolvedValue([{ id: 'e1', household_id: 'h1', code: 'apo', name: 'Anova Precision Oven', photo: 'h1/kit/apo.jpg' }]);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (!screen.queryByRole('heading', { name: 'Heat the Anova' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByRole('img', { name: 'Anova Precision Oven' })).toBeInTheDocument();
+});

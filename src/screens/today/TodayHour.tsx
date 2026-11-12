@@ -155,8 +155,7 @@ function MissingPhotos({ recipes, state, onStart }: { recipes: RecipeDetail[]; s
 
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
 function StepPictures({ step }: { step: HourStep }) {
-  if (step.kind === 'clean') return <span role="img" aria-label="Cleaning" className="text-5xl">🧽</span>;
-  if (!step.photos.length) return null;
+  if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-5xl">🧽</span> : null;
   if (step.photos.length > 1) {
     return (
       <div className="flex gap-2 overflow-x-auto">

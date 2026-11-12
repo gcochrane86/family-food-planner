@@ -20,6 +20,8 @@ export interface HourInput {
   tonight?: Cooked | null;
   /** Yesterday's hour ran, so tonight's veg that keeps was chopped then. */
   yesterdayPlanned: boolean;
+  /** Your photos of your machines, by machine code (Settings → Kitchen), for steps that are only about a machine. */
+  kitPhotos?: Record<string, { path: string; name: string }>;
   tomorrow?: {
     dinner?: Cooked | null;
     lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | null;
@@ -118,7 +120,7 @@ export function planHour(input: HourInput): HourPlan {
     let prevEnd = base;
     for (const s of finishSteps(r)) {
       const at = s.at_minute !== null ? base + s.at_minute : prevEnd;
-      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s) }, 'dinner');
+      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
@@ -129,7 +131,7 @@ export function planHour(input: HourInput): HourPlan {
   // 4. Extras into the waits, each chain in order; what doesn't fit goes after dinner.
   const after: HourStep[] = [];
   const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
-  for (const [ci, chain] of extras(tomorrow).entries()) {
+  for (const [ci, chain] of extras(tomorrow, input.kitPhotos).entries()) {
     let earliest = base;
     let stuck = false;
     for (const e of chain) {
@@ -140,8 +142,8 @@ export function planHour(input: HourInput): HourPlan {
         warnings.push(`Not enough time for ${e.step.title}: do it after dinner`);
         continue;
       }
-      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse(placed.afterDinner));
-      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false));
+      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse(placed.afterDinner, input.kitPhotos));
+      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false, input.kitPhotos));
       const slot = add(placed.at, e.length, !e.handsOff, e.machine, e.step, ci);
       earliest = slot.end;
     }
@@ -168,28 +170,39 @@ export function planHour(input: HourInput): HourPlan {
   return { chop, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
 }
 
-function rinse(afterDinner: boolean): Omit<HourStep, 'at' | 'end'> {
+function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'at' | 'end'> {
   const body = afterDinner
     ? "Tip tonight's dinner into a warm dish and cover it, then rinse the TM7 bowl so it is ready for the next job."
     : 'Rinse the TM7 bowl so it is ready for the next job.';
-  return { kind: 'clean', title: 'Rinse the TM7 bowl', body, kit: 'TM7', timer: null, ingredients: [], factor: 1, photos: [] };
+  return { kind: 'clean', title: 'Rinse the TM7 bowl', body, kit: 'TM7', timer: null, ingredients: [], factor: 1, photos: kitPhoto(kit, 'tm7') };
 }
 
 /** A recipe step's own photo, else the recipe's main photo. */
-const stepPhotos = (r: RecipeDetail, s: RecipeStep): HourStep['photos'] =>
-  (s.image_path ? [{ path: s.image_path, alt: 'Photo of this step' }] : r.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : []);
+type Kit = HourInput['kitPhotos'];
+const kitPhoto = (kit: Kit, machine: string | null): HourStep['photos'] => {
+  const k = machine ? kit?.[machine] : undefined;
+  return k ? [{ path: k.path, alt: k.name }] : [];
+};
+/** A recipe step's own photo; for a step with no ingredients in it (just a machine), your photo of that machine;
+ *  else the recipe's main photo. */
+export function stepPhotos(r: RecipeDetail, s: RecipeStep, kit?: Kit): HourStep['photos'] {
+  if (s.image_path) return [{ path: s.image_path, alt: 'Photo of this step' }];
+  const machineOnly = !!s.machine && !/\*\*.+?\*\*/.test(s.body);
+  if (machineOnly && kitPhoto(kit, s.machine).length) return kitPhoto(kit, s.machine);
+  return r.hero_image_path ? [{ path: r.hero_image_path, alt: r.title }] : [];
+}
 
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
 
 interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'at' | 'end'> }
 
 /** Tomorrow's prep steps, the night-before breakfast, then a lunch to make: each a chain of steps done in order. */
-function extras(tomorrow: HourInput['tomorrow']): Extra[][] {
+function extras(tomorrow: HourInput['tomorrow'], kit?: Kit): Extra[][] {
   if (!tomorrow) return [];
   const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number): Extra[] =>
     steps.map((s) => ({
       length: lengthOf(s), handsOff: isHandsOff(s), machine: s.machine,
-      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s) },
+      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, kit) },
     }));
   const simple = (title: string, body: string): Extra[] =>
     [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1, photos: [] } }];

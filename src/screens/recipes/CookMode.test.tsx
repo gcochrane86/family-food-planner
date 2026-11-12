@@ -178,3 +178,12 @@ test('cook mode has no timers: each step just says how long it takes', async () 
   expect(screen.queryByRole('button', { name: /timer/i })).not.toBeInTheDocument();
   expect(screen.queryByRole('timer')).not.toBeInTheDocument();
 });
+
+test('a step that is only about a machine shows your photo of that machine', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/honey.jpg', steps: [
+    { id: 's-heat', phase: 'finish', position: 1, at_minute: 0, title: 'Heat the Anova', body: 'Preheat the Anova and line a tray.', machine: 'apo', settings: '190°C', timer_minutes: 5, image_path: null, image_source: null },
+  ] });
+  h.repo.listEquipment.mockResolvedValue([{ id: 'e1', household_id: 'h1', code: 'apo', name: 'Anova Precision Oven', photo: 'h1/kit/apo.jpg' }]);
+  open();
+  expect(await screen.findByRole('img', { name: 'Anova Precision Oven' })).toHaveAttribute('src', expect.stringContaining('h1/kit/apo.jpg'));
+});

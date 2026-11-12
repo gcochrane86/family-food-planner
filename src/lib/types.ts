@@ -76,6 +76,8 @@ export interface Equipment {
   household_id: string;
   code: string;
   name: string;
+  /** Your photo of the machine (stored path), shown on steps that are only about that machine. */
+  photo?: string | null;
 }
 
 export type StapleStatus = 'have' | 'low' | 'out';

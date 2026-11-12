@@ -1,4 +1,4 @@
-import type { FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
+import type { Equipment, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -20,9 +20,10 @@ export function fakeRepo() {
     listRules: vi.fn(async () => []),
     saveRule: vi.fn(),
     deleteRule: vi.fn(async () => {}),
-    listEquipment: vi.fn(async () => []),
+    listEquipment: vi.fn(async (): Promise<Equipment[]> => []),
     saveEquipment: vi.fn(),
     deleteEquipment: vi.fn(async () => {}),
+    uploadEquipmentPhoto: vi.fn(async (_hid: string, item: { code: string }, _photo: Blob) => `h1/kit/${item.code}-1.jpg`),
     listStaples: vi.fn(async (): Promise<Staple[]> => [
       { id: 'p-paprika', ingredient_id: 'i1', name: 'Paprika', status: 'have' },
       { id: 'p-rice', ingredient_id: 'i2', name: 'Basmati rice', status: 'low' },

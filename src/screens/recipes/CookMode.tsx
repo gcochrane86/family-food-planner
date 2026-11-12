@@ -7,6 +7,7 @@ import { resizeImage } from '../../lib/image';
 import { machineLabel } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
+import { stepPhotos } from '../../lib/todayHour';
 import { photoCost } from './RecipeCard';
 import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
 import type { Phase, RecipeStep } from '../../lib/types';
@@ -24,6 +25,8 @@ export default function CookMode() {
   const [dayP] = useSearchParams();
   const at = dayParams(dayP);
   const { data: recipe, setData, error, loading, reload } = useAsync(() => loadDayRecipe(id, householdId, at), [id, householdId, at?.day, at?.slot]);
+  const { data: kit } = useAsync(() => (householdId ? repo.listEquipment(householdId) : Promise.resolve([])), [householdId]);
+  const kitPhotos = Object.fromEntries((kit ?? []).filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }]));
   const [phase, setPhase] = useState<Phase>('finish');
   const [prepAhead, setPrepAhead] = usePrepAhead();
   const [index, setIndex] = useState(0);
@@ -175,9 +178,11 @@ export default function CookMode() {
             </div>
             <div className="flex flex-col gap-3">
               {(() => {
-                const path = step.image_path ?? recipe.hero_image_path;
-                if (!path) return null;
-                const alt = !step.image_path ? recipe.title : step.image_source === 'generated' ? 'Photo of this step' : 'Your photo of this step';
+                // The step's photo; a machine-only step shows your photo of the machine; else the recipe's photo.
+                const [pic] = stepPhotos(recipe, step, kitPhotos);
+                if (!pic) return null;
+                const path = pic.path;
+                const alt = !step.image_path ? pic.alt : step.image_source === 'generated' ? 'Photo of this step' : 'Your photo of this step';
                 return <StoredPhoto path={path} width={PHOTO_LARGE} alt={alt} className={`aspect-[4/3] w-full max-h-64 rounded-2xl object-cover md:max-h-none ${step.image_path ? '' : 'hidden md:block'}`} />;
               })()}
             {photoError && <ErrorBanner message={photoError} />}

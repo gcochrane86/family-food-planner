@@ -173,4 +173,18 @@ describe('review fixes', () => {
     expect(titled(plan, "Pack tomorrow's lunch")!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
     for (const c of plan.steps.filter((x) => x.kind === 'clean')) expect(c.photos).toEqual([]);
   });
+
+  it('a step that is only about a machine shows your photo of that machine, and so does rinsing the TM7', () => {
+    const fish = recipe('fish', 'Roast Fish', [ing(1, 'cod', 400, 'g', null)], [
+      step('finish', 1, 0, 'Heat the Anova', 'Preheat the Anova and line a tray.', 'apo', '200°C', 5),
+      step('finish', 2, 5, 'Roast', 'Roast the **cod**.', 'apo', '200°C · 12 min', 12),
+    ]);
+    const kit = { apo: { path: 'h1/kit/apo.jpg', name: 'Anova Precision Oven' }, tm7: { path: 'h1/kit/tm7.jpg', name: 'Thermomix TM7' } };
+    const plan = planHour(input({ tonight: { recipe: { ...fish, hero_image_path: 'h1/hero/fish.jpg' }, portions: 4 }, kitPhotos: kit }));
+    expect(titled(plan, 'Heat the Anova')!.photos).toEqual([{ path: 'h1/kit/apo.jpg', alt: 'Anova Precision Oven' }]);
+    expect(titled(plan, 'Roast')!.photos.map((p) => p.path)).toEqual(['h1/hero/fish.jpg']);
+    const tm7 = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } }, kitPhotos: kit }));
+    const rinse = tm7.steps.find((x) => x.title === 'Rinse the TM7 bowl');
+    expect(rinse?.photos).toEqual([{ path: 'h1/kit/tm7.jpg', alt: 'Thermomix TM7' }]);
+  });
 });

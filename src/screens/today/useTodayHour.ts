@@ -23,7 +23,7 @@ export function useTodayHour(now = new Date()) {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);
     const weeks = [...new Set([yesterday, today, tomorrow].map(mondayOf))];
-    const [settings, recipes, ...loaded] = await Promise.all([repo.getSettings(hid), repo.listRecipes(hid), ...weeks.map((w) => repo.getWeek(hid, w))]);
+    const [settings, recipes, kit, ...loaded] = await Promise.all([repo.getSettings(hid), repo.listRecipes(hid), repo.listEquipment(hid).catch(() => []), ...weeks.map((w) => repo.getWeek(hid, w))]);
     const slots: MealSlot[] = loaded.flatMap((w) => w.slots);
     const find = (date: string, kind: MealSlot['slot']) => slots.find((s) => s.date === date && s.slot === kind);
     const byId = new Map(recipes.map((r: Recipe) => [r.id, r]));
@@ -84,6 +84,7 @@ export function useTodayHour(now = new Date()) {
       minutes: settings.hour_minutes ?? 60,
       tm7Bowls: settings.tm7_bowls ?? 1,
       tm7Machines: settings.tm7_machines ?? 1,
+      kitPhotos: Object.fromEntries(kit.filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }])),
       tonight,
       // Yesterday was planned, so its hour boxed what keeps of tonight's dinner (shown as a fridge box to check).
       yesterdayPlanned: slots.some((s) => s.date === yesterday),
