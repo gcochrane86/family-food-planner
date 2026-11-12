@@ -6,6 +6,8 @@ type Rec = { continuous: boolean; interimResults: boolean; lang: string; start()
 const Ctor = (): (new () => Rec) | null => (window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec }).SpeechRecognition
   ?? (window as unknown as { webkitSpeechRecognition?: new () => Rec }).webkitSpeechRecognition ?? null;
 const WORDS = ['next', 'back', 'repeat', 'timer', 'stop'];
+// The wake word, and how speech recognition tends to mishear it.
+const WAKE = '(?:planner|planer|planter|plana|plan a|plan her|plan or)';
 
 export default function ListenTest() {
   const [on, setOn] = useState(false);
@@ -28,8 +30,9 @@ export default function ListenTest() {
     r.onresult = (e) => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript.trim().toLowerCase();
-        const w = WORDS.find((x) => new RegExp(`\\b${x}\\b`).test(t));
-        add(`heard "${t}"${w ? ` → ${w}` : ''}`);
+        const w = WORDS.find((x) => new RegExp(`\\b${WAKE}\\s+${x}\\b`).test(t));
+        const bare = !w && WORDS.find((x) => new RegExp(`\\b${x}\\b`).test(t));
+        add(`heard "${t}"${w ? ` → ${w}` : bare ? ` (${bare} without "planner": ignored)` : ''}`);
         if (w) setHeard((h) => [w, ...h].slice(0, 10));
       }
     };
@@ -49,7 +52,7 @@ export default function ListenTest() {
     <section className="grid gap-3 p-4">
       <h1 className="m-0 text-xl font-bold">Listening test</h1>
       <p className="m-0 text-sm">Speech recognition: <b>{Ctor() ? 'available' : 'not available'}</b> · Opened from the home screen: <b>{standalone ? 'yes' : 'no'}</b></p>
-      <p className="m-0 text-sm">Tap Start, allow the microphone, then say next, back, repeat, timer or stop, with pauses and some chat in between, for a minute or two.</p>
+      <p className="m-0 text-sm">Tap Start, allow the microphone, then say "planner next", "planner back", "planner repeat", "planner timer" and "planner stop", with pauses and some chat in between (use "next" in a sentence too), for a minute or two.</p>
       <button type="button" onClick={on ? stop : start} className="justify-self-start rounded-xl bg-accent px-6 py-3 font-semibold text-accent-ink">{on ? 'Stop' : 'Start'}</button>
       <p className="m-0">Commands heard: <b>{heard.join(', ') || 'none yet'}</b> · Restarts: {restarts}</p>
       <ul className="m-0 grid gap-0.5 p-0 font-mono text-xs">{log.map((l, i) => <li key={i} className="list-none">{l}</li>)}</ul>
