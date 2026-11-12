@@ -82,6 +82,8 @@ test("with photos of the household's own kit, the food is shown in that kit, mat
   const p = stepPhotoPrompt('Chickpea Curry', curry, 1, null, { name: 'Thermomix TM7', count: 2 });
   expect(p).toContain("The next 2 reference photos show the household's own Thermomix TM7");
   expect(p).toMatch(/only the part that holds the food/i);
+  expect(p).toMatch(/any angle or rotation/i);
+  expect(p).not.toContain('exactly');
   expect(p).not.toContain('No appliance');
   expect(stepPhotoPrompt('Chickpea Curry', curry, 1)).toContain('No appliance');
 });

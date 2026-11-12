@@ -43,4 +43,5 @@ test('your words and your own board go into the chopping photo request', () => {
   const own = prepPhotoPrompt(p, null, true);
   expect(own).toMatch(/reference photo shows the household's own chopping board/i);
   expect(own).not.toContain('wooden chopping board');
+  expect(own).toMatch(/any angle or rotation/i);
 });

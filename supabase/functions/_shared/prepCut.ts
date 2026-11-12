@@ -51,7 +51,7 @@ export function prepPhotoPrompt(p: { ingredient: string; cut: string }, hint?: s
   const extra = hint?.trim().replace(/[.\s]+$/, '');
   return [
     ownBoard
-      ? `The reference photo shows the household's own chopping board. Make a realistic photo, from directly above, of that same board with ${p.ingredient}, freshly prepared and ready to cook.`
+      ? `The reference photo shows the household's own chopping board. Make a realistic photo of that same board (any angle or rotation that shows the food best) with ${p.ingredient}, freshly prepared and ready to cook.`
       : `A realistic photo, from directly above, of a wooden chopping board with ${p.ingredient}, freshly prepared and ready to cook.`,
     `Show only the ${p.ingredient}, cut exactly like this: ${p.cut}. Show enough pieces that the size and shape of the cut are clear.`,
     extra ? `Also: ${extra.slice(0, 200)}.` : '',

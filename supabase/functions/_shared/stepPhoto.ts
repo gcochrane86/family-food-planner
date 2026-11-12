@@ -47,7 +47,7 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
   const prep = step.phase === 'prep_8pm';
   const intro = `The reference photo shows the finished dish "${recipeTitle}". Make a realistic photo of one cooking step for this same dish, with the same table, light and colours as the reference photo.`;
   const rules = kit
-    ? `The next ${kit.count} reference photo${kit.count === 1 ? '' : 's'} show${kit.count === 1 ? 's' : ''} the household's own ${kit.name}: show the food in it, matching ${kit.count === 1 ? 'that photo' : 'those photos'} exactly (shape, colour, finish), close up and showing only the part that holds the food. No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
+    ? `The next ${kit.count} reference photo${kit.count === 1 ? '' : 's'} show${kit.count === 1 ? 's' : ''} the household's own ${kit.name}: show the food in it: the same kit (shape, colour, finish), seen from any angle or rotation that makes the photo clearest, close up and showing only the part that holds the food. No controls, no screen. No text, no labels, no hands, no packaging, no logos.`
     : 'Close up from directly above. No appliance, no controls, no screen. No text, no labels, no hands, no packaging, no logos.';
   const own = hint?.trim().replace(/[.\s]+$/, '');
   if (own) return [intro, `The step: ${step.title}.`, `Show this: ${own}.`, rules].join(' ');
