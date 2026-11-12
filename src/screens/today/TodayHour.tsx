@@ -13,9 +13,7 @@ import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
 import { withFahrenheit } from '../../lib/recipes';
-import { Hold } from '../../components/PhotoFrame';
-import StoredPhoto from '../../components/StoredPhoto';
-import { PHOTO_SMALL } from '../../lib/photoSizes';
+import { Card, Tile } from '../../components/IngredientCard';
 import { ingredientTiles, type GetOutGroup, type GetOutItem } from '../../lib/getOut';
 import { chopInstruction, iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import ListenSwitch from '../../components/ListenSwitch';
@@ -308,7 +306,6 @@ function Working({ label, error, onClose }: { label: string; error?: string; onC
 }
 
 const KEPT: Record<GetOutGroup['where'], string> = { fridge: 'Fridge', freezer: 'Freezer', cupboard: 'Cupboard' };
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "Get it out": a small cartoon of each thing the hour uses, with its name and amount underneath, by where it's
  *  kept. Hold a picture to remake it or use your own. */
@@ -341,26 +338,5 @@ function GetOut({ groups, got, onTick, onHold }: { groups: GetOutGroup[]; got: s
         );
       })}
     </section>
-  );
-}
-
-/** A cartoon of an ingredient, or its first letter until one is made. */
-function Icon({ path, name, className }: { path: string | null; name: string; className: string }) {
-  return path
-    ? <StoredPhoto path={path} width={PHOTO_SMALL} alt={name} draggable={false} className={`object-contain ${className}`} />
-    : <span aria-hidden="true" className={`grid place-items-center font-bold text-[#9AA89F] ${className} bg-[#EEF3EF]`}>{name.charAt(0).toUpperCase()}</span>;
-}
-
-/** One ingredient as a card: its cartoon, its name in a label, the amount (and how it's prepared) underneath. */
-function Tile(props: { item: GetOutItem; note?: string | null; onHold: () => void }) {
-  return <li className="grid"><Card {...props} /></li>;
-}
-function Card({ item, note, onHold }: { item: GetOutItem; note?: string | null; onHold: () => void }) {
-  return (
-    <div className="grid content-start justify-items-center gap-1.5 rounded-2xl border border-[#D9DDD3] bg-white p-2 pb-2.5 text-center shadow-sm">
-      <Hold onHold={onHold}><Icon path={item.icon} name={item.name} className="aspect-square w-full rounded-xl text-4xl" /></Hold>
-      <span className="text-sm font-bold leading-tight text-[#1B211D]">{cap(item.name)}</span>
-      {(item.qty || note) && <span className="text-xs font-semibold leading-snug text-[#3F4A43]">{[item.qty, note].filter(Boolean).join(' · ')}</span>}
-    </div>
   );
 }

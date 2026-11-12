@@ -110,6 +110,9 @@ export function chopInstruction(name: string, note: string | null | undefined): 
     case 'crushed': return verb(`Crush the ${what}`);
     case 'grated': return verb(`Grate the ${what}`);
     case 'chopped': return verb(`Chop the ${what}`);
-    default: return `${what.charAt(0).toUpperCase()}${what.slice(1)}: ${n}`;
+    default:
+      if (/shred/.test(n)) return verb(`Shred the ${what}`);
+      if (/trim/.test(n)) return verb(`Trim the ${what}`);
+      return `${what.charAt(0).toUpperCase()}${what.slice(1)}: ${n}`;
   }
 }

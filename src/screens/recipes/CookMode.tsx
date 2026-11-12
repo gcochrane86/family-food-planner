@@ -4,7 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { resizeImage } from '../../lib/image';
-import { machineLabel, withFahrenheit } from '../../lib/recipes';
+import { machineLabel, stepIngredients, withFahrenheit } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { stepPhotos } from '../../lib/todayHour';
@@ -14,7 +14,8 @@ import type { Phase, RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
-import StepUses from './StepUses';
+import { Tile } from '../../components/IngredientCard';
+import { ingredientTiles } from '../../lib/getOut';
 import PhotoFrame from '../../components/PhotoFrame';
 import ListenSwitch from '../../components/ListenSwitch';
 import { speakable } from '../../lib/voice';
@@ -28,6 +29,9 @@ export default function CookMode() {
   const at = dayParams(dayP);
   const { data: recipe, setData, error, loading, reload } = useAsync(() => loadDayRecipe(id, householdId, at), [id, householdId, at?.day, at?.slot]);
   const { data: kit } = useAsync(() => (householdId ? repo.listEquipment(householdId) : Promise.resolve([])), [householdId]);
+  // The ingredient cartoons (made in Today's hour), by ingredient.
+  const { data: prep } = useAsync(() => (householdId ? repo.listPrepPhotos(householdId) : Promise.resolve([])), [householdId]);
+  const icons = Object.fromEntries((prep ?? []).map((p) => [p.key, p.path]));
   const kitPhotos = Object.fromEntries((kit ?? []).filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }]));
   const [phase, setPhase] = useState<Phase>('finish');
   const [prepAhead, setPrepAhead] = usePrepAhead();
@@ -43,7 +47,7 @@ export default function CookMode() {
   // The portions picked on the recipe page, so each step's amounts match the ingredients list.
   const [params] = useSearchParams();
   const portions = Number(params.get('portions'));
-  const shell = 'fixed inset-0 z-50 flex flex-col bg-lcd text-[#EEF3EF]';
+  const shell = 'fixed inset-0 z-50 flex flex-col bg-white text-[#1B211D]';
   const pad = {
     paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))',
     paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
@@ -117,17 +121,17 @@ export default function CookMode() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           {split && (
-            <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-white/10 p-1">
+            <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-[#E9ECE4] p-1">
               {(['prep_8pm', 'finish'] as const).map((p) => (
                 <button key={p} type="button" role="tab" aria-selected={phase === p} onClick={() => { setPhase(p); setIndex(0); setPhotoError(null); }}
-                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${phase === p ? 'bg-white/20 text-white' : 'text-[#9AA89F]'}`}>
+                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${phase === p ? 'bg-white shadow-sm text-[#1B211D]' : 'text-[#5D6760]'}`}>
                   {p === 'prep_8pm' ? 'Night before' : 'On the night'}
                 </button>
               ))}
             </div>
           )}
           {prepSteps.length > 0 && (
-            <label className="flex items-center gap-2 text-sm font-semibold text-[#9AA89F]">
+            <label className="flex items-center gap-2 text-sm font-semibold text-[#5D6760]">
               <button type="button" role="switch" aria-checked={split} aria-label="Prep ahead"
                 onClick={() => { setPrepAhead(!split); setPhase('finish'); setIndex(0); setPhotoError(null); }} className={switchClasses(split)}>
                 <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${split ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -137,10 +141,10 @@ export default function CookMode() {
           )}
         </div>
         <div className="relative flex items-center gap-2">
-          <ListenSwitch onNext={goNext} onBack={goBack} text={() => (step ? speakable(step.title, step.body) : '')} />
+          <ListenSwitch light onNext={goNext} onBack={goBack} text={() => (step ? speakable(step.title, step.body) : '')} />
           <button type="button" aria-label="Cook mode settings" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!step}
             onClick={() => setMenuOpen((o) => !o)} onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}
-            className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-lg text-white disabled:opacity-35">⚙︎</button>
+            className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-lg text-[#1B211D] disabled:opacity-35">⚙︎</button>
           {menuOpen && step && (
             <div role="menu" className="absolute right-12 top-11 z-10 grid min-w-56 rounded-xl bg-[#1F2822] p-1 shadow-lg"
               onKeyDown={(e) => { if (e.key === 'Escape') setMenuOpen(false); }}>
@@ -152,32 +156,41 @@ export default function CookMode() {
               </label>
             </div>
           )}
-          <button type="button" onClick={close} aria-label="Exit cook mode" className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl">×</button>
+          <button type="button" onClick={close} aria-label="Exit cook mode" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl">×</button>
         </div>
       </div>
 
 
       <section aria-label="Step" onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
-        className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-center md:gap-10">
+        className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-start gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:content-start md:items-start md:gap-10">
         {!step ? (
           <p className="text-xl">No {split && phase === 'prep_8pm' ? 'night-before' : ''} steps for this recipe.</p>
         ) : (
           <>
             <div className="flex flex-col gap-5">
-            <p className="font-mono text-sm text-lcd-ink">
+            <p className="font-mono text-sm text-[#2D6A3E]">
               {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}{step.timer_minutes ? ` · ${step.timer_minutes} min` : ''}
             </p>
-            {recipe.versionNote && <p className="self-start rounded-xl bg-[#3A2A12] px-3 py-1.5 text-sm text-[#FFD9A0]">Tonight's version: {recipe.versionNote}</p>}
-            <h1 className="text-[clamp(28px,5vw,46px)] font-bold text-white">{step.title}</h1>
-            {(step as { changed?: boolean }).changed && recipe.versionNote && <span className="self-start rounded-full bg-lcd-ink px-3 py-0.5 text-sm font-semibold text-[#0A0E0B]">Changed tonight</span>}
+            {recipe.versionNote && <p className="self-start rounded-xl bg-[#FBEFD0] px-3 py-1.5 text-sm text-[#7A4F00]">Tonight's version: {recipe.versionNote}</p>}
+            <h1 className="text-[clamp(28px,5vw,46px)] font-bold text-[#1B211D]">{step.title}</h1>
+            {(step as { changed?: boolean }).changed && recipe.versionNote && <span className="self-start rounded-full bg-[#2D6A3E] px-3 py-0.5 text-sm font-semibold text-white">Changed tonight</span>}
             {step.machine && (
-              <div className="self-start rounded-2xl border border-lcd-ink/35 px-4 py-3 font-mono text-[clamp(18px,3vw,30px)] text-lcd-ink">
-                <small className="mb-0.5 block text-xs text-[#9AA89F]">{machineLabel(step.machine)}</small>
+              <div className="self-start font-mono text-[clamp(22px,3vw,32px)] font-bold leading-tight text-[#1B211D]">
+                <small className="mb-0.5 block font-sans text-sm font-semibold text-[#5D6760]">{machineLabel(step.machine)}</small>
                 {withFahrenheit(step.settings)}
               </div>
             )}
-            <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#DDE5DF] [&_b]:text-white"><StepText text={step.body} /></p>
-            <StepUses body={step.body} ingredients={recipe.ingredients} factor={portions > 0 ? portions / recipe.base_portions : 1} />
+            <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#1B211D] [&_b]:text-[#1B211D]"><StepText text={step.body} /></p>
+            {(() => {
+              // What this step uses, as the same cards as Today's hour, scaled to the portions picked on the recipe.
+              const factor = portions > 0 ? portions / recipe.base_portions : 1;
+              const tiles = ingredientTiles(stepIngredients(step.body, recipe.ingredients).map((i) => ({ i, factor })), icons, { water: true });
+              return tiles.length > 0 && (
+                <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
+                  {tiles.map((t) => <Tile key={t.key} item={t} note={t.note} />)}
+                </ul>
+              );
+            })()}
             </div>
             <div className="flex flex-col gap-3">
               {(() => {
@@ -189,7 +202,7 @@ export default function CookMode() {
                 return <PhotoFrame photos={[{ path, alt }]} />;
               })()}
             {photoError && <ErrorBanner message={photoError} />}
-            {saving && <p className="m-0 text-sm font-semibold text-lcd-ink">Saving photo…</p>}
+            {saving && <p className="m-0 text-sm font-semibold text-[#2D6A3E]">Saving photo…</p>}
             <input id="step-photo-input" type="file" accept="image/*" capture="environment" className="sr-only" aria-label="Add photo" disabled={saving}
               onChange={(e) => { void addPhoto(e.target.files?.[0]); e.target.value = ''; }} />
             </div>
@@ -223,9 +236,9 @@ export default function CookMode() {
 
       <div className="mx-auto flex w-full max-w-3xl justify-between gap-3 md:max-w-6xl">
         <button type="button" disabled={index === 0} onClick={goBack}
-          className="rounded-xl bg-white/10 px-6 py-3.5 text-base font-semibold text-white disabled:opacity-35">Back</button>
+          className="rounded-xl bg-[#E9ECE4] px-6 py-3.5 text-base font-semibold text-[#1B211D] disabled:opacity-35">Back</button>
         <button type="button" onClick={() => { if (last) close(); else goNext(); }}
-          className="rounded-xl bg-lcd-ink px-6 py-3.5 text-base font-semibold text-[#0A0E0B]">
+          className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white">
           {last ? 'Done' : 'Next step'}
         </button>
       </div>

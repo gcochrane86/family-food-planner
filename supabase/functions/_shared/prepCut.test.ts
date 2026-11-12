@@ -90,4 +90,7 @@ test('each thing to chop gets a plain instruction from its cut', async () => {
   expect(chopInstruction('beef', 'cubed (3cm)')).toBe('Dice the beef into 3cm cubes');
   expect(chopInstruction('coriander', null)).toBe('Chop the coriander');
   expect(chopInstruction('ginger', 'peeled and sliced')).toBe('Peel and slice the ginger');
+  expect(chopInstruction('green beans', 'trimmed')).toBe('Trim the green beans');
+  expect(chopInstruction('red cabbage', 'shredded')).toBe('Shred the red cabbage');
+  expect(chopInstruction('snap peas', 'or mangetout; trimmed')).toBe('Trim the snap peas');
 });

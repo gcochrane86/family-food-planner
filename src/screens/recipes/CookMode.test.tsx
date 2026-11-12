@@ -151,7 +151,9 @@ test("each step lists what it uses, scaled to the portions you picked on the rec
   open('?portions=3');
   await screen.findByRole('heading', { name: 'Rice on' });
   const uses = screen.getByRole('list', { name: 'For this step' });
-  expect(within(uses).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['200gbasmati rice']);
+  expect(within(uses).getAllByRole('listitem')).toHaveLength(1);
+  expect(within(uses).getByText('Basmati rice')).toBeInTheDocument();
+  expect(within(uses).getByText('200g')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
   expect(screen.queryByRole('list', { name: 'For this step' })).not.toBeInTheDocument();
 });
@@ -159,7 +161,7 @@ test("each step lists what it uses, scaled to the portions you picked on the rec
 test('without portions it uses the recipe as written', async () => {
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
-  expect(within(screen.getByRole('list', { name: 'For this step' })).getByRole('listitem')).toHaveTextContent('400gbasmati rice');
+  expect(within(screen.getByRole('list', { name: 'For this step' })).getByText('400g')).toBeInTheDocument();
 });
 
 test("from a day with tonight's version, cook mode shows the changed step", async () => {
@@ -210,4 +212,12 @@ test('no Listen switch where the browser has no speech recognition', async () =>
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
   expect(screen.queryByRole('button', { name: /Listen/ })).not.toBeInTheDocument();
+});
+
+test("cook mode looks like Today's hour: white, the cards with your cartoons, settings in °C and °F", async () => {
+  h.repo.listPrepPhotos.mockResolvedValue([{ key: 'icon:basmati rice', label: 'basmati rice', path: 'h1/prep/icon-rice.jpg', source: 'generated' }]);
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  expect(within(screen.getByRole('list', { name: 'For this step' })).getByRole('img', { name: 'basmati rice' })).toHaveAttribute('src', expect.stringContaining('icon-rice.jpg'));
+  expect(screen.getByText(/100°C \/ 210°F/)).toBeInTheDocument();
 });

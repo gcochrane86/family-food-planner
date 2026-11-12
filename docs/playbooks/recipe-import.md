@@ -77,6 +77,12 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
      `slug` not in `existingRecipes`, `title` and `subtitle` in the household's style ("Chicken Katsu" / "with
      sticky rice & slaw"). Bold ingredient names in step bodies with `**…**`, as the existing recipes do. Steps with a
      time get `timer` in minutes.
+   - **Prep notes.** Every ingredient that needs a knife, peeler or grater says exactly how in its `note`, with a size:
+     "peeled, sliced into 2mm discs", "diced 2cm", "cut into 3cm chunks", "halved", "florets", "grated", "trimmed".
+     The app builds the evening's chopping list and its instructions ("Peel and slice the ginger 2mm thick") from these
+     notes, so an ingredient without one is never prepped. That includes things going into the TM7 to be chopped (onion
+     "peeled, quartered", ginger "peeled, sliced into 2mm discs", carrot "peeled, cut into 3cm chunks"). Leave notes off
+     things used as they come (liquids, spices, tins, frozen veg, spinach, rice).
    - **Step pictures.** Every step gets a `picture`: what that step's cartoon picture shows, so thorough that the
      image model can't get it wrong (it takes it literally and knows nothing else). 2–4 short sentences, about 30–70
      words: the one moment and where it happens (container and appliance named plainly: "a frying pan on the hob",
