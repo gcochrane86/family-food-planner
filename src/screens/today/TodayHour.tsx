@@ -16,7 +16,7 @@ import { Hold } from '../../components/PhotoFrame';
 import StoredPhoto from '../../components/StoredPhoto';
 import { PHOTO_SMALL } from '../../lib/photoSizes';
 import { ingredientTiles, type GetOutGroup, type GetOutItem } from '../../lib/getOut';
-import { iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
+import { chopInstruction, iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import ListenSwitch from '../../components/ListenSwitch';
 import { speakable } from '../../lib/voice';
 import { todayInLondon, useTodayHour } from './useTodayHour';
@@ -90,7 +90,7 @@ export default function TodayHour() {
         <div className="flex items-center gap-2">
           {data && steps.length > 0 && (
             <ListenSwitch light onNext={() => setIndex((i) => Math.min(i + 1, steps.length - 1))} onBack={() => setIndex((i) => Math.max(i - 1, -1))}
-              text={() => (step ? speakable(step.title, step.kind === 'chop' ? data.plan.chop.flatMap((g) => g.items.map((it) => [it.qty, it.name, it.note].filter(Boolean).join(' '))).join('. ') : step.body) : '')} />
+              text={() => (step ? speakable(step.title, step.kind === 'chop' ? data.plan.chop.flatMap((g) => g.items.map((it) => `${chopInstruction(it.name, it.note)}${it.qty ? `, ${it.qty}` : ''}`)).join('. ') : step.body) : '')} />
           )}
           <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl text-[#1B211D] no-underline">×</Link>
         </div>
@@ -133,11 +133,16 @@ export default function TodayHour() {
                   <div key={i} className="grid gap-1.5">
                     <b className="text-[clamp(17px,2.2vw,22px)] text-[#1B211D]">{g.label}{g.raw ? ' · last, on its own mat' : ''}</b>
                     <span className="text-sm text-[#5D6760]">Into {WHERE[g.where]}</span>
-                    <ul aria-label={g.label} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
+                    <ul aria-label={g.label} className="m-0 grid list-none gap-3 p-0">
                       {g.items.map((it) => {
                         const k = iconKey(it.name);
-                        return <Tile key={it.name} item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }} note={it.note}
-                          onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />;
+                        return (
+                          <li key={it.name} className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4">
+                            <Card item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }}
+                              onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />
+                            <span className="text-[clamp(19px,2.6vw,26px)] font-semibold leading-snug text-[#1B211D]">{chopInstruction(it.name, it.note)}</span>
+                          </li>
+                        );
                       })}
                     </ul>
                   </div>
@@ -217,7 +222,7 @@ type Prep = NonNullable<HourStep['photos'][number]['prep']>;
 type Held = { prep?: Prep & { icon?: boolean }; step?: NonNullable<HourStep['photos'][number]['step']> };
 function StepPictures({ step, onHold }: { step: HourStep; onHold: (h: Held) => void }) {
   if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-6xl">🧽</span> : null;
-  return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt, caption: p.prep?.label,
+  return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt,
     onHold: p.prep ? () => onHold({ prep: p.prep }) : p.step ? () => onHold({ step: p.step }) : undefined }))} />;
 }
 
@@ -297,12 +302,15 @@ function Icon({ path, name, className }: { path: string | null; name: string; cl
 }
 
 /** One ingredient as a card: its cartoon, its name in a label, the amount (and how it's prepared) underneath. */
-function Tile({ item, note, onHold }: { item: GetOutItem; note?: string | null; onHold: () => void }) {
+function Tile(props: { item: GetOutItem; note?: string | null; onHold: () => void }) {
+  return <li className="grid"><Card {...props} /></li>;
+}
+function Card({ item, note, onHold }: { item: GetOutItem; note?: string | null; onHold: () => void }) {
   return (
-    <li className="grid content-start justify-items-center gap-1.5 rounded-2xl border border-[#D9DDD3] bg-white p-2 pb-2.5 text-center shadow-sm">
+    <div className="grid content-start justify-items-center gap-1.5 rounded-2xl border border-[#D9DDD3] bg-white p-2 pb-2.5 text-center shadow-sm">
       <Hold onHold={onHold}><Icon path={item.icon} name={item.name} className="aspect-square w-full rounded-xl text-4xl" /></Hold>
       <span className="text-sm font-bold leading-tight text-[#1B211D]">{cap(item.name)}</span>
       {(item.qty || note) && <span className="text-xs font-semibold leading-snug text-[#3F4A43]">{[item.qty, note].filter(Boolean).join(' · ')}</span>}
-    </li>
+    </div>
   );
 }

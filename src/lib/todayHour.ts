@@ -1,7 +1,7 @@
 import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
 import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
-import { isCartoonPrep, prepKey } from '../../supabase/functions/_shared/prepCut.ts';
+import { chopInstruction, isCartoonPrep, prepKey } from '../../supabase/functions/_shared/prepCut.ts';
 import { getOutList, type GetOutGroup } from './getOut';
 
 /**
@@ -129,7 +129,7 @@ export function planHour(input: HourInput): HourPlan {
   let base = start;
   if (items) {
     const length = Math.max(5, Math.ceil(1.5 * items));
-    add(start, length, true, null, { ...plain, photos: chopPhotos, kind: 'chop', title: 'Chop everything', body: chop.filter((g) => g.where !== 'fridge').map((g) => `${g.label}: ${g.items.map((i) => i.name).join(', ')}`).join('\n') });
+    add(start, length, true, null, { ...plain, photos: chopPhotos, kind: 'chop', title: 'Chop all the ingredients below', body: chop.filter((g) => g.where !== 'fridge').flatMap((g) => g.items.map((i) => `${chopInstruction(i.name, i.note)}${i.qty ? ` (${i.qty})` : ''}.`)).join(' ') });
     add(start + length, CHOP_CLEAN, true, null, { ...plain, kind: 'clean', title: 'Board, knife and bowls into the dishwasher', body: 'Rinse the board, knife and bowls and load them now, so the side is clear.' });
     base = start + length + CHOP_CLEAN;
   }

@@ -168,7 +168,7 @@ describe('review fixes', () => {
     expect(fridge.label).toBe('From the fridge box (chopped yesterday)');
     expect(fridge.items.map((i) => i.name)).toEqual(['onion', 'garlic', 'ginger', 'chicken thigh']);
     // Only the coriander is chopped: the 5-minute minimum.
-    expect(titled(plan, 'Chop everything')).toMatchObject({ at: '17:30', end: '17:35' });
+    expect(titled(plan, 'Chop all the ingredients below')).toMatchObject({ at: '17:30', end: '17:35' });
   });
 
   it("gives each step a picture that makes sense: the step's photo, else its recipe's, and none for cleaning", () => {
@@ -180,7 +180,7 @@ describe('review fixes', () => {
     expect(titled(plan, 'Brown the chicken')!.photos[0].alt).toBe('Chicken Curry');
     expect(titled(plan, 'Brown the chicken')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
     expect(titled(plan, 'Marinate the beef')!.photos.map((p) => p.path)).toEqual(['h1/hero/stew.jpg']);
-    expect(titled(plan, 'Chop everything')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg', 'h1/hero/stew.jpg']);
+    expect(titled(plan, 'Chop all the ingredients below')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg', 'h1/hero/stew.jpg']);
     expect(titled(plan, 'Plate up')!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
     expect(titled(plan, "Pack tomorrow's lunch")!.photos.map((p) => p.path)).toEqual(['h1/hero/curry.jpg']);
     for (const c of plan.steps.filter((x) => x.kind === 'clean')) expect(c.photos).toEqual([]);
@@ -202,12 +202,12 @@ describe('review fixes', () => {
 
   it('the chopping step shows a board photo for each cut, and lists the cuts still without one', () => {
     const plan = planHour(input({ prepPhotos: { 'onion|chunks': 'h1/prep/cartoon-onion.jpg', 'garlic|crushed': 'h1/prep/cartoon-garlic.jpg' } }));
-    const chop = titled(plan, 'Chop everything')!;
+    const chop = titled(plan, 'Chop all the ingredients below')!;
     expect(chop.photos.map(({ path, alt }) => ({ path, alt }))).toEqual([{ path: 'h1/prep/cartoon-onion.jpg', alt: 'onion, chunks' }, { path: 'h1/prep/cartoon-garlic.jpg', alt: 'garlic, crushed' }]);
     expect(chop.photos[0].prep).toMatchObject({ name: 'onion', note: 'roughly chopped', key: 'onion|chunks' });
     expect(plan.prepMissing.map((m) => m.label)).toEqual(['ginger, sliced', 'coriander, chopped', 'carrot, diced', 'chicken thigh, diced', 'beef, diced']);
     expect(plan.prepMissing[0]).toMatchObject({ name: 'ginger', note: 'peeled and sliced' });
-    expect(titled(planHour(input()), 'Chop everything')!.photos.every((p) => !p.path.includes('/prep/'))).toBe(true);
+    expect(titled(planHour(input()), 'Chop all the ingredients below')!.photos.every((p) => !p.path.includes('/prep/'))).toBe(true);
   });
 
   it('an older realistic chopping photo is redrawn as a cartoon; your own photo and a cartoon are kept', () => {

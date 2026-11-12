@@ -76,3 +76,18 @@ test('chopping photos are drawn in the same cartoon style as the get-out picture
   expect(isCartoonPrep('h1/prep/new-potato-halved-1.jpg')).toBe(false);
   expect(isCartoonPrep('h1/prep/own-new-potato-1.jpg')).toBe(true);
 });
+
+test('each thing to chop gets a plain instruction from its cut', async () => {
+  const { chopInstruction } = await import('./prepCut.ts');
+  expect(chopInstruction('new potatoes', 'halved')).toBe('Cut the new potatoes in half');
+  expect(chopInstruction('potatoes', '2cm dice')).toBe('Dice the potatoes into 2cm cubes');
+  expect(chopInstruction('onion', 'finely chopped')).toBe('Finely dice the onion');
+  expect(chopInstruction('chicken breast or thigh', '10mm batons')).toBe('Cut the chicken breast or thigh into 10mm strips');
+  expect(chopInstruction('red pepper', 'sliced')).toBe('Slice the red pepper');
+  expect(chopInstruction('garlic', 'crushed')).toBe('Crush the garlic');
+  expect(chopInstruction('broccoli', 'florets')).toBe('Cut the broccoli into florets');
+  expect(chopInstruction('carrot', 'roughly chopped')).toBe('Cut the carrot into chunks');
+  expect(chopInstruction('beef', 'cubed (3cm)')).toBe('Dice the beef into 3cm cubes');
+  expect(chopInstruction('coriander', null)).toBe('Chop the coriander');
+  expect(chopInstruction('ginger', 'peeled and sliced')).toBe('Peel and slice the ginger');
+});

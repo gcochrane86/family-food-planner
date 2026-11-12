@@ -44,7 +44,7 @@ test('Start goes to the first step and Next steps through, with no timers', asyn
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(screen.getByText('17:30')).toBeInTheDocument();
-  expect(screen.getByRole('heading', { name: 'Chop everything' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Chop all the ingredients below' })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
@@ -196,9 +196,10 @@ test('the chopping step lists each item with its weight and how to cut it', asyn
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   const step = screen.getByRole('region', { name: /^Step 1 of/ });
-  expect(within(step).getByText(/^1.2kg · 10mm batons$/)).toBeInTheDocument();
-  expect(within(step).getByText(/chicken breast or thigh/i)).toBeInTheDocument();
-  expect(within(step).getByText(/10mm batons/)).toBeInTheDocument();
+  expect(within(step).getByText('1.2kg')).toBeInTheDocument();
+  expect(within(step).getByText('Cut the chicken breast or thigh into 10mm strips')).toBeInTheDocument();
+  expect(screen.queryByText('chicken breast or thigh, strips (10mm)')).not.toBeInTheDocument();
+  expect(within(step).getByText('Chicken breast or thigh')).toBeInTheDocument();
 });
 
 test('while a new photo is being made, a bar says so until it is done', async () => {
@@ -224,7 +225,7 @@ test('hands-free in Today\'s hour: "planner next" starts the hour and steps on',
   await screen.findByRole('button', { name: 'Start' });
   await user().click(screen.getByRole('button', { name: /Listen/ }));
   act(() => FakeRec.last!.say('planner next'));
-  expect(screen.getByRole('heading', { name: 'Chop everything' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Chop all the ingredients below' })).toBeInTheDocument();
   act(() => FakeRec.last!.say('planner next planner next planner next'));
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
   remove();
@@ -270,7 +271,7 @@ test('the step pages show the same pictures: tiles for what a step uses, and bes
   // The chopping is tiles too: name, then the amount and the cut.
   const chop = screen.getAllByRole('list').find((l) => /^For /.test(l.getAttribute('aria-label') ?? ''))!;
   expect(within(chop).getByText('Chicken breast or thigh')).toBeInTheDocument();
-  expect(within(chop).getByText(/kg · 10mm batons/)).toBeInTheDocument();
+  expect(within(chop).getByText('Cut the chicken breast or thigh into 10mm strips')).toBeInTheDocument();
   while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   const uses = screen.getByRole('list', { name: 'For this step' });
   expect(within(uses).getByText('Basmati rice')).toBeInTheDocument();

@@ -82,3 +82,34 @@ export function iconPrompt(ingredient: string, hint?: string | null): string {
     'No text, no labels, no letters, no brand names, no people, nothing else in the picture.',
   ].filter(Boolean).join(' ');
 }
+
+/** What to do with one thing to chop, in plain words: "Cut the new potatoes in half", "Dice the potatoes into 2cm
+ *  cubes". Read from the recipe's note with the same cuts as the chopping pictures. */
+export function chopInstruction(name: string, note: string | null | undefined): string {
+  const n = (note ?? '').trim().toLowerCase().replace(/[.;]+$/, '');
+  const what = name.trim().toLowerCase();
+  const size = n.match(/(\d+(?:\.\d+)?)\s*(mm|cm)\b/);
+  const sz = size ? `${size[1]}${size[2]}` : '';
+  const cut = CUTS.find(([re]) => re.test(n))?.[1] ?? (n ? null : 'chopped');
+  const peel = /peel/.test(n);
+  const verb = (v: string) => (peel ? `Peel and ${v.charAt(0).toLowerCase()}${v.slice(1)}` : v);
+  switch (cut) {
+    case 'halved': return verb(`Cut the ${what} in half`);
+    case 'quartered': return verb(`Cut the ${what} into quarters`);
+    case 'diced': return verb(`Dice the ${what}${sz ? ` into ${sz} cubes` : ''}`);
+    case 'finely diced': return verb(`Finely dice the ${what}`);
+    case 'chunks': return verb(`Cut the ${what} into ${sz ? `${sz} ` : ''}chunks`);
+    case 'thinly sliced': return verb(`Thinly slice the ${what}`);
+    case 'sliced': return verb(`Slice the ${what}${sz ? ` ${sz} thick` : ''}`);
+    case 'strips': return verb(`Cut the ${what} into ${sz ? `${sz} ` : ''}strips`);
+    case 'matchsticks': return verb(`Cut the ${what} into matchsticks`);
+    case 'rings': return verb(`Slice the ${what} into rings`);
+    case 'half-moons': return verb(`Slice the ${what} into half-moons`);
+    case 'wedges': return verb(`Cut the ${what} into wedges`);
+    case 'florets': return verb(`Cut the ${what} into florets`);
+    case 'crushed': return verb(`Crush the ${what}`);
+    case 'grated': return verb(`Grate the ${what}`);
+    case 'chopped': return verb(`Chop the ${what}`);
+    default: return `${what.charAt(0).toUpperCase()}${what.slice(1)}: ${n}`;
+  }
+}
