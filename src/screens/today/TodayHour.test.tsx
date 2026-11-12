@@ -342,6 +342,16 @@ test('Plate up shows the dish photo large, on its own, centred under the text', 
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   while (!screen.queryByRole('heading', { name: 'Plate up' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   const step = screen.getByRole('region', { name: /^Step \d+ of/ });
-  expect(step).toHaveAttribute('data-layout', 'serve');
+  expect(step).toHaveAttribute('data-layout', 'centred');
   expect(within(step).getByRole('img', { name: HONEY.title })).toBeInTheDocument();
+});
+
+test('clean-up steps are centred, with a big sponge under the text', async () => {
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  await user().click(screen.getByRole('button', { name: 'Next' }));
+  const step = screen.getByRole('region', { name: /^Step \d+ of/ });
+  expect(within(step).getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
+  expect(step).toHaveAttribute('data-layout', 'centred');
+  expect(within(step).getByRole('img', { name: 'Cleaning' })).toHaveClass('text-[clamp(120px,22vw,220px)]');
 });

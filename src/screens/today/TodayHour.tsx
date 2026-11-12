@@ -146,9 +146,9 @@ export default function TodayHour() {
         return (
           <section aria-label={`Step ${Math.min(index, steps.length - 1) + 1} of ${steps.length}`}
             onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
-            data-layout={step.kind === 'serve' ? 'serve' : 'step'}
-            // Plating up: the text, then the dish photo large and centred. Other steps: text left, pictures right.
-            className={step.kind === 'serve'
+            data-layout={centred(step) ? 'centred' : 'step'}
+            // Plating up and clean-up: the text, then the picture large and centred. Other steps: text left, pictures right.
+            className={centred(step)
               ? 'mx-auto grid w-full max-w-4xl flex-1 content-start justify-items-center gap-6 text-center'
               : 'mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10'}>
             <div className="grid content-start gap-3">
@@ -197,7 +197,7 @@ export default function TodayHour() {
               </ul>
             )}
             </div>
-            <div className={step.kind === 'serve' ? 'w-full max-w-4xl' : ''}><StepPictures step={step} onHold={setMenu} /></div>
+            <div className={centred(step) ? 'grid w-full max-w-4xl justify-items-center' : ''}><StepPictures step={step} onHold={setMenu} big={centred(step)} /></div>
           </section>
         );
       })()}
@@ -263,8 +263,11 @@ function MissingPhotos({ recipes, prep, icons, state, onStart }: { recipes: Reci
 /** A step's pictures: one large photo, a strip for the chopping, or an icon for cleaning. */
 type Prep = NonNullable<HourStep['photos'][number]['prep']>;
 type Held = { prep?: Prep & { icon?: boolean }; step?: NonNullable<HourStep['photos'][number]['step']> };
-function StepPictures({ step, onHold }: { step: HourStep; onHold: (h: Held) => void }) {
-  if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className="text-6xl">🧽</span> : null;
+/** Plating up and clean-up steps are laid out centred, the picture large under the text. */
+const centred = (s: HourStep) => s.kind === 'serve' || s.kind === 'clean';
+
+function StepPictures({ step, onHold, big = false }: { step: HourStep; onHold: (h: Held) => void; big?: boolean }) {
+  if (!step.photos.length) return step.kind === 'clean' ? <span role="img" aria-label="Cleaning" className={big ? 'text-[clamp(120px,22vw,220px)] leading-none' : 'text-6xl'}>🧽</span> : null;
   return <PhotoFrame photos={step.photos.map((p) => ({ path: p.path, alt: p.alt,
     onHold: p.prep ? () => onHold({ prep: p.prep }) : p.step ? () => onHold({ step: p.step }) : undefined }))} />;
 }
