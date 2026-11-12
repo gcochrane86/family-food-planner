@@ -34,6 +34,8 @@ export default function SettingsHome() {
           </li>
         ))}
       </ul>
+      {/* Temporary: the hands-free cooking test, reachable from the home-screen app (no address bar there). */}
+      <Link to="/listen-test" className="justify-self-start text-sm text-muted underline">Listening test</Link>
       <button type="button" className="justify-self-start text-sm text-muted underline" onClick={() => void signOut()}>Sign out</button>
     </section>
   );
