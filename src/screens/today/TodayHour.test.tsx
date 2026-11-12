@@ -195,8 +195,8 @@ test('the chopping step lists each item with its weight and how to cut it', asyn
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   const step = screen.getByRole('region', { name: /^Step 1 of/ });
-  expect(within(step).getByText('1.2kg')).toBeInTheDocument();
-  expect(within(step).getByText(/chicken breast or thigh/)).toBeInTheDocument();
+  expect(within(step).getByText(/^1.2kg · 10mm batons$/)).toBeInTheDocument();
+  expect(within(step).getByText(/chicken breast or thigh/i)).toBeInTheDocument();
   expect(within(step).getByText(/10mm batons/)).toBeInTheDocument();
 });
 
@@ -266,6 +266,10 @@ test('the step pages show the same pictures: tiles for what a step uses, and bes
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   expect(screen.getByRole('img', { name: 'chicken breast or thigh' })).toHaveAttribute('src', expect.stringContaining('icon-chicken.jpg'));
+  // The chopping is tiles too: name, then the amount and the cut.
+  const chop = screen.getAllByRole('list').find((l) => /^For /.test(l.getAttribute('aria-label') ?? ''))!;
+  expect(within(chop).getByText('Chicken breast or thigh')).toBeInTheDocument();
+  expect(within(chop).getByText(/kg · 10mm batons/)).toBeInTheDocument();
   while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   const uses = screen.getByRole('list', { name: 'For this step' });
   expect(within(uses).getByText('Basmati rice')).toBeInTheDocument();
