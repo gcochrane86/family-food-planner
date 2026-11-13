@@ -4,8 +4,8 @@ import type { WeekState } from './useWeek';
 
 const MINUTE = 60_000;
 
-/** "Plan with Claude": the request form, Claude planning, a plan that couldn't be made, and Claude's summary. The
- *  scheduled task on the owner's Mac picks requests up every 15 minutes. */
+/** "Plan with Claude": the note form (it opens the Claude app, which plans through the connector), a plan request
+ *  still open or one that couldn't be made, and Claude's summary under a week Claude planned. */
 export function usePlanRequest(w: WeekState) {
   const req = w.planRequest;
   const open = !!req && (req.status === 'requested' || req.status === 'planning');

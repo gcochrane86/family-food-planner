@@ -325,15 +325,13 @@ export function useWeek() {
       if (req.status === 'done') await reload();
       else setData((d) => d && { ...d, [key]: req });
     },
-    /** Asks Claude to plan the week shown, or with `replace`, to replan its draft. */
+    /** Opens the Claude app to plan the week shown (or, with `replace`, replan its draft) with the household, through
+     *  the Family Food Planner connector; Claude saves it as a draft to approve here. */
     async planWithClaude(note: string | null, replace = false) {
       setSaveError(null);
-      try {
-        const req = await repo.requestWeekPlan(hid, weekStart, note?.trim() || null, replace);
-        setData((d) => d && { ...d, [shown === 'next' ? 'nextRequest' : 'thisRequest']: req });
-      } catch {
-        setSaveError("Couldn't ask Claude. Check your connection and try again.");
-      }
+      const when = new Date(`${weekStart}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+      const ask = `${replace ? 'Replan' : 'Plan'} ${shown} week (week of ${when}) for the Family Food Planner${replace ? ', replacing the draft' : ''}.${note?.trim() ? ` Note: ${note.trim()}` : ''}`;
+      window.open(`https://claude.ai/new?q=${encodeURIComponent(ask)}`, '_blank', 'noopener');
     },
     /** Asks Claude to fill a delivery's Sainsbury's trolley again (tops up only). */
     async resendBasket(delivery: 'sun' | 'tue') {

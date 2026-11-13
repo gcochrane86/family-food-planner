@@ -52,7 +52,7 @@ export default function WeekView() {
           {plan.open ? <Planning w={w} /> : (<>
           <p className="m-0 font-semibold">{w.shown === 'next' ? 'Claude plans next week on Friday evening' : 'No menu for this week'}</p>
           <p className="m-0 text-sm text-muted">
-            Or ask now: Claude plans from your specifications, recipes, freezer and pantry, usually within 15 minutes while the Mac is on.
+            Or plan it now with Claude: it opens the Claude app, plans from your specifications, recipes, freezer and pantry, and saves a draft here to approve.
             Quick menu uses the built-in planner straight away.
           </p>
           {plan.failed && <Failed w={w} summary={plan.req!.summary} note={plan.req!.note} />}
