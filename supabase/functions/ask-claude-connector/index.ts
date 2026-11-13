@@ -1,7 +1,8 @@
 // "Ask Claude": a read-only MCP connector for the Claude app (docs/spec.md §10). The household adds it once as a
 // custom connector with the secret link …/functions/v1/ask-claude-connector/<key>; Claude then looks up recipes,
 // plans, the pantry and saved products while they chat, and (each call approved by the household in Claude) saves
-// tonight's version of a day's recipe, swaps a dinner, or marks a staple. It never edits saved recipes.
+// tonight's version of a day's recipe, swaps a dinner, marks a staple, or plans a week's dinners as a draft (adding
+// any new recipes for it). It never edits saved recipes.
 // Deployed with --no-verify-jwt (Claude has no app login); the key in the path is the lock. A missing or wrong key
 // gets a bare 404. Secrets: CONNECTOR_KEY, CONNECTOR_HOUSEHOLD_ID.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -11,6 +12,7 @@ import {
   weekStartFor, type Reader,
 } from '../_shared/askClaude.ts';
 import { makeChanger } from '../_shared/askClaudeWrite.ts';
+import { makePlanner } from '../_shared/askClaudePlan.ts';
 import { MEAL_SPEC } from '../_shared/mealSpec.ts';
 
 const notFound = () => new Response('Not found', { status: 404 });
@@ -25,7 +27,7 @@ const safely = async (run: () => Promise<string>) => {
   try { return text(await run()); } catch (e) { return text(`Couldn't read the planner just now: ${e instanceof Error ? e.message : String(e)}`); }
 };
 
-function server(read: Reader, change: ReturnType<typeof makeChanger>) {
+function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: ReturnType<typeof makePlanner>) {
   const mcp = new McpServer({ name: 'family-food-planner', version: '1.0.0' });
   mcp.tool('get_household', {
     description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), Today's hour and the breakfast and lunch options.",
@@ -101,6 +103,29 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>) {
     annotations: changes,
     handler: (args: Record<string, unknown>) => safely(() => change.clearVersion(args ?? {})),
   });
+  mcp.tool('get_plan_context', {
+    description: "Call this before planning a week's dinners. How to plan (the household's priorities, in order), then everything the plan needs for that week as JSON: dates and office days, portions, rules (protein balance, time limits, Today's hour, day rules, other shops, what makes a meal, house and private rules), every plannable dinner with times and ingredients, recent dinners, freezer, pantry, pack sizes, whether the week already has a draft, how many new recipes are allowed and the rules for writing one, and the app's own proposal. Read-only.",
+    inputSchema: { type: 'object', properties: { week: { type: 'string', description: '"next" (default), "this", or any date in the week as YYYY-MM-DD' } } },
+    annotations: readOnly,
+    handler: (args: { week?: string }) => safely(() => plan.context(args ?? {})),
+  });
+  mcp.tool('save_week_plan', {
+    description: "Changes the plan (the household approves each call in Claude): saves a week's dinners as a draft. Any new recipes are added first (up to the allowance, written to the newRecipeRules from get_plan_context), the app fills breakfasts and lunches around the dinners, and the household approves the week in the app. Replaces a draft, never an approved week; all or nothing. Agree the dinners with the household before saving.",
+    inputSchema: {
+      type: 'object', required: ['summary', 'dinners'],
+      properties: {
+        week: { type: 'string', description: '"next" (default), "this", or any date in the week as YYYY-MM-DD' },
+        summary: { type: 'string', description: "2–4 sentences shown on the week: its shape, what's shared between dinners, the flavour spread" },
+        dinners: { type: 'array', items: { type: 'object', required: ['date', 'recipe', 'reason'], properties: {
+          date: { type: 'string', description: 'YYYY-MM-DD, in the week' },
+          recipe: { type: 'string', description: "The recipe's slug or title, or a new recipe's slug" },
+          reason: { type: 'string', description: 'One line shown on the day, up to 200 characters' } } } },
+        new_recipes: { type: 'array', description: 'New recipes in the seed format from newRecipeRules (up to the allowance)', items: { type: 'object' } },
+      },
+    },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => plan.save(args ?? {})),
+  });
   mcp.tool('set_pantry', {
     description: "Changes the pantry (the household approves each call in Claude): marks a staple as have, low or out. Low and out staples go on the next shopping list. Other pantry items are changed in the app.",
     inputSchema: { type: 'object', properties: { item: { type: 'string' }, status: { type: 'string', enum: ['have', 'low', 'out'] } }, required: ['item', 'status'] },
@@ -121,5 +146,5 @@ Deno.serve((req) => {
   if (!householdId) return notFound();
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  return new StreamableHttpTransport().bind(server(makeReader(db, householdId), makeChanger(db, householdId)))(req);
+  return new StreamableHttpTransport().bind(server(makeReader(db, householdId), makeChanger(db, householdId), makePlanner(db, householdId)))(req);
 });

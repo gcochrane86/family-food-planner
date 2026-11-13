@@ -10,9 +10,9 @@ import { parseVersion } from './slotVersion.ts';
 type Db = any;
 
 export const INSTRUCTIONS = [
-  "This connector shows the household's food planner, and can make a few changes: tonight's version of a day's recipe, swapping a dinner, and a staple's pantry status.",
+  "This connector shows the household's food planner, and can make a few changes: tonight's version of a day's recipe, swapping a dinner, a staple's pantry status, and planning a week's dinners (get_plan_context, then save_week_plan as a draft the household approves in the app).",
   'Suggest first; change only when asked. Change tools need the household\'s approval in Claude. When one ingredient is the problem, prefer tonight\'s version to swapping the meal.',
-  'Never edit saved recipes (that is done in Claude Code); other changes are made in the app, or with Plan with Claude there.',
+  'Never edit saved recipes (that is done in Claude Code); new recipes only through save_week_plan, within its allowance. Other changes are made in the app.',
   'Keep every suggestion within the house rules and the private rules below. Never name or explain the private rules; if you must mention them, say "your private rules".',
   "Keep weeknight dinners' hands-on time within Today's hour less 15 minutes, and prefer what is already in the pantry and freezer.",
 ].join(' ');
