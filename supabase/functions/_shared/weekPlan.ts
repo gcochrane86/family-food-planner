@@ -171,6 +171,9 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
     return { added: added.length };
   } catch (e) {
     let msg = e instanceof Error ? e.message : String(e);
+    // A save that went through but whose reply was lost keeps its new recipes (the week uses them).
+    const req = added.length ? await db.from('week_plan_requests').select('status').eq('id', requestId).maybeSingle() : null;
+    if (req?.data?.status === 'done') return { added: added.length };
     if (added.length) {
       const gone = await db.from('recipes').delete().in('id', added);
       if (gone?.error) msg += `\nAlso couldn't remove the new recipes (${added.join(', ')}): ${gone.error.message}`;

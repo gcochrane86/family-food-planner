@@ -9,7 +9,7 @@ const RECIPES = [
 ];
 const deps = (save = vi.fn(async () => ({ added: 0 }))) => ({
   context: vi.fn(async () => ({ week: { start: '2026-11-16' } }) as never),
-  loadInput: vi.fn(async () => ({ days: 5 }) as never),
+  loadInput: vi.fn(async () => ({ days: 5, recipes: [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }] }) as never),
   save,
 });
 const world = (o: Record<string, unknown> = {}) => tableDb({ recipes: RECIPES, 'settings:one': { data: { adventure: 1 } }, 'week_plan_requests:single': { id: 'new-req' }, ...o });
@@ -66,4 +66,45 @@ test("when saving fails, the request is closed with why and Claude is told", asy
   const out = await makePlanner(db, 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }]));
   expect(out).toMatch(/Couldn't save the week: That week was approved while planning/);
   expect(db.writes().find((w) => w.table === 'week_plan_requests' && w.method === 'update')?.payload).toMatchObject({ status: 'failed' });
+});
+
+describe('review fixes', () => {
+  test('a recipe in draft status can be planned (only archived ones are out)', async () => {
+    const d = deps();
+    const db = world({ recipes: [...RECIPES, { id: 'r4', slug: 'new-stew', title: 'New Stew', kind: 'meal', status: 'draft' }] });
+    await makePlanner(db, 'h1', NOW, { ...d, loadInput: vi.fn(async () => ({ days: 5, recipes: [{ id: 'r4' }] }) as never) }).save(plan([{ date: '2026-11-16', recipe: 'New Stew' }]));
+    expect(d.save).toHaveBeenCalled();
+  });
+
+  test("Claude's fixable mistakes are reported without opening (or failing) a plan request", async () => {
+    const cases: [Record<string, unknown>, Record<string, unknown>, RegExp][] = [
+      [{}, plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [{ slug: 'fish-pie', title: 'Another Fish Pie', kind: 'meal', protein: 'fish', base_portions: 4, ingredients: [{ name: 'cod', qty: 400, unit: 'g' }], steps: [{ phase: 'finish', title: 'Bake', body: 'Bake the **cod**.' }] }] }), /already exists/],
+      [{ recipes: [{ id: 'r1' }] }, plan([{ date: '2026-11-16', recipe: 'fish-pie' }]), /Not plannable/],
+    ];
+    for (const [input, args, says] of cases) {
+      const d = deps();
+      const db = world();
+      const out = await makePlanner(db, 'h1', NOW, { ...d, loadInput: vi.fn(async () => ({ days: 5, recipes: [{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }], ...input }) as never) }).save(args as never);
+      expect(out).toMatch(says);
+      expect(db.writes()).toEqual([]);
+    }
+  });
+
+  test("the household's note isn't filled with Claude's summary", async () => {
+    const db = world();
+    await makePlanner(db, 'h1', NOW, deps()).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }]));
+    expect(db.writes().find((w) => w.table === 'week_plan_requests' && w.method === 'insert')?.payload).toMatchObject({ note: null });
+  });
+
+  test("this week's days that have passed can't be replanned", async () => {
+    const thursday = new Date('2026-11-12T12:00:00Z');
+    const db = world();
+    const out = await makePlanner(db, 'h1', thursday, deps()).save({ ...plan([{ date: '2026-11-10', recipe: 'fish-pie' }]), week: 'this' } as never);
+    expect(out).toMatch(/has passed/);
+    expect(db.writes()).toEqual([]);
+  });
+
+  test('replacing a draft is called out in how to plan', async () => {
+    expect(await makePlanner(world(), 'h1', NOW, deps()).context({})).toMatch(/existing is "draft".*replace/i);
+  });
 });

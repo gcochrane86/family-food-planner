@@ -330,7 +330,7 @@ export function useWeek() {
     async planWithClaude(note: string | null, replace = false) {
       setSaveError(null);
       const when = new Date(`${weekStart}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-      const ask = `${replace ? 'Replan' : 'Plan'} ${shown} week (week of ${when}) for the Family Food Planner${replace ? ', replacing the draft' : ''}.${note?.trim() ? ` Note: ${note.trim()}` : ''}`;
+      const ask = `${replace ? 'Replan' : 'Plan'} ${shown} week (week of ${when}, ${weekStart}) for the Family Food Planner${replace ? ', replacing the draft' : ''}.${note?.trim() ? ` Note: ${note.trim()}` : ''}`;
       window.open(`https://claude.ai/new?q=${encodeURIComponent(ask)}`, '_blank', 'noopener');
     },
     /** Asks Claude to fill a delivery's Sainsbury's trolley again (tops up only). */

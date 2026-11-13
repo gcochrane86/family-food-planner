@@ -23,8 +23,8 @@ const DATE = { type: 'string', description: 'The day, as YYYY-MM-DD (today to ne
 const SLOT = { type: 'string', enum: ['breakfast', 'lunch', 'dinner'], description: 'Which meal (default dinner)' };
 
 /** Runs a lookup; a failure comes back as words for Claude, never a stack. */
-const safely = async (run: () => Promise<string>) => {
-  try { return text(await run()); } catch (e) { return text(`Couldn't read the planner just now: ${e instanceof Error ? e.message : String(e)}`); }
+const safely = async (run: () => Promise<string>, what = 'read the planner') => {
+  try { return text(await run()); } catch (e) { return text(`Couldn't ${what} just now: ${e instanceof Error ? e.message : String(e)}`); }
 };
 
 function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: ReturnType<typeof makePlanner>) {
@@ -124,7 +124,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
       },
     },
     annotations: changes,
-    handler: (args: Record<string, unknown>) => safely(() => plan.save(args ?? {})),
+    handler: (args: Record<string, unknown>) => safely(() => plan.save(args ?? {}), 'save the week'),
   });
   mcp.tool('set_pantry', {
     description: "Changes the pantry (the household approves each call in Claude): marks a staple as have, low or out. Low and out staples go on the next shopping list. Other pantry items are changed in the app.",

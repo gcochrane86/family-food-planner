@@ -8,7 +8,9 @@ const MINUTE = 60_000;
  *  still open or one that couldn't be made, and Claude's summary under a week Claude planned. */
 export function usePlanRequest(w: WeekState) {
   const req = w.planRequest;
-  const open = !!req && (req.status === 'requested' || req.status === 'planning');
+  // Claude saves a plan in seconds now (from the Claude app), so a request still open after 10 minutes was abandoned:
+  // it no longer hides Plan with Claude.
+  const open = !!req && (req.status === 'requested' || req.status === 'planning') && Date.now() - Date.parse(req.requested_at) < 10 * MINUTE;
   // A failure only matters while the week can still be planned (no week, or a draft older than the request).
   const failed = !!req && req.status === 'failed' && req.summary !== CANCELLED
     && (!w.week || (w.week.status === 'draft' && Date.parse(req.requested_at) > Date.parse(w.week.proposed_at)));
@@ -26,7 +28,7 @@ export function Planning({ w }: { w: WeekState }) {
   return (
     <div className="grid justify-items-start gap-2 rounded-2xl bg-accent-soft p-4">
       <p role="status" className="m-0 font-semibold">
-        Claude is planning {w.shown === 'next' ? 'next week' : 'this week'}… usually within 15 minutes, while the Mac is on.
+        Claude is saving the plan for {w.shown === 'next' ? 'next week' : 'this week'}…
       </p>
       <button type="button" onClick={() => void w.cancelPlan()} className="text-sm font-semibold text-accent underline">Cancel</button>
     </div>
