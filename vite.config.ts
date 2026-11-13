@@ -13,7 +13,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // A new version waits for Refresh on the banner (UpdateBanner), instead of only arriving when the app is reopened.
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
       workbox: {
         // Keep recipe photos and fonts on the device, so opening the app doesn't download them again.

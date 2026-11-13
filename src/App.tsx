@@ -2,6 +2,7 @@ import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthProvider';
 import RequireHousehold from './auth/RequireHousehold';
 import BottomNav from './components/BottomNav';
+import UpdateBanner from './components/UpdateBanner';
 import CookMode from './screens/recipes/CookMode';
 import WeekView from './screens/week/WeekView';
 import ShopList from './screens/shop/ShopList';
@@ -62,6 +63,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       </header>
       <main>{children}</main>
       <BottomNav />
+      <UpdateBanner />
     </div>
   );
 }

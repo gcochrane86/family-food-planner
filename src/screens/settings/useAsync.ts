@@ -6,9 +6,11 @@ function readKept<T>(key: string | undefined): T | null {
 }
 
 /** Loads data once (and on reload), keeping loading and error state for the screen. With `keep`, the last data is
- *  kept on this device under that key and shown at once next time, while a fresh copy loads. */
-export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { keep?: string } = {}) {
-  const { keep } = options;
+ *  kept on this device under that key and shown at once next time, while a fresh copy loads. With `onReturn`, it
+ *  loads again quietly whenever the app comes back on screen (from the Claude app, say), so changes made elsewhere
+ *  show without reopening the app. */
+export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { keep?: string; onReturn?: boolean } = {}) {
+  const { keep, onReturn = false } = options;
   const [data, setData] = useState<T | null>(() => readKept<T>(keep));
   const [error, setError] = useState<string | null>(null);
   // True once this screen has loaded its own fresh copy (not just the one kept on the device).
@@ -32,6 +34,16 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[], options: { 
   }, [run, keep]);
 
   useEffect(() => { void reload(); }, [reload]);
+  useEffect(() => {
+    if (!onReturn) return;
+    // Quietly: what's on screen stays until the fresh copy arrives, and a failed refresh changes nothing.
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      run().then((d) => { setData(d); setFresh(true); }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => document.removeEventListener('visibilitychange', back);
+  }, [run, onReturn]);
   useEffect(() => {
     if (!keep || data === null) return;
     try { localStorage.setItem(keep, JSON.stringify(data)); } catch { /* storage full or blocked: just don't keep it */ }

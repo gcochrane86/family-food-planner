@@ -48,7 +48,7 @@ export function useWeek() {
       run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[]), baskets(thisWeek), baskets(nextWeek),
       asked(starts.thisWeek), asked(starts.nextWeek)]);
     return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest };
-  }, [hid, starts]);
+  }, [hid, starts], { onReturn: true });
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
   const current = data ? (shown === 'next' ? data.nextWeek : data.thisWeek) : null;

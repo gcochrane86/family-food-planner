@@ -1001,3 +1001,13 @@ test('the Week tab links to Claude to ask about the plan', async () => {
   expect(link).toHaveAttribute('target', '_blank');
   expect(link).toHaveAttribute('rel', 'noreferrer');
 });
+
+test('coming back to the app (from the Claude app, say) loads the week again, so a plan saved there shows up', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await screen.findByRole('heading', { name: /week/i });
+  await screen.findAllByRole('button', { name: /Mon|Tue|Wed/ });
+  const before = h.repo.getWeek.mock.calls.length;
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+  expect(h.repo.getWeek.mock.calls.length).toBeGreaterThan(before);
+});

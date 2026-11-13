@@ -100,5 +100,5 @@ export function useTodayHour(now = new Date()) {
       tomorrow: next,
     };
     return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null };
-  }, [hid, today]);
+  }, [hid, today], { onReturn: true });
 }
