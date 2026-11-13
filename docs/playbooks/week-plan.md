@@ -1,5 +1,10 @@
 # Playbook: plan the week
 
+> **Since 13 Nov 2026 the week is planned in the Claude app**, through the Family Food Planner connector:
+> `get_plan_context` gives the same context and priorities as below, and `save_week_plan` saves the dinners (and up to the
+> allowed new recipes) as a draft. Plan with Claude in the app opens the Claude app. The Mac's scheduled `week-plan` task is
+> off; the CLI steps below still work for a manual run.
+
 Claude follows this when the household taps **Plan with Claude** (or **Replan with Claude**) on the Week tab, which
 leaves a `requested` row in `week_plan_requests`, and on Friday evenings, when `week pending` makes next week's
 request itself. Claude chooses the **dinners**; the built-in planner then fills breakfasts and lunches around them
