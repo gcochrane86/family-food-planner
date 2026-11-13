@@ -1,0 +1,13 @@
+// The rules a new recipe follows when Claude adds one while planning a week (the same as
+// docs/playbooks/recipe-import.md, which stays the full version). Shown to Claude in the planning context.
+export const NEW_RECIPE_RULES = [
+  'Format: { slug (new, lower-case-with-dashes), title, subtitle, kind: "meal", protein (chicken, fish, red_meat, veggie, egg, other), base_portions (6 if it reheats well, else 4), reheats_well, freezes_well, toddler_ok, toddler_note, salt_per_portion_g, prep_minutes (night before), finish_minutes (on the night), hands_off_minutes, tags, equipment, ingredients: [{ group, name, qty, unit, note, approx }], steps: [{ phase: "prep_8pm" | "finish", at, title, body, machine (tm7, apo, hy24, hob, oven, meater, kettle or null), settings, timer, picture }] }.',
+  'Titles and subtitles in the household\'s style ("Chicken Katsu" / "with sticky rice & slaw"). Bold ingredient names in step bodies with **…**.',
+  'Kit: the TM7 mainly for sauces, pastes, chopping and rice, never the Varoma; the Anova (apo) or a pan for proteins and veg; the hob for browning (mince in a frying pan); potatoes steamed, boiled or mashed in a pan on the hob, roasting in the oven, Anova or air fryer is fine.',
+  'Prep ahead: what can be done the night before (sauces, marinades, chopping that keeps) goes in prep_8pm steps. Weeknight hands-on time within Today\'s hour less 15 minutes.',
+  'Prep notes: every ingredient that needs a knife, peeler or grater says how in its note, with a size: "peeled, sliced into 2mm discs", "diced 2cm", "cut into 3cm chunks", "halved", "florets", "grated", "trimmed" (including what goes into the TM7 to be chopped: onion "peeled, quartered", ginger "peeled, sliced into 2mm discs"). No note on things used as they come.',
+  'Doneness: every step where meat or fish finishes cooking ends with the probe target, "Probe the thickest part: **74°C / 165°F**" (chicken, turkey), 70°C / 158°F (beef, lamb, pork), 71°C / 160°F (mince, burgers, meatballs), 63°C / 145°F (fish). No raw or rare meat or fish.',
+  'Pictures: every step has a picture, 2–4 short sentences saying exactly what its cartoon shows: one moment, the container named plainly ("a frying pan on the hob", "the Thermomix TM7 bowl", "a lined tray in the Anova oven"), every item with amount, cut and state, which container each is in (raw meat and fish never share a container with other food unless the step mixes them), and what must not appear. No people, hands, brands, words, times or temperatures.',
+  'Toddler: a toddler note when a portion needs setting aside, and low salt (season adult plates at the table).',
+  'Follow the house rules and the private rules exactly, but never name, quote or hint at the private rules in any text.',
+].join('\n');

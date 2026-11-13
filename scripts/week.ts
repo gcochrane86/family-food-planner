@@ -8,18 +8,13 @@
 //   npx tsx scripts/week.ts failed < failed.json           {"request": "<id>", "summary": "why"}
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { parseWeekFailed, parseWeekPlan } from './weekInput';
-import { MEAL_SPEC } from '../src/lib/mealSpec';
 import { loadPlannerInput } from '../supabase/functions/_shared/loadPlan';
-import { slotRows } from '../supabase/functions/_shared/planInput';
-import { addDays, OFFICE_MAX, proposeWeek } from '../supabase/functions/_shared/planner';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
-// @ts-expect-error plain JS helper
-import { contentRows, recipeRow } from './recipeSeed.mjs';
+import { planContext, saveWeekPlan } from '../supabase/functions/_shared/weekPlan';
 
 const STALE_MS = 2 * 60 * 60 * 1000;    // planning that started over 2 hours ago has stopped (Mac asleep)
 const UNCLAIMED_MS = 12 * 60 * 60 * 1000; // a request not picked up in 12 hours (Mac off) is closed, not planned late
 const FRIDAY_FROM = 18;               // Friday from 6pm London time, Claude plans next week by itself
-const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 type Request = { id: string; household_id: string; week_start: string; note: string | null; status: string; started_at: string | null; requested_at: string; replace: boolean };
 const COLS = 'id, household_id, week_start, note, status, started_at, requested_at, replace';
@@ -80,69 +75,10 @@ async function claim() {
   console.log(`Request ${id} claimed.`);
 }
 
-/** Everything the plan needs: the week, the household's specifications and rules, recipes, freezer, pantry, pack
- *  sizes, recent dinners, and the built-in planner's proposal as a starting point. */
+/** Everything the plan needs (see planContext), with the request's note. */
 async function context() {
   const r = await loadRequest(arg('request') ?? fail('--request is required'));
-  const hid = r.household_id;
-  const input = await loadPlannerInput(db, hid, r.week_start);
-  const [settings, members, rules, recipes, recent, freezer, pantry, products] = await Promise.all([
-    db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
-    db.from('members').select('name, kind, portion_weight').eq('household_id', hid),
-    db.from('house_rules').select('kind, match, replacement, note').eq('household_id', hid),
-    // Ingredients nested in each recipe, so a big library isn't cut off at the API's row limit.
-    db.from('recipes').select('id, slug, title, subtitle, protein, finish_minutes, prep_minutes, reheats_well, freezes_well, tags, rating, status, base_portions, recipe_ingredients(name, qty, unit)').eq('household_id', hid).eq('kind', 'meal'),
-    db.from('plan_weeks').select('week_start, meal_slots(date, slot, mode, recipe_id)').eq('household_id', hid).gte('week_start', addDays(r.week_start, -28)).lt('week_start', r.week_start),
-    db.from('prepared_items').select('name, recipe_id, portions, use_by').eq('household_id', hid).eq('location', 'freezer').gt('portions', 0),
-    db.from('pantry_items').select('staple_status, qty, unit, location, ingredients(name)').eq('household_id', hid),
-    db.from('products').select('item_key, product_name, pack_size, pack_unit').eq('household_id', hid),
-  ]);
-  const data = <T>(res: { data: T | null; error: { message: string } | null }, what: string) => must(res, what) ?? ([] as unknown as T);
-  const s = (must(settings, 'Reading settings') as { data: Record<string, unknown> } | null)?.data ?? {};
-  type Ing = { name: string; qty: number | null; unit: string };
-  const all = data(recipes, 'Reading recipes') as { id: string; slug: string; recipe_ingredients: Ing[]; [k: string]: unknown }[];
-  const slugOf = new Map(all.map((x) => [x.id, x.slug]));
-  const plannable = new Set(input.recipes.map((x) => x.id));
-  const handsOnOf = new Map(input.recipes.map((x) => [x.id, x.handsOn]));
-  const lastCooked = new Map<string, string>();
-  const recentDinners: { date: string; recipe: string | null; mode: string }[] = [];
-  for (const w of data(recent, 'Reading recent weeks') as { meal_slots: { date: string; slot: string; mode: string; recipe_id: string | null }[] }[]) {
-    for (const sl of w.meal_slots.filter((x) => x.slot === 'dinner')) {
-      recentDinners.push({ date: sl.date, recipe: sl.recipe_id ? slugOf.get(sl.recipe_id) ?? null : null, mode: sl.mode });
-      if (sl.mode === 'cook' && sl.recipe_id && (lastCooked.get(sl.recipe_id) ?? '') < sl.date) lastCooked.set(sl.recipe_id, sl.date);
-    }
-  }
-  const nameOf = (i: unknown) => (Array.isArray(i) ? i[0]?.name : (i as { name?: string } | null)?.name) ?? '';
-  const proposal = proposeWeek(input).filter((x) => x.slot === 'dinner')
-    .map((x) => ({ date: x.date, recipe: x.recipeId ? slugOf.get(x.recipeId) ?? null : null, reason: x.reason }));
-
-  console.log(JSON.stringify({
-    request: { id: r.id, note: r.note },
-    week: {
-      start: r.week_start, days: input.days,
-      dates: Array.from({ length: input.days }, (_, i) => ({ date: addDays(r.week_start, i), day: DAY[i], office: input.officeDays.includes(i) })),
-      householdPortions: input.householdPortions,
-    },
-    rules: {
-      proteinBalance: input.balance, weekdayDinnerMaxMinutes: input.weekdayMaxMin, officeDayMaxMinutes: Math.min(OFFICE_MAX, input.weekdayMaxMin),
-      todaysHour: { start: typeof s.hour_start === 'string' ? s.hour_start : '17:30', minutes: input.hourMinutes ?? 60, weekdayHandsOnMax: (input.hourMinutes ?? 60) - 15 },
-      dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: s.adventure ?? 1,
-      whatMakesAMeal: MEAL_SPEC, houseRules: data(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
-    },
-    members: data(members, 'Reading members'),
-    recipes: all.filter((x) => plannable.has(x.id)).map(({ id, recipe_ingredients: ings, ...x }) => ({
-      ...x, handsOn: handsOnOf.get(id) ?? null, lastCooked: lastCooked.get(id) ?? null,
-      ingredients: (ings ?? []).map((i) => [i.qty, i.unit, i.name].filter((v) => v !== null && v !== '').join(' ')),
-    })),
-    recentDinners: recentDinners.sort((a, b) => a.date.localeCompare(b.date)),
-    freezer: (data(freezer, 'Reading the freezer') as { name: string; recipe_id: string | null; portions: number; use_by: string | null }[])
-      .map((f) => ({ name: f.name, recipe: f.recipe_id ? slugOf.get(f.recipe_id) ?? null : null, portions: f.portions, useBy: f.use_by })),
-    pantry: (data(pantry, 'Reading the pantry') as { staple_status: string | null; qty: number | null; unit: string | null; location: string; ingredients: unknown }[])
-      .map((p) => ({ name: nameOf(p.ingredients), location: p.location, ...(p.staple_status ? { staple: p.staple_status } : { qty: p.qty, unit: p.unit }) })),
-    packSizes: (data(products, 'Reading products') as { item_key: string; product_name: string; pack_size: number | null; pack_unit: string }[])
-      .filter((p) => p.pack_size).map((p) => ({ item: p.item_key.split('|')[0], pack: `${p.pack_size}${p.pack_unit}`, product: p.product_name })),
-    builtInProposal: proposal,
-  }, null, 2));
+  console.log(JSON.stringify({ request: { id: r.id, note: r.note }, ...(await planContext(db, r.household_id, r.week_start)) }, null, 2));
 }
 
 /** Adds Claude's new recipes, plans the week around Claude's dinners, and saves it all, or nothing. */
@@ -153,55 +89,12 @@ async function save() {
   const settings = must<{ data: { adventure?: number } } | null>(await db.from('settings').select('data').eq('household_id', hid).maybeSingle(), 'Reading settings');
   const before = await loadPlannerInput(db, hid, r.week_start);
   const plan = read((t) => parseWeekPlan(t, { weekStart: r.week_start, days: before.days, adventure: settings?.data?.adventure ?? 1 }), await stdin());
-
-  const existing = must<{ id: string; slug: string }[]>(await db.from('recipes').select('id, slug').eq('household_id', hid), 'Reading recipes');
-  const bySlug = new Map(existing.map((x) => [x.slug, x.id]));
-  for (const n of plan.newRecipes) if (bySlug.has(n.slug)) fail(`A recipe with the slug "${n.slug}" already exists. Pick another slug.`);
-  const newSlugs = new Set(plan.newRecipes.map((n) => n.slug));
-  for (const d of plan.dinners) if (!bySlug.has(d.recipe) && !newSlugs.has(d.recipe)) fail(`No recipe "${d.recipe}" (${d.date}). Use a slug from context, or add it under new_recipes.`);
-
-  // New recipes first, so the planner can use them; they go again if anything after this fails.
-  const added: string[] = [];
-  const undo = async (msg: string): Promise<never> => {
-    if (added.length) {
-      const gone = await db.from('recipes').delete().in('id', added);
-      if (gone.error) msg += `\nAlso couldn't remove the new recipes (${added.join(', ')}): ${gone.error.message}`;
-    }
-    return fail(msg);
-  };
-  // The week can't be saved any more: the request is closed with why, so the app says so.
-  const CLOSED: Record<string, string> = {
-    week_approved: 'That week was approved while planning, so it was left as it is.',
-    week_exists: 'A menu for that week was made in the meantime. Tap Replan with Claude to replace it.',
-  };
   try {
-    for (const n of plan.newRecipes) {
-      const row = await db.from('recipes').insert(recipeRow(hid, n)).select('id').single();
-      if (row.error) throw new Error(`Adding ${n.title}: ${row.error.message}`);
-      added.push(row.data!.id);
-      bySlug.set(n.slug, row.data!.id);
-      const { ingredients, steps } = contentRows(n);
-      const saved = await db.rpc('replace_recipe_contents', { p_recipe_id: row.data!.id, p_ingredients: ingredients, p_steps: steps });
-      if (saved.error) throw new Error(`Saving ${n.title}'s ingredients and steps: ${saved.error.message}`);
-    }
-
-    const input = await loadPlannerInput(db, hid, r.week_start);
-    const plannable = new Set(input.recipes.map((x) => x.id));
-    const chosenDinners = plan.dinners.map((d) => ({ date: d.date, recipeId: bySlug.get(d.recipe)!, reason: d.reason }));
-    const left = chosenDinners.filter((c) => !plannable.has(c.recipeId));
-    if (left.length) throw new Error(`Not plannable (archived, rated 👎, or a roast or hosting recipe): ${left.map((c) => plan.dinners.find((d) => d.date === c.date)!.recipe).join(', ')}.`);
-    const slots = slotRows('', proposeWeek({ ...input, chosenDinners })).map(({ plan_week_id: _, ...s }) => s);
-    const res = await db.rpc('save_claude_week', { p_request: r.id, p_days: input.days, p_slots: slots, p_summary: plan.summary });
-    if (res.error) {
-      const code = Object.keys(CLOSED).find((k) => res.error!.message.includes(k));
-      if (code) await close(r.id, CLOSED[code]);
-      if (res.error.message.includes('not_planning')) throw new Error('The request was cancelled or closed while planning. Nothing was saved.');
-      throw new Error(`Saving the week: ${code ? `${CLOSED[code]} The request is closed as failed.` : res.error.message}`);
-    }
+    const { added } = await saveWeekPlan(db, hid, r.id, r.week_start, plan);
+    console.log(`Planned the week of ${r.week_start}${added ? ` with ${added} new recipe${added === 1 ? '' : 's'}` : ''}.`);
   } catch (e) {
-    await undo((e as Error).message);
+    fail((e as Error).message);
   }
-  console.log(`Planned the week of ${r.week_start}${added.length ? ` with ${added.length} new recipe${added.length === 1 ? '' : 's'}` : ''}.`);
 }
 
 async function failed() {

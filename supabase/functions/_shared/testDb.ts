@@ -13,6 +13,12 @@ export function tableDb(answers: Record<string, unknown> = {}) {
       const [method, args] = c.calls.find(([m]) => ['insert', 'upsert', 'update', 'delete', 'rpc'].includes(m))!;
       return { table: c.table, method, payload: args[0], options: args[1], filters: c.calls.filter(([m]) => m === 'eq').map(([, a]) => a) };
     }),
+    /** Database functions: answers from `rpc:<name>` (a { data, error } result), every call recorded. */
+    rpcs: [] as { fn: string; args: unknown }[],
+    rpc(fn: string, args: unknown) {
+      db.rpcs.push({ fn, args });
+      return Promise.resolve(answers[`rpc:${fn}`] ?? { data: null, error: null });
+    },
     from(table: string) {
       const chain: Call = { table, calls: [] };
       chains.push(chain);
@@ -23,6 +29,7 @@ export function tableDb(answers: Record<string, unknown> = {}) {
             chain.calls.push([String(prop), args]);
             if (prop === 'select') (selects[table] ??= []).push(String(args[0]));
             if (prop === 'maybeSingle') return Promise.resolve({ data: answers[`${table}:one`] ?? null, error: null });
+            if (prop === 'single') return Promise.resolve({ data: answers[`${table}:single`] ?? null, error: null });
             return proxy;
           };
         },
