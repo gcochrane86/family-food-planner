@@ -169,3 +169,14 @@ test('a prep step can need the night before, and only a prep step', () => {
   bad.recipes[0].steps.find((s) => s.phase === 'finish').night = true;
   expect(validateRecipeSeed(bad).some((p) => /night is only for prep_8pm steps/.test(p))).toBe(true);
 });
+
+test("a recipe's picture description goes to hero_hint and comes back out as photo", () => {
+  const s = clone();
+  s.recipes[0].photo = 'A golden fish pie in an oval dish';
+  expect(validateRecipeSeed(s)).toEqual([]);
+  expect(recipeRow('h1', s.recipes[0]).hero_hint).toBe('A golden fish pie in an oval dish');
+  expect(recipeRow('h1', clone().recipes[0])).not.toHaveProperty('hero_hint');
+  expect(seedFromDetail({ title: 'X', hero_hint: 'A pie', ingredients: [], steps: [] }).photo).toBe('A pie');
+  s.recipes[0].photo = 'x'.repeat(601);
+  expect(validateRecipeSeed(s)).toContain('recipes[0].photo must be text up to 600 characters');
+});

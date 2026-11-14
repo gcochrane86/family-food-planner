@@ -12,6 +12,7 @@ export function seedFromDetail(d) {
   const r = Object.fromEntries(SEED_FIELDS.filter((k) => d[k] !== undefined).map((k) => [k, d[k]]));
   r.base_portions = num(r.base_portions);
   if (r.salt_per_portion_g != null) r.salt_per_portion_g = num(r.salt_per_portion_g);
+  if (d.hero_hint) r.photo = d.hero_hint;
   r.ingredients = [...d.ingredients].sort((a, b) => a.position - b.position).map((g) => ({
     group: g.group_name, name: g.name, qty: num(g.qty), unit: g.unit, note: g.note, approx: g.qty_approx,
   }));

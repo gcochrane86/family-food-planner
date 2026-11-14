@@ -678,3 +678,10 @@ test("0018: a dinner swapped on its own day (or after) has had no prep, so it's 
   expect(await one(OWNER, `select prep_ahead from meal_slots where date = '${today}'`)).toBe('missed');
   expect(await one(OWNER, `select prep_ahead from meal_slots where date = '2099-01-05'`)).toBe('ahead');
 });
+
+test("0019: a recipe's main-photo description, up to 600 characters", async () => {
+  const { rid } = await recipeFor(OWNER);
+  await as(OWNER, `update recipes set hero_hint = '${'x'.repeat(600)}' where id = '${rid}'`);
+  expect(await one(OWNER, `select length(hero_hint) from recipes where id = '${rid}'`)).toBe(600);
+  await expect(as(OWNER, `update recipes set hero_hint = '${'x'.repeat(601)}' where id = '${rid}'`)).rejects.toThrow();
+});

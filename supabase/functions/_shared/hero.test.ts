@@ -47,3 +47,12 @@ test('the older inline_data shape is understood too', () => {
 test('no image means null', () => {
   expect(findImageData({ steps: [{ type: 'model_output', content: [{ type: 'text', text: 'Sorry' }] }] })).toBeNull();
 });
+
+test('with a picture description, the prompt uses it word for word and keeps the house style', () => {
+  const hint = 'Three golden almond-crusted chicken pieces fanned over fluffy white basmati rice in a wide shallow bowl, glossy honey chilli sauce drizzled over, red and yellow pepper strips at the side, sliced spring onion on top. No cutlery.';
+  const p = heroPrompt({ ...honey, hint });
+  expect(p).toContain(`A realistic food photograph of Almond-Crusted Honey Chilli Chicken, with peppers & basmati rice: ${hint}`);
+  expect(p).not.toMatch(/Main ingredients/);
+  expect(p).toMatch(/pale oak table/);
+  expect(p).toMatch(/No text, no labels, no hands/);
+});

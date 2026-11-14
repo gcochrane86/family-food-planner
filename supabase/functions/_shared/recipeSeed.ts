@@ -38,6 +38,7 @@ export function validateRecipeSeed(file: any): string[] {
     if (r?.salt_per_portion_g != null && (!isNum(r.salt_per_portion_g) || r.salt_per_portion_g < 0 || r.salt_per_portion_g >= 100)) {
       problems.push(`${at}.salt_per_portion_g must be a number under 100`);
     }
+    if (r?.photo != null && (typeof r.photo !== 'string' || r.photo.length > 600)) problems.push(`${at}.photo must be text up to 600 characters`);
     (Array.isArray(r?.ingredients) ? r.ingredients : (problems.push(`${at}.ingredients must be a list`), [])).forEach((g: any, j: number) => {
       if (!isText(g?.name)) problems.push(`${at}.ingredients[${j}].name missing`);
       if (g?.qty != null && !isNum(g.qty)) problems.push(`${at}.ingredients[${j}].qty must be a number or null`);
@@ -90,6 +91,8 @@ export function recipeRow(householdId: string, r: SeedRecipe): Record<string, un
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
     batch: r.batch ?? null,
     roast: r.roast ?? null,
+    // The main photo's description (migration 0019); left out, a re-seed keeps the one saved.
+    ...(typeof r.photo === 'string' && r.photo.trim() ? { hero_hint: r.photo.trim() } : {}),
   };
 }
 

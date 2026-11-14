@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
   if (typeof recipeId !== 'string') return reply(400, { error: 'recipeId is required' });
 
   const { data: recipe, error: recipeError } = await db.from('recipes')
-    .select('id, household_id, title, subtitle').eq('id', recipeId).maybeSingle();
+    .select('id, household_id, title, subtitle, hero_hint').eq('id', recipeId).maybeSingle();
   if (recipeError) return reply(500, { error: recipeError.message });
   if (!recipe) return reply(404, { error: 'That recipe is not in your library.' });
   const { data: ingredients } = await db.from('recipe_ingredients').select('name').eq('recipe_id', recipeId).order('position');
@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
   const gemini = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify(geminiRequest(heroPrompt({ title: recipe.title, subtitle: recipe.subtitle, ingredients: ingredients ?? [] }))),
+    body: JSON.stringify(geminiRequest(heroPrompt({ title: recipe.title, subtitle: recipe.subtitle, ingredients: ingredients ?? [], hint: recipe.hero_hint }))),
   });
   const body = await gemini.json().catch(() => null);
   if (!gemini.ok) {

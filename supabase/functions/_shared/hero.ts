@@ -10,12 +10,20 @@ interface HeroRecipe {
   title: string;
   subtitle: string | null;
   ingredients: { name: string }[];
+  /** Claude's description of the plated dish (recipes.hero_hint), when it has one. */
+  hint?: string | null;
 }
 
 /** One consistent house style, so the whole library looks like a set (spec §5 Images). */
 export function heroPrompt(recipe: HeroRecipe): string {
   const main = [...new Set(recipe.ingredients.map((i) => i.name.trim()).filter((n) => n && !BACKGROUND.test(n)))].slice(0, 5);
   const dish = recipe.subtitle ? `${recipe.title}, ${recipe.subtitle}` : recipe.title;
+  const style = [
+    'Shot at a 45-degree angle in soft natural window light, on matte stoneware on a pale oak table, shallow depth of field.',
+    'No text, no labels, no hands, no packaging, no logos.',
+  ];
+  // With a description, it says exactly what's on the plate; the house style stays the same.
+  if (recipe.hint?.trim()) return [`A realistic food photograph of ${dish}: ${recipe.hint.trim()}`, ...style].join(' ');
   return [
     `A realistic food photograph of ${dish}, home-cooked and plated for a family dinner.`,
     main.length ? `Main ingredients: ${main.join(', ')}.` : '',
