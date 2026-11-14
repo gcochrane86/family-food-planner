@@ -83,8 +83,9 @@ export function useWeek() {
     return buildPlannerInput({
       weekStart, householdId: hid, settings: data.settings as never, members: data.members, pattern: data.pattern,
       recipes: data.recipes.map((r: Recipe) => ({ ...r })), recentDinnerRecipeIds: data.recent,
+      cookingMinutes: (shown === 'next' ? data.nextWeek : data.thisWeek)?.week?.cooking_minutes,
     });
-  }, [data, weekStart, hid]);
+  }, [data, weekStart, hid, shown]);
 
   const setCurrent = useCallback((slots: MealSlot[], week?: PlanWeek | null) => {
     setData((d) => {

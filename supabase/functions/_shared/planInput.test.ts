@@ -25,6 +25,8 @@ const rows = {
   recentDinnerRecipeIds: ['b', null, 'b'],
 };
 
+const addDaysIso = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
 test('builds the planner input from database rows', () => {
   const input = buildPlannerInput(rows);
   expect(input.weekStart).toBe('2026-10-19');
@@ -99,14 +101,15 @@ test('day rules reach the planner', () => {
   expect(buildPlannerInput(rows).dayRules).toEqual([]);
 });
 
-test("Today's hour reaches the planner: hands-on minutes per recipe and the hour's length", () => {
+test("Today's cooking reaches the planner: each recipe's prep and cook hands-on, and each day's time", () => {
   const input = buildPlannerInput({
     ...rows,
-    settings: { ...rows.settings, hour_minutes: 75 },
+    settings: { ...rows.settings, cooking_minutes: { wed: 120 } },
+    cookingMinutes: { [addDaysIso(rows.weekStart, 3)]: 90 },
     recipes: [{ id: 'a', title: 'A', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, prep_minutes: 10, hands_off_minutes: 20, reheats_well: true, base_portions: 4 }],
   });
-  expect(input.hourMinutes).toBe(75);
-  expect(input.recipes[0].handsOn).toBe(20);
-  expect(buildPlannerInput(rows).hourMinutes).toBe(60);
-  expect(buildPlannerInput(rows).recipes[0].handsOn).toBeUndefined();
+  expect(input.dayMinutes).toEqual([60, 60, 120, 90, 60, 60, 60]);
+  expect(input.recipes[0]).toMatchObject({ prepMinutes: 10, cookHandsOn: 10 });
+  expect(buildPlannerInput({ ...rows, settings: { hour_minutes: 75 } }).dayMinutes).toEqual([75, 75, 75, 75, 75, 75, 75]);
+  expect(buildPlannerInput(rows).recipes[0].cookHandsOn).toBeUndefined();
 });

@@ -48,7 +48,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const all = list(recipes, 'Reading recipes') as { id: string; slug: string; recipe_ingredients: Ing[]; [k: string]: unknown }[];
   const slugOf = new Map(all.map((x) => [x.id, x.slug]));
   const plannable = new Set(input.recipes.map((x) => x.id));
-  const handsOnOf = new Map(input.recipes.map((x) => [x.id, x.handsOn]));
+  const handsOnOf = new Map(input.recipes.map((x) => [x.id, { prepMinutes: x.prepMinutes ?? null, cookHandsOn: x.cookHandsOn ?? null }]));
   const lastCooked = new Map<string, string>();
   const recentDinners: { date: string; recipe: string | null; mode: string }[] = [];
   for (const w of list(recent, 'Reading recent weeks') as { meal_slots: { date: string; slot: string; mode: string; recipe_id: string | null }[] }[]) {
@@ -71,14 +71,15 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     },
     rules: {
       proteinBalance: input.balance, weekdayDinnerMaxMinutes: input.weekdayMaxMin, officeDayMaxMinutes: Math.min(OFFICE_MAX, input.weekdayMaxMin),
-      todaysHour: { start: typeof s.hour_start === 'string' ? s.hour_start : '17:30', minutes: input.hourMinutes ?? 60, weekdayHandsOnMax: (input.hourMinutes ?? 60) - 15 },
+      // Today's cooking: each day's time for cooking (the dinner's cook, the next day's prep, the extras).
+      cookingTime: (input.dayMinutes ?? Array(7).fill(60)).slice(0, input.days).map((minutes, i) => ({ date: addDays(weekStart, i), day: DAY[i], minutes })),
       dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: s.adventure ?? 1,
       whatMakesAMeal: MEAL_SPEC, houseRules: list(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
     },
     newRecipeRules: NEW_RECIPE_RULES,
     members: list(members, 'Reading members'),
     recipes: all.filter((x) => plannable.has(x.id)).map(({ id, recipe_ingredients: ings, ...x }) => ({
-      ...x, handsOn: handsOnOf.get(id) ?? null, lastCooked: lastCooked.get(id) ?? null,
+      ...x, ...(handsOnOf.get(id) ?? { prepMinutes: null, cookHandsOn: null }), lastCooked: lastCooked.get(id) ?? null,
       ingredients: (ings ?? []).map((i) => [i.qty, i.unit, i.name].filter((v) => v !== null && v !== '').join(' ')),
     })),
     recentDinners: recentDinners.sort((a, b) => a.date.localeCompare(b.date)),

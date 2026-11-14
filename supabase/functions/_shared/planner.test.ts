@@ -295,25 +295,45 @@ describe("Claude's dinners", () => {
   });
 });
 
-describe("weeknights fit Today's hour", () => {
-  // Every dinner fits the 30-minute limit; one needs 50 minutes hands-on (with tomorrow's prep).
-  const lib = LIBRARY.map((x) => ({ ...x, handsOn: x.id === 'crispy-thighs' ? 50 : 15 }));
-  test('a recipe too busy for the hour is not chosen on a weekday', () => {
+describe("each day's cooking time", () => {
+  const H60 = [60, 60, 60, 60, 60, 60, 60];
+  const alts = (date: string, over: Partial<PlannerInput>) => {
+    const i = input(over);
+    return alternatives(proposeWeek(i), date, i, 30).map((a) => a.recipeId);
+  };
+  // Every dinner fits the 30-minute limit; crispy thighs needs 50 minutes hands-on at the cook.
+  const busy = LIBRARY.map((x) => ({ ...x, cookHandsOn: x.id === 'crispy-thighs' ? 50 : 15 }));
+  test('a dinner too busy for an hour is not chosen on a weekday', () => {
     for (let seed = 1; seed <= 25; seed++) {
-      const plan = proposeWeek(input({ recipes: lib, hourMinutes: 60, seed }));
-      const weekdays = dinners(plan).filter((s) => s.date < '2026-10-24').map((s) => s.recipeId);
-      expect(weekdays).not.toContain('crispy-thighs');
+      const plan = proposeWeek(input({ recipes: busy, dayMinutes: H60, seed }));
+      expect(dinners(plan).filter((s) => s.date < '2026-10-24').map((s) => s.recipeId)).not.toContain('crispy-thighs');
     }
   });
-  test('but it can be chosen at the weekend', () => {
-    const plan = proposeWeek(input({ recipes: lib, hourMinutes: 60 }));
-    expect(alternatives(plan, '2026-10-24', input({ recipes: lib, hourMinutes: 60 }), 20).map((a) => a.recipeId)).toContain('crispy-thighs');
-    expect(alternatives(plan, '2026-10-21', input({ recipes: lib, hourMinutes: 60 }), 20).map((a) => a.recipeId)).not.toContain('crispy-thighs');
+  test('a weekday with more time takes it, and a longer dinner too', () => {
+    const long = [...busy, r('slow-ragu', 'red_meat', 90)];
+    const wed2h = [60, 60, 120, 60, 60, 60, 60];
+    // Against a week planned without the ragu, so it's free to offer.
+    const week = proposeWeek(input({ recipes: busy, dayMinutes: wed2h }));
+    const offer = (date: string) => alternatives(week, date, input({ recipes: long, dayMinutes: wed2h }), 30).map((a) => a.recipeId);
+    expect(offer('2026-10-21')).toContain('slow-ragu');
+    expect(offer('2026-10-20')).not.toContain('slow-ragu');
+    expect(alts('2026-10-21', { recipes: busy, dayMinutes: wed2h })).toContain('crispy-thighs');
+    expect(alts('2026-10-20', { recipes: long, dayMinutes: wed2h })).not.toContain('crispy-thighs');
   });
-  test('without an hour, or without hands-on minutes, nothing changes', () => {
-    const plan = proposeWeek(input({ recipes: lib }));
-    expect(alternatives(plan, '2026-10-21', input({ recipes: lib }), 20).map((a) => a.recipeId)).toContain('crispy-thighs');
-    const noHandsOn = proposeWeek(input({ hourMinutes: 60 }));
-    expect(noHandsOn).toEqual(proposeWeek(input()));
+  test("a dinner's prep counts against the day before, when it's done", () => {
+    const prepHeavy = LIBRARY.map((x) => ({ ...x, cookHandsOn: 10, prepMinutes: x.id === 'crispy-thighs' ? 60 : 5 }));
+    expect(alts('2026-10-21', { recipes: prepHeavy, dayMinutes: H60 })).not.toContain('crispy-thighs');
+    expect(alts('2026-10-21', { recipes: prepHeavy, dayMinutes: [60, 120, 60, 60, 60, 60, 60] })).toContain('crispy-thighs');
+    // Monday's prep is done on Sunday: no check at the weekend.
+    expect(alts('2026-10-19', { recipes: prepHeavy, dayMinutes: H60, officeDays: [] })).toContain('crispy-thighs');
+  });
+  test('the weekend has no hands-on check; office days keep their own limit', () => {
+    expect(alts('2026-10-24', { recipes: busy, dayMinutes: H60 })).toContain('crispy-thighs');
+    const long = [...LIBRARY, r('slow-ragu', 'red_meat', 90)];
+    expect(alts('2026-10-19', { recipes: long, dayMinutes: [120, 60, 60, 60, 60, 60, 60] })).not.toContain('slow-ragu');
+  });
+  test('without day times, or without hands-on minutes, nothing changes', () => {
+    expect(alts('2026-10-21', { recipes: busy })).toContain('crispy-thighs');
+    expect(proposeWeek(input({ dayMinutes: H60 }))).toEqual(proposeWeek(input()));
   });
 });

@@ -12,8 +12,9 @@ export interface PlannerRecipe {
   finishMinutes: number;
   reheatsWell: boolean;
   basePortions: number;
-  /** Hands-on minutes in Today's hour: the night-before prep plus the busy part of the cook. */
-  handsOn?: number;
+  /** Today's cooking: hands-on minutes of the prep done the evening before, and of the cook on the day. */
+  prepMinutes?: number;
+  cookHandsOn?: number;
 }
 
 export interface Balance { chicken: number; fish: number; red_meat: number; veggie: number }
@@ -32,7 +33,7 @@ export interface PlannerInput {
   frozen?: { recipeId: string; portions: number }[]; // batch portions in the freezer, in date
   dayRules?: { weekday: number; protein: Protein; note?: string | null }[]; // e.g. fish on Thursday
   chosenDinners?: { date: string; recipeId: string; reason: string }[]; // dinners Claude picked; the rest is planned around them
-  hourMinutes?: number;       // Today's hour: Monday to Friday, a dinner's hands-on time leaves 15 minutes of it spare
+  dayMinutes?: number[];      // Today's cooking: each day's cooking time, Monday first (cookingTime.ts)
 }
 
 export interface ProposedSlot {
@@ -82,16 +83,24 @@ function shuffle<T>(list: T[], rnd: () => number): T[] {
   return a;
 }
 
+/** A weekday's spare: its cooking time less 15 minutes for the extras and the cleaning. */
+const spare = (input: PlannerInput, i: number) => (input.dayMinutes?.[i] ?? 60) - 15;
+
 function timeLimit(input: PlannerInput, i: number): number {
   if (i >= 5) return Infinity;
-  return input.officeDays.includes(i) ? Math.min(OFFICE_MAX, input.weekdayMaxMin) : input.weekdayMaxMin;
+  if (input.officeDays.includes(i)) return Math.min(OFFICE_MAX, input.weekdayMaxMin);
+  // A weekday given more than an hour can take a longer dinner.
+  return (input.dayMinutes?.[i] ?? 60) > 60 ? Math.max(input.weekdayMaxMin, spare(input, i)) : input.weekdayMaxMin;
 }
 
-/** The time limit, and on weekdays Today's hour: hands-on time within the hour less 15 minutes for tomorrow's extras
- *  and the cleaning. Recipes without hands-on minutes count as fitting. */
+/** The time limit, and Today's cooking on weekdays: the cook's hands-on time within the day's spare, and its prep
+ *  within the spare of the day before (when it's done), checked only when that day is a weekday. Recipes without
+ *  hands-on minutes count as fitting. */
 function fitsDay(input: PlannerInput, r: PlannerRecipe, i: number): boolean {
   if (r.finishMinutes > timeLimit(input, i)) return false;
-  return i >= 5 || input.hourMinutes === undefined || r.handsOn === undefined || r.handsOn <= input.hourMinutes - 15;
+  if (!input.dayMinutes) return true;
+  if (i < 5 && r.cookHandsOn !== undefined && r.cookHandsOn > spare(input, i)) return false;
+  return !(i >= 1 && i - 1 < 5 && r.prepMinutes !== undefined && r.prepMinutes > spare(input, i - 1));
 }
 
 /** Order of proteins across the dinner nights: meets the targets, avoids two in a row, and has a recipe for each. */

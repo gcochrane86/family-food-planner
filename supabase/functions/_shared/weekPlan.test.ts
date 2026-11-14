@@ -56,3 +56,18 @@ describe('saveWeekPlan', () => {
     expect(db.rpcs).toEqual([]);
   });
 });
+
+describe('planContext', () => {
+  test("gives Claude each day's cooking time, and each recipe's prep and cook hands-on", async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      'settings:one': { data: { cooking_minutes: { wed: 120 } } },
+      recipes: [{ id: 'r1', slug: 'curry', title: 'Curry', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, prep_minutes: 10, hands_off_minutes: 20, reheats_well: false, base_portions: 4, recipe_ingredients: [] }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.rules.cookingTime[2]).toEqual({ date: '2026-11-18', day: 'Wednesday', minutes: 120 });
+    expect(ctx.rules.cookingTime[0].minutes).toBe(60);
+    expect(ctx.rules).not.toHaveProperty('todaysHour');
+    expect(ctx.recipes[0]).toMatchObject({ prepMinutes: 10, cookHandsOn: 10 });
+  });
+});
