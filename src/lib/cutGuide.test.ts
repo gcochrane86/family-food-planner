@@ -36,3 +36,20 @@ test('the ruler setting is kept on the device, and missing storage means not set
   expect(readPxPerMm()).toBeNull();
   spy.mockRestore();
 });
+
+test('a note that is not a cut (drained, to serve) gives no guide', () => {
+  expect(cutGuide('chickpeas', '400g', 'drained and rinsed')).toBeNull();
+  expect(cutGuide('coriander', '1 bunch', 'to serve')).toBeNull();
+});
+
+test('what the cut means follows the same cut as the instruction', () => {
+  expect(cutGuide('lemon', '1', 'finely grated zest')!.meaning).toMatch(/grater/);
+  expect(cutGuide('ginger', '1', 'thumb-sized piece, grated')!.meaning).toMatch(/grater/);
+  expect(cutGuide('carrot', '2', 'sliced into discs')!.meaning).toMatch(/thin rounds/i);
+});
+
+test('amounts with a half or "about" still get their marker; cms counts', () => {
+  expect(cutGuide('ginger', '2½ cm', null)!.sizes).toEqual([{ mm: 25, label: '2½cm piece' }]);
+  expect(cutGuide('ginger', 'about 3 cm', null)!.sizes).toEqual([{ mm: 30, label: '3cm piece' }]);
+  expect(cutGuide('leek', '1', 'sliced 2cms thick')!.sizes).toEqual([{ mm: 20, label: '2cm thick' }]);
+});

@@ -43,3 +43,15 @@ test('Close goes back', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   await waitFor(() => expect(onClose).toHaveBeenCalled());
 });
+
+test("the red line sits on the size itself (the marker row has no height of its own)", () => {
+  savePxPerMm(5);
+  render(<CutGuideView name="carrot" qty="1" note="cut into 3cm chunks" photo={null} onClose={() => {}} />);
+  expect(screen.getByText('3cm chunks').closest('[data-mm]')).toHaveClass('h-0');
+});
+
+test('a length longer than the screen says to measure it in two goes', () => {
+  savePxPerMm(5);
+  render(<CutGuideView name="cucumber" qty="20 cm" note={null} photo={null} onClose={() => {}} />);
+  expect(screen.getByText(/longer than this screen/i)).toBeInTheDocument();
+});

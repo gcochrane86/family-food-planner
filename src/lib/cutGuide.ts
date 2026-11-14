@@ -6,47 +6,56 @@ import { chopInstruction, prepKey } from '../../supabase/functions/_shared/prepC
 export interface CutSize { mm: number; label: string }
 export interface CutGuide { instruction: string; meaning: string | null; sizes: CutSize[]; square: number | null; prep: { key: string; label: string } }
 
-const MEANINGS: [RegExp, string, string][] = [
-  [/finely (chopped|diced)|fine dice|\bfinely\b/, 'finely diced', 'Very small pieces, a few millimetres across, so they melt into the dish.'],
-  [/dice|cube/, 'diced', 'Even cubes, all the same size so they cook at the same rate.'],
-  [/chunk|piece|roughly chopped|rough chop/, 'chunks', "Rough cubes, all about the same size so they cook evenly; they needn't be neat."],
-  [/julienne|matchstick/, 'matchsticks', 'Thin sticks, like matchsticks: slice thinly, then cut the slices into strips.'],
-  [/baton|strip/, 'strips', 'Long pieces about as wide as the size given: cut slices, then cut them lengthways.'],
-  [/\bdiscs?\b|\brounds?\b/, 'discs', 'Thin rounds cut straight across, all the same thickness.'],
-  [/\brings?\b/, 'rings', 'Thin rounds cut straight across, so each slice is a ring.'],
-  [/half[- ]moon/, 'half-moons', 'Cut in half lengthways, lay flat side down, then slice across into half-rounds.'],
-  [/wedge/, 'wedges', 'Cut from the middle outwards, like slices of a cake.'],
-  [/floret/, 'florets', 'The small tree-shaped heads, cut off the thick stalk, all about bite size.'],
-  [/quarter/, 'quartered', 'Cut in half, then each half in half again: four pieces.'],
-  [/halve|in half|\bhalves\b/, 'halved', 'Cut once through the middle into two halves.'],
-  [/thin(ly)? slic|thin slices/, 'thinly sliced', 'Slices as thin as you can cut them evenly.'],
-  [/slic/, 'sliced', 'Even slices cut straight across, all the same thickness.'],
-  [/crush|minced?\b/, 'crushed', 'Pressed or chopped to a paste, with no whole pieces left.'],
-  [/grat/, 'grated', 'Rubbed on the grater into fine shreds.'],
-];
-
+// What each cut means, keyed by the same cut names as the chopping pictures and the instruction (prepKey), so the
+// three always agree. Discs are a kind of slice with their own words.
+const MEANINGS: Record<string, string> = {
+  'finely diced': 'Very small pieces, a few millimetres across, so they melt into the dish.',
+  diced: 'Even cubes, all the same size so they cook at the same rate.',
+  chunks: "Rough cubes, all about the same size so they cook evenly; they needn't be neat.",
+  matchsticks: 'Thin sticks, like matchsticks: slice thinly, then cut the slices into strips.',
+  strips: 'Long pieces about as wide as the size given: cut slices, then cut them lengthways.',
+  rings: 'Thin rounds cut straight across, so each slice is a ring.',
+  'half-moons': 'Cut in half lengthways, lay flat side down, then slice across into half-rounds.',
+  wedges: 'Cut from the middle outwards, like slices of a cake.',
+  florets: 'The small tree-shaped heads, cut off the thick stalk, all about bite size.',
+  quartered: 'Cut in half, then each half in half again: four pieces.',
+  halved: 'Cut once through the middle into two halves.',
+  'thinly sliced': 'Slices as thin as you can cut them evenly.',
+  sliced: 'Even slices cut straight across, all the same thickness.',
+  crushed: 'Pressed or chopped to a paste, with no whole pieces left.',
+  grated: 'Rubbed on the grater into fine shreds.',
+  chopped: 'Cut into small, roughly even pieces.',
+};
+const DISCS = 'Thin rounds cut straight across, all the same thickness.';
 const SQUARE = new Set(['chunks', 'diced']);
-const toMm = (n: string, unit: string) => Number(n) * (unit === 'cm' ? 10 : 1);
-const fmt = (n: string, unit: string) => `${Number(n)}${unit}`;
+const FRACTION: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75 };
+const unitOf = (u: string) => (u.startsWith('cm') ? 'cm' : 'mm');
 
-/** What to show for one ingredient, or null when the card says nothing about cutting. */
+/** What to show for one ingredient, or null when the card says nothing about cutting or size. */
 export function cutGuide(name: string, qty: string, note: string | null): CutGuide | null {
   const n = (note ?? '').trim().toLowerCase();
   const sizes: CutSize[] = [];
-  const length = qty.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)\s*(mm|cm)$/);
-  if (length) sizes.push({ mm: toMm(length[1], length[2]), label: `${fmt(length[1], length[2])} piece` });
-  for (const m of n.matchAll(/(\d+(?:\.\d+)?)\s*(mm|cm)\b(?:\s+([a-z-]+))?/g)) {
-    sizes.push({ mm: toMm(m[1], m[2]), label: [fmt(m[1], m[2]), m[3]].filter(Boolean).join(' ') });
+  // The amount as the cards show it: "3 cm", "2½ cm", "about 3 cm".
+  const length = qty.trim().toLowerCase().match(/^(?:about\s+)?(\d+)?\s*([½¼¾])?\s*(mm|cms?)$/);
+  if (length && (length[1] || length[2])) {
+    const value = Number(length[1] ?? 0) + (length[2] ? FRACTION[length[2]] : 0);
+    const unit = unitOf(length[3]);
+    sizes.push({ mm: value * (unit === 'cm' ? 10 : 1), label: `${length[1] ?? ''}${length[2] ?? ''}${unit} piece` });
   }
-  if (!n && !sizes.length) return null;
-  const found = MEANINGS.find(([re]) => re.test(n));
-  const noteSize = sizes.find((s) => !s.label.endsWith(' piece'));
+  for (const m of n.matchAll(/(\d+(?:\.\d+)?)\s*(mm|cms?)(?![a-z])(?:\s+([a-z-]+))?/g)) {
+    const unit = unitOf(m[2]);
+    sizes.push({ mm: Number(m[1]) * (unit === 'cm' ? 10 : 1), label: [`${Number(m[1])}${unit}`, m[3]].filter(Boolean).join(' ') });
+  }
   const prep = prepKey(name, note);
+  const cut = prep.cut.replace(/ \(.*\)$/, '');
+  const meaning = n && /\bdiscs?\b/.test(n) && /slic|disc/.test(cut + n) ? DISCS : n ? MEANINGS[cut] ?? null : null;
+  if (!meaning && !sizes.length) return null;
+  const noteSize = sizes.find((s) => !s.label.endsWith(' piece'));
   return {
     instruction: chopInstruction(name, note),
-    meaning: found?.[2] ?? null,
+    meaning,
     sizes,
-    square: found && SQUARE.has(found[1]) && noteSize ? noteSize.mm : null,
+    square: SQUARE.has(cut) && noteSize ? noteSize.mm : null,
     prep: { key: prep.key, label: prep.label },
   };
 }

@@ -76,9 +76,19 @@ export default function CutGuideView({ name, qty, note, photo, onMake, onClose }
 function Measure({ px, sizes, square, onReset }: { px: number; sizes: { mm: number; label: string }[]; square: number | null; onReset: () => void }) {
   const lengthMm = Math.max(60, Math.ceil((Math.max(...sizes.map((s) => s.mm)) + 15) / 10) * 10);
   const ticks = Array.from({ length: lengthMm + 1 }, (_, mm) => mm);
+  // What fits on screen below the header: a longer size is measured in two goes.
+  const visibleMm = Math.floor((window.innerHeight - 90) / px);
+  const tooLong = sizes.filter((s) => s.mm > visibleMm);
+  // The square goes beside the labels, so only when it leaves them room (else the labels and ruler say it).
+  const roomForSquare = window.innerWidth - 56 - 16 - 150;
   return (
-    <section aria-label="Real size" className="grid gap-2">
+    <section aria-label="Real size" className="grid gap-2 overflow-x-hidden">
       <p className="m-0 px-4 text-sm text-[#5D6760]">Hold a piece against the screen's left edge, starting at the 0 line.</p>
+      {tooLong.length > 0 && (
+        <p className="m-0 px-4 text-sm font-semibold text-[#7A4F00]">
+          {tooLong.map((s) => s.label).join(' and ')} is longer than this screen shows at once: measure {Math.floor(visibleMm / 10)}cm, mark it, then measure the rest.
+        </p>
+      )}
       <div className="relative" style={{ height: lengthMm * px + 24 }}>
         <div aria-hidden="true" className="absolute left-0 top-0 w-14 border-r border-[#C9CFC2] bg-[#FBF7EC]" style={{ height: lengthMm * px }}>
           {ticks.map((mm) => (
@@ -88,13 +98,14 @@ function Measure({ px, sizes, square, onReset }: { px: number; sizes: { mm: numb
             </div>
           ))}
         </div>
-        {sizes.map((s) => (
-          <div key={s.label} data-mm={s.mm} className="absolute left-0 right-4 flex items-center" style={{ top: s.mm * px }}>
-            <span className="h-[3px] w-20 bg-[#C0392B]" />
-            <span className="-translate-y-1/2 rounded-lg bg-[#C0392B] px-2 py-0.5 text-sm font-bold text-white">{s.label}</span>
+        {sizes.map((s, i) => (
+          // A zero-height row at the size, so the red line is on the mark and the label is centred on it.
+          <div key={i} data-mm={s.mm} className="absolute left-0 right-4 h-0" style={{ top: s.mm * px }}>
+            <span className="absolute left-0 top-[-1.5px] h-[3px] w-20 bg-[#C0392B]" />
+            <span className="absolute left-20 top-0 -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#C0392B] px-2 py-0.5 text-sm font-bold text-white">{s.label}</span>
           </div>
         ))}
-        {square && (
+        {square && square * px <= roomForSquare && (
           <div aria-label={`Life-size piece: ${square % 10 === 0 ? `${square / 10}cm` : `${square}mm`}`}
             className="absolute right-4 top-0 rounded-md border-2 border-dashed border-[#C0392B] bg-[#FDECEA]"
             style={{ width: square * px, height: square * px }} />
