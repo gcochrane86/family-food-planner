@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ProgressLine from '../../components/ProgressLine';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import PhotoFrame from '../../components/PhotoFrame';
@@ -33,10 +33,17 @@ const addMinutes = (hhmm: string, n: number) => {
 export default function TodayHour() {
   useWakeLock();
   const { householdId } = useAuth();
-  const { data, error, loading, reload } = useTodayHour();
-  const key = `today-hour:${todayInLondon()}`;
-  // What's been got out today (ticked on the first page), kept on this device until tomorrow.
-  const gotKey = `today-got:${todayInLondon()}`;
+  // ?day=YYYY-MM-DD previews that day's hour (from the Week tab); without it, today's.
+  const [params] = useSearchParams();
+  const asked = params.get('day');
+  const day = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : todayInLondon();
+  const preview = day !== todayInLondon();
+  const isPast = day < todayInLondon();
+  const back = preview ? `/week?day=${day}` : '/week';
+  const { data, error, loading, reload } = useTodayHour(day);
+  const key = `today-hour:${day}`;
+  // What's been got out for the day (ticked on the first page), kept on this device.
+  const gotKey = `today-got:${day}`;
   const [got, setGot] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(gotKey) ?? '[]'); } catch { return []; } });
   const tick = (k: string) => setGot((g) => {
     const next = g.includes(k) ? g.filter((x) => x !== k) : [...g, k];
@@ -122,11 +129,17 @@ export default function TodayHour() {
             <ListenSwitch light onNext={() => setIndex((i) => Math.min(i + 1, steps.length - 1))} onBack={() => setIndex((i) => Math.max(i - 1, -1))}
               text={() => (step ? speakable(step.title, step.kind === 'chop' ? data.plan.chop.flatMap((g) => g.items.map((it) => `${chopInstruction(it.name, it.note)}${it.qty ? `, ${it.qty}` : ''}`)).join('. ') : step.body) : '')} />
           )}
-          <Link to="/week" aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl text-[#1B211D] no-underline">×</Link>
+          <Link to={back} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl text-[#1B211D] no-underline">×</Link>
         </div>
       </div>
 
 
+      {preview && (
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 rounded-xl bg-[#FBEFD0] px-4 py-2.5 text-[#7A4F00] md:max-w-6xl">
+          <span><b>{`Preview · ${previewLabel(day)}`}</b>{isPast ? <span className="ml-2 text-sm">This day has passed: look only.</span> : null}</span>
+          <Link to={`/week?day=${day}`} className="font-semibold text-[#7A4F00] underline">Day options</Link>
+        </div>
+      )}
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {loading && !data && <p className="text-[#5D6760]">Loading…</p>}
 
@@ -142,12 +155,12 @@ export default function TodayHour() {
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
-            {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} onChange={(v) => {
+            {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} canChange={!preview} onChange={(v) => {
               if (v === 'missed') setPrepBefore(plan.doneLastNight!.state);
               setPrep(tonightSlot?.id, v === 'missed' ? v : prepBefore);
             }} />}
             {plan.getOut.length > 0 && <GetOut groups={plan.getOut} got={got} onTick={tick} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
-            {plan.forTomorrow && <ForTomorrow prep={plan.forTomorrow} onChange={(on) => setPrep(tomorrowSlot?.id, on ? 'ahead' : 'on_the_day')} />}
+            {plan.forTomorrow && !isPast && <ForTomorrow prep={plan.forTomorrow} onChange={(on) => setPrep(tomorrowSlot?.id, on ? 'ahead' : 'on_the_day')} />}
             {plan.roastAhead && <RoastTomorrow roast={plan.roastAhead} />}
             <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} icons={plan.iconsMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing, plan.iconsMissing)} />
             {steps.length > 0 && (
@@ -223,7 +236,7 @@ export default function TodayHour() {
             className="rounded-xl bg-[#E9ECE4] px-6 py-3.5 text-base font-semibold text-[#1B211D]">Back</button>
           {index < steps.length - 1
             ? <button type="button" onClick={() => setIndex((i) => i + 1)} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white">Next</button>
-            : <Link to="/week" className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
+            : <Link to={back} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
         </div>
       )}
       {menu?.prep && (() => { const p = menu.prep; return (
@@ -416,14 +429,14 @@ function ForTomorrow({ prep, onChange }: { prep: NonNullable<HourPlan['forTomorr
 }
 
 /** Tonight's prep that yesterday's hour did, with a way to say it didn't happen (it then comes into tonight). */
-function DoneLastNight({ done, onChange }: { done: NonNullable<HourPlan['doneLastNight']>; onChange: (v: PrepAhead) => void }) {
+function DoneLastNight({ done, onChange, canChange = true }: { done: NonNullable<HourPlan['doneLastNight']>; onChange: (v: PrepAhead) => void; canChange?: boolean }) {
   const missed = done.state === 'missed';
   return (
     <section aria-label="Done last night" className="grid justify-items-start gap-2 rounded-2xl bg-[#F3F4EF] p-4">
       <p className="m-0">{missed ? `Not done last night: the prep for tonight's ${done.title} is in tonight's hour.` : `Done last night: prep for tonight's ${done.title} (${done.steps.join(', ')}).`}</p>
-      {missed
+      {canChange && (missed
         ? <button type="button" onClick={() => onChange('ahead')} className="font-semibold text-[#2D6A3E] underline">Undo</button>
-        : <button type="button" onClick={() => onChange('missed')} className="font-semibold text-[#2D6A3E] underline">I didn't get to it</button>}
+        : <button type="button" onClick={() => onChange('missed')} className="font-semibold text-[#2D6A3E] underline">I didn't get to it</button>)}
     </section>
   );
 }
@@ -439,4 +452,9 @@ function RoastTomorrow({ roast }: { roast: NonNullable<HourPlan['roastAhead']> }
       {roast.link && <Link to={roast.link} className="font-semibold text-[#2D6A3E] underline">Open the roast plan</Link>}
     </section>
   );
+}
+
+/** "Tuesday 20 Oct", for the preview bar. */
+function previewLabel(day: string): string {
+  return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
 }

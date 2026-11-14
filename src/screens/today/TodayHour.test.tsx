@@ -467,3 +467,33 @@ describe('prep ahead on the first page', () => {
     expect(within(box).getByRole('link', { name: /roast plan/i })).toHaveAttribute('href', expect.stringContaining('/recipes/roast/cook?'));
   });
 });
+
+describe('previewing another day', () => {
+  const SALMON_R = { ...HONEY, id: 'r-salmon', slug: 'salmon', title: 'Miso Salmon', steps: HONEY.steps.filter((s) => s.phase === 'finish') };
+  const SALMON_PREP = { ...SALMON_R, steps: [{ ...HONEY.steps[0], id: 'sp', title: 'Make the dressing' }, ...SALMON_R.steps] };
+  const at = (url: string) => render(<MemoryRouter initialEntries={[url]}><TodayHour /></MemoryRouter>);
+
+  test("?day= opens that day's hour as it will run, marked as a preview, with its day options", async () => {
+    h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY, 'r-salmon': SALMON_R } as Record<string, typeof HONEY>)[id] ?? null);
+    at('/today?day=2026-10-20');
+    expect(await screen.findByText('Preview · Tuesday 20 Oct')).toBeInTheDocument();
+    expect(screen.getByText('Tonight: Miso Salmon')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Day options' })).toHaveAttribute('href', '/week?day=2026-10-20');
+    expect(screen.getByRole('link', { name: 'Close' })).toHaveAttribute('href', '/week?day=2026-10-20');
+  });
+
+  test('a past day is look-only: no prep tick to change', async () => {
+    vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+    h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY, 'r-salmon': SALMON_PREP } as Record<string, typeof HONEY>)[id] ?? null);
+    at('/today?day=2026-10-19');
+    expect(await screen.findByText('Preview · Monday 19 Oct')).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /Prep for tomorrow/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/look only/i)).toBeInTheDocument();
+  });
+
+  test('without ?day it is still today, with no preview bar', async () => {
+    open();
+    await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" });
+    expect(screen.queryByText(/^Preview ·/)).not.toBeInTheDocument();
+  });
+});

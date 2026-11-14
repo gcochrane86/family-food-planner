@@ -223,6 +223,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       {lunch && <div className="grid gap-2"><Label tone="text-lunch">Lunch</Label>{lunchCard}</div>}
       {breakfast && <div className="grid gap-2"><Label tone="text-yolk">Breakfast</Label>{breakfastCard}</div>}
       <HourPrep date={date} w={w} />
+      <Link to={`/today?day=${date}`} className="justify-self-start font-semibold text-accent underline">Preview the hour</Link>
 
       {sheet === 'breakfast' && breakfast && (
         <OptionsSheet title="Breakfast options" onClose={closeSheet}>

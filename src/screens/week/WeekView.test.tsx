@@ -1053,3 +1053,16 @@ describe("a day's hour: prep for the next day", () => {
     expect(within(day(/Saturday/)).queryByRole('region', { name: "Today's hour" })).not.toBeInTheDocument();
   });
 });
+
+describe('previewing the hour from the planner', () => {
+  test("a day's sheet links to that day's hour", async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    expect(within(day(/Tuesday/)).getByRole('link', { name: 'Preview the hour' })).toHaveAttribute('href', '/today?day=2026-10-20');
+  });
+
+  test("?day= opens that day's sheet", async () => {
+    render(<MemoryRouter initialEntries={['/week?day=2026-10-21']}><WeekView /></MemoryRouter>);
+    expect(await screen.findByRole('dialog', { name: /Wednesday/ })).toBeInTheDocument();
+  });
+});

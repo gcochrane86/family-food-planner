@@ -17,11 +17,13 @@ const mondayOf = (iso: string) => addDays(iso, -((new Date(`${iso}T00:00:00Z`).g
 export const todayInLondon = (now = new Date()) => londonParts(now).date;
 const hasSteps = (r: RecipeDetail | null) => !!r?.steps.some((s) => s.phase === 'finish');
 
-/** Builds today's hour from yesterday's, today's and tomorrow's slots (tomorrow may be in next week's plan). */
-export function useTodayHour(now = new Date()) {
+/** Builds a day's hour (today's by default) from that day's, the day before's and the day after's slots (the day
+ *  after may be in next week's plan). Any other day is a preview of that day's hour as it will run. */
+export function useTodayHour(day?: string | null, now = new Date()) {
   const { householdId } = useAuth();
   const hid = householdId!;
-  const today = todayInLondon(now);
+  const realToday = todayInLondon(now);
+  const today = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : realToday;
   return useAsync(async () => {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);
@@ -109,6 +111,7 @@ export function useTodayHour(now = new Date()) {
       yesterdayPlanned: slots.some((s) => s.date === yesterday),
       tomorrow: next,
     };
-    return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null, tomorrowSlot: find(tomorrow, 'dinner') ?? null };
+    return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null, tomorrowSlot: find(tomorrow, 'dinner') ?? null,
+      day: today, isToday: today === realToday, isPast: today < realToday };
   }, [hid, today], { onReturn: true });
 }

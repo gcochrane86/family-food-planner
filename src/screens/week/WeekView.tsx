@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import ErrorBanner from '../../components/ErrorBanner';
 import { daySummary } from '../../lib/weekSummary';
 import DaySheet from './DaySheet';
@@ -15,6 +15,16 @@ export default function WeekView() {
   const plan = usePlanRequest(w);
   const [open, setOpen] = useState<string | null>(null);
   const [approvedOpen, setApprovedOpen] = useState(false);
+  // ?day=YYYY-MM-DD (from a preview of that day's hour) opens that day's sheet, in whichever week it's in.
+  const [params, setParams] = useSearchParams();
+  const askedDay = params.get('day');
+  useEffect(() => {
+    if (!askedDay || w.loading) return;
+    const inNext = askedDay >= w.starts.nextWeek;
+    if (w.shown !== (inNext ? 'next' : 'this')) { w.setWhich(inNext ? 'next' : 'this'); return; }
+    setOpen(askedDay);
+    setParams({}, { replace: true });
+  }, [askedDay, w.loading, w.shown]); // eslint-disable-line react-hooks/exhaustive-deps
   const tiles = useRef(new Map<string, HTMLButtonElement | null>());
   // The planned days, plus any later day with a dinner of its own (a roast added to Sunday of a 5-day week).
   const dates = [...new Set([...Array.from({ length: w.week?.days ?? 7 }, (_, i) => addDays(w.weekStart, i)),
