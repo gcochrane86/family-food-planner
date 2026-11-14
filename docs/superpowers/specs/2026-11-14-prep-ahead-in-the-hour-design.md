@@ -67,7 +67,7 @@ Optional, recommended, ticked by default:
 
 ### Where the choice lives
 
-- A new column on `meal_slots`: `prep_ahead boolean not null default true`, on the **dinner slot that the prep is
+- A new column on `meal_slots`: `prep_ahead` (three states, see call 4 below; default `'ahead'`), on the **dinner slot that the prep is
   for** (D+1's dinner). True: its optional prep is planned in the evening before's hour. False: it's done on the day.
 - Both the Week tab and Today's hour read and write that one column, so they always agree, on every device.
 - When that slot's recipe changes (swap, move to another day, Claude replanning), the column goes back to true. Same
@@ -144,8 +144,10 @@ Optional, recommended, ticked by default:
    too. A step keeps the flag of the recipe step with the same title; a new step defaults to false unless Claude sets
    it (`set_tonights_version` accepts the field). Tonight's version mostly matters on the day itself, so this is a
    small case.
-4. **"I didn't get to it" writes the same column** (`prep_ahead = false` on tonight's dinner). Yesterday's sheet then
-   reads "skipped", which is what happened. Tapping it again undoes it. No separate column.
+4. **"I didn't get to it" writes the same column**, which has three states rather than true/false (ruling while
+   planning): `'ahead'` (the default), `'on_the_day'` (optional prep skipped; must-do prep still done the evening
+   before) and `'missed'` (nothing done last night, so all of it, must-do included, comes into tonight). Yesterday's
+   sheet then reads "skipped", which is what happened. Tapping it again (Undo) sets it back to `'ahead'`.
 5. **The trigger resets `prep_ahead` to true** when the slot's recipe changes or its mode changes away from cook. A
    re-inserted row gets the default anyway.
 

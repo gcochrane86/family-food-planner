@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead } from './types';
 import { CANCELLED } from './types';
 import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
 import { resizeImage } from './image';
@@ -212,6 +212,11 @@ export const repo = {
     // recipe changes: a stale copy on screen must never overwrite it either.
     const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
+  },
+
+  /** A dinner's prep ahead (Today's hour): done the evening before, on the day, or missed. */
+  async setPrepAhead(slotId: string, value: PrepAhead): Promise<void> {
+    must(await db().from('meal_slots').update({ prep_ahead: value }).eq('id', slotId));
   },
 
   async listBasics(householdId: string): Promise<WeeklyBasic[]> {

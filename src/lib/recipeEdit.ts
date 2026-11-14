@@ -10,6 +10,7 @@ export function recipeSavePayload(original: Recipe & { steps: RecipeStep[] }, fi
     at_minute: st.id && was.get(st.id) === st.phase ? st.at_minute : null,
     title: st.title, body: st.body, machine: st.machine, settings: st.settings, timer_minutes: st.timer_minutes,
     image_path: st.image_path, image_source: st.image_source, photo_hint: st.photo_hint ?? null,
+    needs_night_before: st.phase === 'prep_8pm' && !!st.needs_night_before,
   }));
   const ingredientRows = ingredients.map((g, i) => ({
     position: i + 1, group_name: g.group_name, name: g.name, qty: g.qty, unit: g.unit, note: g.note, qty_approx: g.qty_approx,

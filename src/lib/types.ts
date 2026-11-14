@@ -132,6 +132,8 @@ export interface RecipeStep {
   image_source: 'own' | 'generated' | null;
   /** Your own one-sentence description of what this step's AI photo should show. */
   photo_hint?: string | null;
+  /** A prep step that can't wait until the day's own hour (a long marinade): always done the evening before. */
+  needs_night_before?: boolean;
 }
 
 export interface Recipe {
@@ -231,7 +233,12 @@ export interface MealSlot {
   roast?: unknown;
   /** Tonight's version of this day's recipe (Ask Claude), or none. Use `applyVersion`, which ignores a stale one. */
   version?: SlotVersion | null;
+  /** A dinner's prep: done in the hour the evening before (ahead), skipped to its own day (on_the_day), or not done
+   *  after all (missed). Goes back to ahead when the recipe changes (migration 0018). */
+  prep_ahead?: PrepAhead;
 }
+
+export type PrepAhead = 'ahead' | 'on_the_day' | 'missed';
 
 // Shopping (Phase 4) -------------------------------------------------------------
 

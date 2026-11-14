@@ -18,3 +18,10 @@ test('steps are numbered per phase in the order given, keep their photos, and a 
   expect(p.steps[2]).toMatchObject({ image_path: 'h1/steps/x.jpg', image_source: 'own', photo_hint: 'pan' });
   expect(p.ingredients.map((i) => [i.position, i.name, i.qty_approx])).toEqual([[1, 'chicken breast or thigh', false], [2, 'basmati rice', false]]);
 });
+
+test('a prep step can need the night before; a step moved to the day loses it', () => {
+  const marinade = { ...HONEY.steps[0], needs_night_before: true };
+  const moved = { ...HONEY.steps[2], needs_night_before: true };
+  const p = recipeSavePayload(HONEY, fields, HONEY.ingredients, [marinade, HONEY.steps[1], moved]);
+  expect(p.steps.map((s) => s.needs_night_before)).toEqual([true, false, false]);
+});

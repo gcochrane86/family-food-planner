@@ -625,3 +625,44 @@ test('0017: a step picture description can be thorough (up to 600 characters), n
   expect(await one(OWNER, `select length(photo_hint) from recipe_steps where recipe_id = '${rid}'`)).toBe(600);
   await expect(as(OWNER, `insert into recipe_steps (recipe_id, phase, position, title, body, photo_hint) values ('${rid}', 'finish', 2, 'B', 'b', '${long}x')`)).rejects.toThrow();
 });
+
+test("0018: a dinner's prep ahead defaults to ahead and members can set it", async () => {
+  const hid = await one(OWNER, `select create_household('Home')`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-11-16') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) values ('${wid}', '2026-11-17', 'dinner', 'cook')`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('ahead');
+  await as(OWNER, `update meal_slots set prep_ahead = 'on_the_day'`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('on_the_day');
+  await as(OWNER, `update meal_slots set prep_ahead = 'missed'`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('missed');
+  expect(await fails(OWNER, `update meal_slots set prep_ahead = 'later'`)).toMatch(/check constraint/);
+  expect(await as(STRANGER, 'select prep_ahead from meal_slots')).toHaveLength(0);
+});
+
+test("0018: prep ahead goes back to ahead when the dinner's recipe changes or it isn't cooked", async () => {
+  const { hid, rid } = await recipeFor(OWNER, 'a');
+  const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions)
+    values ('${hid}', 'b', 'Other', 'meal', 'own_doc', 4) returning id`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-11-16') returning id`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, prep_ahead) values ('${wid}', '2026-11-17', 'dinner', 'cook', '${rid}', 'on_the_day')`);
+  await as(OWNER, `update meal_slots set portions = 4`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('on_the_day');
+  await as(OWNER, `update meal_slots set recipe_id = '${other}'`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('ahead');
+  await as(OWNER, `update meal_slots set prep_ahead = 'missed'`);
+  await as(OWNER, `update meal_slots set mode = 'out', recipe_id = null`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('ahead');
+});
+
+test('0018: steps carry needs the night before, kept through save_recipe by phase and title', async () => {
+  const { rid } = await recipeFor(OWNER);
+  const step = (title, extra = '') => `{"phase":"prep_8pm","position":1,"title":"${title}","body":"b"${extra}}`;
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"T"}', '[]', '[${step('Marinate', ',"needs_night_before":true')}]')`);
+  expect(await one(OWNER, `select needs_night_before from recipe_steps where recipe_id = '${rid}'`)).toBe(true);
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"T"}', '[]', '[${step('Marinate')}]')`);
+  expect(await one(OWNER, `select needs_night_before from recipe_steps where recipe_id = '${rid}'`)).toBe(true);
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"T"}', '[]', '[${step('Marinate', ',"needs_night_before":false')}]')`);
+  expect(await one(OWNER, `select needs_night_before from recipe_steps where recipe_id = '${rid}'`)).toBe(false);
+  await one(OWNER, `select save_recipe('${rid}', '{"title":"T"}', '[]', '[${step('Make the sauce')}]')`);
+  expect(await one(OWNER, `select needs_night_before from recipe_steps where recipe_id = '${rid}'`)).toBe(false);
+});
