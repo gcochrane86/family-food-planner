@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { dayMinutes } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { CANCELLED } from '../../lib/types';
@@ -150,8 +151,8 @@ export function useWeek() {
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     baskets: (shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? [],
     shopsPerWeek: (data?.settings?.shops_per_week === 1 ? 1 : 2) as 1 | 2,
-    /** When Today's hour starts (Settings → Today's hour). */
-    hourStart: (data?.settings as { hour_start?: string } | undefined)?.hour_start ?? '17:30',
+    /** A day's cooking time in minutes: the shown week's own time for it, else the day's setting (Settings → Today's cooking). */
+    dayMinutes: (date: string) => dayMinutes(date, (data?.settings ?? {}) as { cooking_minutes?: unknown; hour_minutes?: unknown }, current?.week?.cooking_minutes),
     slots: current?.slots ?? [],
     officeDays: input?.officeDays ?? [],
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),

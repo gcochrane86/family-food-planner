@@ -985,11 +985,12 @@ test('a 5-day week still shows a Sunday that has a dinner (a roast added from th
   expect(screen.queryByRole('button', { name: /^Saturday 24/ })).not.toBeInTheDocument();
 });
 
-test("on a planned day, a Today's hour card links to /today", async () => {
+test("on a planned day, a Today's cooking card links to /today, with no start time", async () => {
   vi.setSystemTime(new Date('2026-10-19T12:00:00Z')); // Monday of the planned week
   h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1, hour_start: '17:45' });
   render(<WeekView />, { wrapper: MemoryRouter });
-  const card = await screen.findByRole('link', { name: /Today's hour · 17:45/ });
+  const card = await screen.findByRole('link', { name: /^Today's cooking/ });
+  expect(card).not.toHaveTextContent('17:45');
   expect(card).toHaveAttribute('href', '/today');
   expect(card).toHaveTextContent('Almond-Crusted Honey Chilli Chicken');
 });
@@ -1054,13 +1055,26 @@ describe("a day's hour: prep for the next day", () => {
   });
 });
 
-describe('previewing the hour from the planner', () => {
-  test("a day's sheet links to that day's hour", async () => {
+describe('previewing the cooking from the planner', () => {
+  test("a day's sheet links to that day's cooking and says its time", async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Tue');
-    expect(within(day(/Tuesday/)).getByRole('link', { name: 'Preview the hour' })).toHaveAttribute('href', '/today?day=2026-10-20');
+    expect(within(day(/Tuesday/)).getByRole('link', { name: 'Preview the cooking' })).toHaveAttribute('href', '/today?day=2026-10-20');
     // At the top of the day, before the meals.
-    expect(within(day(/Tuesday/)).getAllByRole('link')[0]).toHaveAccessibleName('Preview the hour');
+    expect(within(day(/Tuesday/)).getAllByRole('link')[0]).toHaveAccessibleName('Preview the cooking');
+    expect(within(day(/Tuesday/)).getByText('Cooking time: an hour')).toBeInTheDocument();
+  });
+
+  test("a day given more time this week says so; the next day keeps its own", async () => {
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-19'
+      ? { ...NEXT_WEEK, week: { ...NEXT_WEEK.week!, cooking_minutes: { '2026-10-20': 120 } } }
+      : { week: null, slots: [] }));
+    h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1, cooking_minutes: { wed: 90 } });
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Tue');
+    expect(within(day(/Tuesday/)).getByText('Cooking time: 2 hours')).toBeInTheDocument();
+    await openDay('Wed');
+    expect(within(day(/Wednesday/)).getByText('Cooking time: an hour and a half')).toBeInTheDocument();
   });
 
   test("?day= opens that day's sheet", async () => {

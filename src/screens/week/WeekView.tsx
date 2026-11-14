@@ -78,7 +78,7 @@ export default function WeekView() {
       {w.week && dates.includes(today) && (
         <Link to="/today" className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
           <span>
-            <span className="block font-bold">Today's hour · {w.hourStart}</span>
+            <span className="block font-bold">Today's cooking</span>
             <span className="block text-sm text-muted">{daySummary(today, w.slots, w.recipes, w.officeDays).dinner}</span>
           </span>
           <span aria-hidden="true" className="text-muted">›</span>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { minutesInWords } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { Link } from 'react-router-dom';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { routineRecipe } from '../../lib/mealPhotos';
@@ -99,7 +100,7 @@ function HourPrep({ date, w }: { date: string; w: WeekState }) {
       <b>Prep for the next day</b>
       {optional.length > 0 && (
         <div className="flex items-center justify-between gap-3">
-          <span>Prep for {weekday}'s {detail.title}<small className="block text-muted">Recommended{on ? '' : `: off, so it's done in ${weekday}'s hour`}</small></span>
+          <span>Prep for {weekday}'s {detail.title}<small className="block text-muted">Recommended{on ? '' : `: off, so it's done on ${weekday}`}</small></span>
           <button type="button" role="switch" aria-checked={on} aria-label={`Prep for ${weekday}'s ${detail.title} (recommended)`}
             onClick={() => void w.setPrepAhead(cooked, on ? 'on_the_day' : 'ahead')} className={switchClasses(on)}>
             <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -218,15 +219,16 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   return (
     <section aria-label={dayLabel(date)} className="grid gap-5">
       <h2 className={hideTitle ? 'sr-only' : 'text-xl font-bold'}>{dayLabel(date)}</h2>
-      {/* The day's hour, to step through exactly as it will run on the day (and make its photos ahead). */}
-      <Link to={`/today?day=${date}`} aria-label="Preview the hour"
+      {/* The day's cooking, to step through exactly as it will run on the day (and make its photos ahead). */}
+      <Link to={`/today?day=${date}`} aria-label="Preview the cooking"
         className="flex items-center justify-between gap-3 rounded-2xl bg-accent px-4 py-3.5 text-accent-ink no-underline shadow-sm">
         <span>
-          <span className="block font-bold">Preview the hour · {w.hourStart}</span>
+          <span className="block font-bold">Preview the cooking</span>
           <span className="block text-sm opacity-90">Step through it exactly as on the day</span>
         </span>
         <span aria-hidden="true" className="text-2xl">›</span>
       </Link>
+      <p className="m-0 -mt-3 text-sm text-muted">Cooking time: {minutesInWords(w.dayMinutes(date))}</p>
 
       {dinner && <div className="grid gap-2"><Label tone="text-accent">Dinner</Label>{dinnerCard}</div>}
       {lunch && <div className="grid gap-2"><Label tone="text-lunch">Lunch</Label>{lunchCard}</div>}
