@@ -263,9 +263,9 @@ describe('prep ahead: essential and optional', () => {
   it("skipped optional prep is done tonight, before tonight's cook, and tonight is chopped fresh", () => {
     const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'on_the_day' }, tomorrow: null }));
     const titles = plan.steps.map((s) => s.title);
-    expect(titles).toContain("From yesterday's prep: Make the sauce");
+    expect(titles).toContain("Make the sauce");
     expect(titles.some((t) => t.includes('Marinate'))).toBe(false);
-    expect(titles.indexOf("From yesterday's prep: Make the sauce")).toBeLessThan(titles.indexOf('Stew'));
+    expect(titles.indexOf("Make the sauce")).toBeLessThan(titles.indexOf('Stew'));
     expect(plan.chop.some((g) => g.where === 'fridge')).toBe(false);
     expect(plan.doneLastNight).toEqual({ title: 'Beef Stew', steps: ['Marinate the beef'], state: 'on_the_day' });
   });
@@ -273,18 +273,18 @@ describe('prep ahead: essential and optional', () => {
   it('missed prep: everything comes into tonight, must-do with a warning; no hour yesterday counts as missed', () => {
     const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'missed' }, tomorrow: null }));
     const titles = plan.steps.map((s) => s.title);
-    expect(titles).toEqual(expect.arrayContaining(["From yesterday's prep: Marinate the beef", "From yesterday's prep: Make the sauce"]));
+    expect(titles).toEqual(expect.arrayContaining(["Marinate the beef", "Make the sauce"]));
     expect(plan.warnings).toContain('Marinate the beef: this needed the night before, so it gets less time tonight');
     expect(plan.doneLastNight).toEqual({ title: 'Beef Stew', steps: ['Marinate the beef', 'Make the sauce'], state: 'missed' });
     const none = planHour(input({ yesterdayPlanned: false, tonight: { recipe: STEW2, portions: 4 }, tomorrow: null }));
-    expect(none.steps.map((s) => s.title)).toContain("From yesterday's prep: Marinate the beef");
+    expect(none.steps.map((s) => s.title)).toContain("Marinate the beef");
     expect(none.doneLastNight).toBeNull();
   });
 
   it('a missed overnight marinade gets at most 30 minutes tonight, as a wait, not hours of hands-on', () => {
     const LONG = recipe('stew', 'Beef Stew', STEW2.ingredients, [{ ...MUST, timer_minutes: 480 }, ...STEW2.steps.slice(1)]);
     const plan = planHour(input({ yesterdayPlanned: false, tonight: { recipe: LONG, portions: 4 }, tomorrow: null }));
-    const m = plan.steps.find((s) => s.title === "From yesterday's prep: Marinate the beef")!;
+    const m = plan.steps.find((s) => s.title === "Marinate the beef")!;
     const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
     expect(mins(m.end) - mins(m.at)).toBe(30);
     expect(plan.handsOn).toBeLessThan(90);
@@ -294,7 +294,7 @@ describe('prep ahead: essential and optional', () => {
     const plan = planHour(input({ yesterdayPlanned: false, tonight: { recipe: STEW2, portions: 4 }, tomorrow: { dinner: { recipe: STEW2, portions: 4 }, lunch: null, breakfast: null } }));
     const src = (t: string) => plan.steps.find((s) => s.title === t)?.source;
     expect(src('Stew')).toEqual({ date: '2026-11-12', phase: 'finish', title: 'Stew' });
-    expect(src("From yesterday's prep: Make the sauce")).toEqual({ date: '2026-11-12', phase: 'prep_8pm', title: 'Make the sauce' });
+    expect(src("Make the sauce")).toEqual({ date: '2026-11-12', phase: 'prep_8pm', title: 'Make the sauce' });
     expect(src('For tomorrow: Make the sauce')).toEqual({ date: '2026-11-13', phase: 'prep_8pm', title: 'Make the sauce' });
     expect(src('Chop all the ingredients below')).toBeUndefined();
   });

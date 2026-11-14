@@ -167,7 +167,7 @@ export function planHour(input: HourInput): HourPlan {
       const must = !!s.needs_night_before;
       const length = must ? Math.min(lengthOf(s), CARRIED_MAX) : lengthOf(s);
       const waiting = must && !s.machine && (s.timer_minutes ?? 0) >= 10;
-      const slot = add(prevEnd, length, !waiting && !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos), source: { date: input.date, phase: 'prep_8pm', title: s.title } }, 'dinner');
+      const slot = add(prevEnd, length, !waiting && !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos), source: { date: input.date, phase: 'prep_8pm', title: s.title } }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
       if (s.needs_night_before) warnings.push(`${s.title}: this needed the night before, so it gets less time tonight`);

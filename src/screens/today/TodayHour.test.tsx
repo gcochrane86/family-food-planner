@@ -51,7 +51,7 @@ test('Start goes to the first step and Next steps through, with no timers', asyn
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
   // No hour on Sunday, so tonight's prep is done first.
-  expect(screen.getByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /timer/i })).not.toBeInTheDocument();
@@ -81,7 +81,7 @@ test('coming back mid-hour keeps your step', async () => {
   await user().click(screen.getByRole('button', { name: 'Next' }));
   first.unmount();
   open();
-  expect(await screen.findByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
 });
 
 test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
@@ -232,7 +232,7 @@ test('hands-free in Today\'s hour: "planner next" starts the hour and steps on',
   act(() => FakeRec.last!.say('planner next'));
   expect(screen.getByRole('heading', { name: 'Chop all the ingredients below' })).toBeInTheDocument();
   act(() => FakeRec.last!.say('planner next planner next planner next'));
-  expect(screen.getByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
   remove();
 });
 
@@ -329,17 +329,17 @@ test('swiping moves between the steps; oven settings show °F too, large', async
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
   fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 200 }] });
   fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 100, clientY: 210 }] });
-  expect(screen.getByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
   fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 200 }] });
   fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 100, clientY: 210 }] });
   expect(screen.getByText(/100°C \/ 210°F/)).toBeInTheDocument();
   fireEvent.touchStart(area(), { touches: [{ clientX: 100, clientY: 200 }] });
   fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 300, clientY: 205 }] });
-  expect(screen.getByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
   // A mostly-up-and-down drag is a scroll, not a swipe.
   fireEvent.touchStart(area(), { touches: [{ clientX: 300, clientY: 100 }] });
   fireEvent.touchEnd(area(), { changedTouches: [{ clientX: 260, clientY: 400 }] });
-  expect(screen.getByRole('heading', { name: "From yesterday's prep: The bulk sauce" })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
 });
 
 test('Plate up shows the dish photo large, on its own, centred under the text', async () => {
