@@ -290,6 +290,15 @@ describe('prep ahead: essential and optional', () => {
     expect(plan.handsOn).toBeLessThan(90);
   });
 
+  it("each dinner step says which day's dinner and which recipe step it comes from; generated steps don't", () => {
+    const plan = planHour(input({ yesterdayPlanned: false, tonight: { recipe: STEW2, portions: 4 }, tomorrow: { dinner: { recipe: STEW2, portions: 4 }, lunch: null, breakfast: null } }));
+    const src = (t: string) => plan.steps.find((s) => s.title === t)?.source;
+    expect(src('Stew')).toEqual({ date: '2026-11-12', phase: 'finish', title: 'Stew' });
+    expect(src("From yesterday's prep: Make the sauce")).toEqual({ date: '2026-11-12', phase: 'prep_8pm', title: 'Make the sauce' });
+    expect(src('For tomorrow: Make the sauce')).toEqual({ date: '2026-11-13', phase: 'prep_8pm', title: 'Make the sauce' });
+    expect(src('Chop all the ingredients below')).toBeUndefined();
+  });
+
   it('prep done last night stays out of tonight, and is listed as done', () => {
     const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'ahead' }, tomorrow: null }));
     expect(plan.steps.some((s) => s.title.startsWith("From yesterday's prep"))).toBe(false);

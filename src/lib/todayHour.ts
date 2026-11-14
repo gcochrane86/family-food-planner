@@ -65,6 +65,8 @@ export interface HourStep {
   photos: { path: string; alt: string; prep?: { name: string; note: string | null; key: string; label: string };
     /** The recipe step this picture stands for, so it can be given its own photo. */
     step?: { recipeId: string; stepId: string; title: string; has: boolean; own: boolean } }[];
+  /** For a step from a day's dinner recipe: which day's dinner and which of its steps (to change it for that day). */
+  source?: { date: string; phase: 'prep_8pm' | 'finish'; title: string };
 }
 
 export interface HourPlan {
@@ -90,6 +92,7 @@ export interface HourPlan {
   roastAhead: RoastAhead | null;
 }
 
+const nextDay = (iso: string) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
 const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
 const clock = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
@@ -164,7 +167,7 @@ export function planHour(input: HourInput): HourPlan {
       const must = !!s.needs_night_before;
       const length = must ? Math.min(lengthOf(s), CARRIED_MAX) : lengthOf(s);
       const waiting = must && !s.machine && (s.timer_minutes ?? 0) >= 10;
-      const slot = add(prevEnd, length, !waiting && !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
+      const slot = add(prevEnd, length, !waiting && !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos), source: { date: input.date, phase: 'prep_8pm', title: s.title } }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
       if (s.needs_night_before) warnings.push(`${s.title}: this needed the night before, so it gets less time tonight`);
@@ -172,7 +175,7 @@ export function planHour(input: HourInput): HourPlan {
     const cookFrom = prevEnd;
     for (const s of finishSteps(r)) {
       const at = s.at_minute !== null ? cookFrom + s.at_minute : prevEnd;
-      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
+      const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos), source: { date: input.date, phase: 'finish', title: s.title } }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
@@ -183,7 +186,7 @@ export function planHour(input: HourInput): HourPlan {
   // 4. Extras into the waits, each chain in order; what doesn't fit goes after dinner.
   const after: HourStep[] = [];
   const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
-  for (const [ci, chain] of extras(tomorrow, input.kitPhotos).entries()) {
+  for (const [ci, chain] of extras(tomorrow, input.kitPhotos, nextDay(input.date)).entries()) {
     let earliest = base;
     let stuck = false;
     for (const e of chain) {
@@ -282,12 +285,13 @@ const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'fini
 interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'at' | 'end'> }
 
 /** Tomorrow's prep steps, the night-before breakfast, then a lunch to make: each a chain of steps done in order. */
-function extras(tomorrow: HourInput['tomorrow'], kit?: Kit): Extra[][] {
+function extras(tomorrow: HourInput['tomorrow'], kit?: Kit, tomorrowDate?: string): Extra[][] {
   if (!tomorrow) return [];
-  const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number): Extra[] =>
+  const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number, dinner = false): Extra[] =>
     steps.map((s) => ({
       length: lengthOf(s), handsOff: isHandsOff(s), machine: s.machine,
-      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, kit) },
+      step: { kind: 'extra', title: `${prefix}${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, kit),
+        ...(dinner && tomorrowDate ? { source: { date: tomorrowDate, phase: 'prep_8pm' as const, title: s.title } } : {}) },
     }));
   const simple = (title: string, body: string): Extra[] =>
     [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1, photos: [] } }];
@@ -295,7 +299,7 @@ function extras(tomorrow: HourInput['tomorrow'], kit?: Kit): Extra[][] {
   if (tomorrow.dinner) {
     const r = tomorrow.dinner.recipe;
     const prep = tomorrowPrep(tomorrow.dinner);
-    if (prep.length) chains.push(fromSteps(r, prep, 'For tomorrow: ', factorOf(tomorrow.dinner)));
+    if (prep.length) chains.push(fromSteps(r, prep, 'For tomorrow: ', factorOf(tomorrow.dinner), true));
   }
   const b = tomorrow.breakfast;
   if (b) {
