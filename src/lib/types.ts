@@ -48,6 +48,8 @@ export interface Settings {
    *  type for older stored settings; `validateSettings` always fills them. */
   hour_start?: string;
   hour_minutes?: number;
+  /** Today's cooking: each day of the week's time for cooking, in minutes (an hour when missing). */
+  cooking_minutes?: Partial<Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', number>>;
   /** Breakfasts made the night before, in the hour (the rest are made fresh in the morning). */
   breakfast_ahead?: string[];
   /** How many Thermomixes, and how many TM7 bowls. */

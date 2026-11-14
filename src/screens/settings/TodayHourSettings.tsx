@@ -5,9 +5,10 @@ import { DEFAULT_SETTINGS } from '../../lib/household';
 import { repo } from '../../lib/repo';
 import type { Settings } from '../../lib/types';
 import { card, input, Page } from './ui';
+import { MAX_MINUTES, MIN_MINUTES, WEEKDAYS, weekdayMinutes, type Weekday } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { SAVE_ERROR, useAsync } from './useAsync';
 
-/** Today's hour: when the daily cooking hour is, which breakfasts are made the night before, and the TM7 kit. */
+/** Today's cooking: how long each day has for cooking, which breakfasts are made the night before, and the TM7 kit. */
 export default function TodayHourSettings() {
   const { householdId } = useAuth();
   const { data, setData, error, loading, reload } = useAsync(() => repo.getSettings(householdId!), [householdId]);
@@ -24,13 +25,14 @@ export default function TodayHourSettings() {
 
   const ahead = data?.breakfast_ahead ?? DEFAULT_SETTINGS.breakfast_ahead!;
   return (
-    <Page title="Today's hour" intro="One cooking hour a day: tonight's dinner, tomorrow's lunch and anything made the night before, with the chopping first and the dishwasher last." loading={loading} error={error} onRetry={reload}>
+    <Page title="Today's cooking" intro="Each day's cooking: tonight's dinner, prep for tomorrow, tomorrow's lunch and anything made the night before, with the chopping first and the dishwasher last." loading={loading} error={error} onRetry={reload}>
       {banner && <ErrorBanner message={banner} />}
       {data && (
         <>
           <section className={`${card} grid gap-3 p-4`}>
-            <h2 className="m-0 text-lg font-bold">When</h2>
-            <HourTimes start={data.hour_start ?? '17:30'} minutes={data.hour_minutes ?? 60} onSave={(c) => void save(c)} />
+            <h2 className="m-0 text-lg font-bold">Time for cooking</h2>
+            <p className="m-0 text-sm text-muted">Roughly how long each day has. The week's plan fits the dinners and the prep to it, and you can give a day more time when you plan.</p>
+            <DayTimes minutes={weekdayMinutes(data)} onSave={(m) => void save({ cooking_minutes: m })} />
           </section>
           <section className={`${card} grid gap-2 p-4`}>
             <h2 className="m-0 text-lg font-bold">Breakfasts</h2>
@@ -55,7 +57,7 @@ export default function TodayHourSettings() {
             <h2 className="m-0 text-lg font-bold">Thermomix</h2>
             <Choice legend="TM7 machines" name="tm7_machines" value={data.tm7_machines ?? 1} labels={['1 machine', '2 machines']} onChange={(v) => void save({ tm7_machines: v })} />
             <Choice legend="TM7 bowls" name="tm7_bowls" value={data.tm7_bowls ?? 1} labels={['1 bowl', '2 bowls']} onChange={(v) => void save({ tm7_bowls: v })} />
-            <p className="m-0 text-sm text-muted">With one bowl, the hour leaves 2 minutes to rinse it between Thermomix jobs.</p>
+            <p className="m-0 text-sm text-muted">With one bowl, the cooking leaves 2 minutes to rinse it between Thermomix jobs.</p>
           </section>
         </>
       )}
@@ -63,23 +65,25 @@ export default function TodayHourSettings() {
   );
 }
 
-function HourTimes({ start, minutes, onSave }: { start: string; minutes: number; onSave: (c: Partial<Settings>) => void }) {
-  const [s, setS] = useState(start);
-  const [m, setM] = useState(String(minutes));
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function DayTimes({ minutes, onSave }: { minutes: Record<Weekday, number>; onSave: (m: Record<Weekday, number>) => void }) {
+  const [text, setText] = useState<Record<string, string>>(() => Object.fromEntries(WEEKDAYS.map((d) => [d, String(minutes[d])])));
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <label className="grid gap-1 text-sm font-semibold">Starts at
-        <input type="time" className={input} value={s} onChange={(e) => setS(e.target.value)}
-          onBlur={() => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(s) && s !== start) onSave({ hour_start: s }); }} />
-      </label>
-      <label className="grid gap-1 text-sm font-semibold">Minutes
-        <input type="number" min={30} max={120} step={5} className={input} value={m} onChange={(e) => setM(e.target.value)}
-          onBlur={() => {
-            const n = Math.min(120, Math.max(30, Math.round(Number(m) || minutes)));
-            setM(String(n));
-            if (n !== minutes) onSave({ hour_minutes: n });
-          }} />
-      </label>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {WEEKDAYS.map((d, i) => (
+        <label key={d} className="grid gap-1 text-sm font-semibold">
+          <span>{DAY_NAMES[i]} <span className="sr-only">(minutes)</span><span aria-hidden="true" className="font-normal text-muted">min</span></span>
+          <input type="number" min={MIN_MINUTES} max={MAX_MINUTES} step={15} className={input} value={text[d]}
+            aria-label={`${DAY_NAMES[i]} (minutes)`}
+            onChange={(e) => setText((t) => ({ ...t, [d]: e.target.value }))}
+            onBlur={() => {
+              const n = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(Number(text[d]) || minutes[d])));
+              setText((t) => ({ ...t, [d]: String(n) }));
+              if (n !== minutes[d]) onSave({ ...minutes, [d]: n });
+            }} />
+        </label>
+      ))}
     </div>
   );
 }

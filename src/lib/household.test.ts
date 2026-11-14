@@ -67,6 +67,11 @@ describe('validateSettings', () => {
     expect(validateSettings({ breakfast_ahead: [] }).breakfast_ahead).toEqual([]);
     expect(validateSettings({ breakfast_ahead: ['Baked oats', 'baked oats', 3] }).breakfast_ahead).toEqual(['Baked oats']);
   });
+  test("Today's cooking: each day's time kept within 30–240 minutes, the rest dropped", () => {
+    expect(validateSettings({ cooking_minutes: { wed: 120, thu: 500, fri: 10, sat: 'x', xyz: 90, sun: 92.4 } }).cooking_minutes)
+      .toEqual({ wed: 120, thu: 240, fri: 30, sun: 92 });
+    expect(validateSettings({}).cooking_minutes).toBeUndefined();
+  });
   test('ignores values of the wrong type', () => {
     expect(validateSettings({ default_plan_days: 6, shops_per_week: '2', delivery_pass: 'yes' })).toEqual(DEFAULT_SETTINGS);
   });

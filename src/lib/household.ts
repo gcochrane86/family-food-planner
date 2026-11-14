@@ -1,3 +1,4 @@
+import { MAX_MINUTES, MIN_MINUTES, WEEKDAYS } from '../../supabase/functions/_shared/cookingTime.ts';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
 import type { DeliverySlot, Member, Settings, StapleStatus, DayRule, OtherShop } from './types';
 
@@ -52,6 +53,17 @@ const isSlot = (x: unknown): x is DeliverySlot => {
   const s = x as DeliverySlot;
   return !!s && DAYS.has(s.day) && TIME.test(s.start) && TIME.test(s.end);
 };
+
+/** Today's cooking: each day of the week's own time, 30–240 minutes, whole minutes; other keys dropped. */
+function cookingMinutes(v: unknown): Settings['cooking_minutes'] {
+  if (!v || typeof v !== 'object') return undefined;
+  const out: Record<string, number> = {};
+  for (const d of WEEKDAYS) {
+    const n = (v as Record<string, unknown>)[d];
+    if (typeof n === 'number' && Number.isFinite(n)) out[d] = Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, Math.round(n)));
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 /** Reads stored settings JSON, keeping valid values and filling the rest from the defaults. */
 /** A breakfast or lunch list: trimmed names of 1–60 characters, no repeats (ignoring case), at most 20. */
@@ -117,6 +129,7 @@ export function validateSettings(raw: unknown): Settings {
     breakfast_ahead: Array.isArray(r.breakfast_ahead) ? (r.breakfast_ahead.length ? mealList(r.breakfast_ahead, []) : []) : d.breakfast_ahead,
     tm7_machines: r.tm7_machines === 1 || r.tm7_machines === 2 ? r.tm7_machines : d.tm7_machines,
     tm7_bowls: r.tm7_bowls === 1 || r.tm7_bowls === 2 ? r.tm7_bowls : d.tm7_bowls,
+    ...(cookingMinutes(r.cooking_minutes) ? { cooking_minutes: cookingMinutes(r.cooking_minutes) } : {}),
     private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
 }

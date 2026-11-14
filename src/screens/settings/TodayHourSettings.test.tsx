@@ -14,14 +14,17 @@ beforeEach(() => {
   h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, breakfasts: ['Overnight oats', 'Porridge', 'Eggs'], breakfast_ahead: ['Overnight oats'] });
 });
 
-test('saves a new start time', async () => {
+test("Today's cooking: each day's time, no start time", async () => {
   render(<TodayHourSettings />, { wrapper: MemoryRouter });
-  const start = await screen.findByLabelText('Starts at');
-  expect(start).toHaveValue('17:30');
-  await userEvent.clear(start);
-  await userEvent.type(start, '18:00');
+  expect(await screen.findByRole('heading', { name: "Today's cooking" })).toBeInTheDocument();
+  expect(screen.queryByText(/17:30/)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Starts at')).not.toBeInTheDocument();
+  const wed = screen.getByLabelText('Wednesday (minutes)');
+  expect(wed).toHaveValue(60);
+  await userEvent.clear(wed);
+  await userEvent.type(wed, '120');
   await userEvent.tab();
-  expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ hour_start: '18:00' }));
+  expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ cooking_minutes: expect.objectContaining({ wed: 120 }) }));
 });
 
 test('each breakfast has a "Made the night before" switch', async () => {
