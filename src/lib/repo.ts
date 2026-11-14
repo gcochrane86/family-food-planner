@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion } from './types';
 import { CANCELLED } from './types';
 import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
 import { resizeImage } from './image';
@@ -213,6 +213,12 @@ export const repo = {
     // A dinner's prep ahead is saved on its own (setPrepAhead), so a stale copy here can't undo a change made elsewhere.
     const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, prep_ahead: _p, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
+  },
+
+  /** A day's own version of its recipe (Change for this day in Today's hour), or null to go back to the recipe. The
+   *  database clears it when the day's recipe changes (migration 0015). */
+  async setSlotVersion(slotId: string, version: SlotVersion | null): Promise<void> {
+    must(await db().from('meal_slots').update({ version }).eq('id', slotId));
   },
 
   /** A dinner's prep ahead (Today's hour): done the evening before, on the day, or missed. */

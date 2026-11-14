@@ -77,6 +77,7 @@ export function fakeRepo() {
     setTick: vi.fn(async () => {}),
     saveSlots: vi.fn(async (_slots: MealSlot[]) => {}),
     setPrepAhead: vi.fn(async (_slotId: string, _value: string) => {}),
+    setSlotVersion: vi.fn(async (_slotId: string, _version: unknown) => {}),
     approveWeek: vi.fn(async () => {}),
     unapproveWeek: vi.fn(async (_weekId: string) => {}),
     proposeNow: vi.fn(async () => 'created'),

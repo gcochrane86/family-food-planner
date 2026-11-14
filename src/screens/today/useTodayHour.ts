@@ -48,6 +48,10 @@ export function useTodayHour(day?: string | null, now = new Date()) {
 
     const tonightSlot = cooked(find(today, 'dinner'));
     const tonightRecipe = await forSlot(tonightSlot);
+    // The dinners in the hour, with their saved recipes, so a step can be changed for its day (Change for this day).
+    const dinners: Record<string, { slot: MealSlot; saved: RecipeDetail }> = {};
+    const savedTonight = await detail(tonightSlot?.recipe_id);
+    if (tonightSlot && savedTonight) dinners[today] = { slot: tonightSlot, saved: savedTonight };
     // Cooked for the household plus tomorrow's leftovers lunch, as the shopping list and Cookidoo count it.
     const portionsOf = (slot: MealSlot, r: RecipeDetail) => (slot.portions ?? r.base_portions) + leftoverLunchPortions(slot, slots, byId);
     const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: portionsOf(tonightSlot, tonightRecipe), prepAhead: tonightSlot.prep_ahead ?? 'ahead' } : null;
@@ -59,6 +63,8 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       const roastChoice = parseRoastChoice(find(tomorrow, 'dinner')?.roast);
       const dSlot = roastChoice ? undefined : cooked(find(tomorrow, 'dinner'));
       const dRecipe = await forSlot(dSlot);
+      const savedTomorrow = await detail(dSlot?.recipe_id);
+      if (dSlot && savedTomorrow) dinners[tomorrow] = { slot: dSlot, saved: savedTomorrow };
       const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: portionsOf(dSlot, dRecipe), prepAhead: (dSlot.prep_ahead ?? 'ahead') === 'ahead' } : null;
       let roast: NonNullable<HourInput['tomorrow']>['roast'] = null;
       if (roastChoice) {
@@ -112,6 +118,6 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       tomorrow: next,
     };
     return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null, tomorrowSlot: find(tomorrow, 'dinner') ?? null,
-      day: today, isToday: today === realToday, isPast: today < realToday };
+      day: today, isToday: today === realToday, isPast: today < realToday, dinners };
   }, [hid, today], { onReturn: true });
 }

@@ -8,7 +8,9 @@ import { makeStepPhotos, needsRedraw } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
 import type { HourInput, HourPlan, HourStep } from '../../lib/todayHour';
-import type { PrepAhead, RecipeDetail } from '../../lib/types';
+import type { MealSlot, PrepAhead, RecipeDetail } from '../../lib/types';
+import { changeStepForDay, type StepChange } from '../../lib/dayVersion';
+import { parseVersion, type SlotVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
@@ -53,6 +55,8 @@ export default function TodayHour() {
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const [menu, setMenu] = useState<Held | null>(null);
+  // The step being changed for this day (Change for this day), if any.
+  const [changing, setChanging] = useState<HourStep | null>(null);
   // What tonight's prep was before "I didn't get to it", so Undo puts that back (ahead when not known).
   const [prepBefore, setPrepBefore] = useState<PrepAhead>('ahead');
   // A photo being made or saved in the background, shown as a bar along the bottom until it's done.
@@ -155,6 +159,10 @@ export default function TodayHour() {
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
+            {Object.values(data.dinners).some((d) => dayVersion(d)) && (
+              <DayChanges dinners={data.dinners} day={day} canChange={!isPast}
+                onUndo={(slotId) => void repo.setSlotVersion(slotId, null).then(reload, () => setWorking({ label: "Couldn't undo that", error: 'Check your connection and try again.' }))} />
+            )}
             {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} canChange={!preview} onChange={(v) => {
               if (v === 'missed') setPrepBefore(plan.doneLastNight!.state);
               setPrep(tonightSlot?.id, v === 'missed' ? v : prepBefore);
@@ -224,6 +232,7 @@ export default function TodayHour() {
                 ))}
               </ul>
             )}
+            {data && <StepChanges step={step} dinners={data.dinners} canChange={!isPast} onChange={() => setChanging(step)} />}
             </div>
             <div className={centred(step) ? 'grid w-full max-w-4xl justify-items-center' : ''}><StepPictures step={step} onHold={setMenu} big={centred(step)} icons={step.kind === 'chop' ? chopIcons(data) : []} /></div>
           </section>
@@ -249,6 +258,10 @@ export default function TodayHour() {
         <PhotoOptions title={st.title} note="Gives this step its own photo, in cook mode too." onClose={() => setMenu(null)}
           onRemake={(hint) => void fixPrep('Making a new photo', () => repo.generateStepPhoto(st.recipeId, st.stepId, st.has, true, { ...(hint ? { hint } : {}), ...(st.own ? { replaceOwn: true } : {}) }))}
           onOwn={(file) => void fixPrep('Saving your photo', async () => repo.uploadStepPhoto(householdId!, st.stepId, await resizeImage(file, 1600)))} />); })()}
+      {changing?.source && data?.dinners[changing.source.date] && (
+        <ChangeStep step={changing} dinner={data.dinners[changing.source.date]} onClose={() => setChanging(null)}
+          onSave={async (version) => { await repo.setSlotVersion(data.dinners[changing.source!.date].slot.id!, version); setChanging(null); reload(); }} />
+      )}
       {working && <Working label={working.label} error={working.error} onClose={() => setWorking(null)} />}
     </div>
   );
@@ -457,4 +470,79 @@ function RoastTomorrow({ roast }: { roast: NonNullable<HourPlan['roastAhead']> }
 /** "Tuesday 20 Oct", for the preview bar. */
 function previewLabel(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
+}
+
+type Dinner = { slot: MealSlot; saved: RecipeDetail };
+/** The day's own version of a dinner, when it has one for this recipe. */
+const dayVersion = (d: Dinner): SlotVersion | null => { const v = parseVersion(d.slot.version); return v && v.based_on === d.saved.id ? v : null; };
+
+/** Under a recipe step: change it for this day (a dinner step), or edit its recipe for good. */
+function StepChanges({ step, dinners, canChange, onChange }: { step: HourStep; dinners: Record<string, Dinner>; canChange: boolean; onChange: () => void }) {
+  const dinner = step.source ? dinners[step.source.date] : undefined;
+  const recipeId = dinner?.saved.id ?? step.photos.find((p) => p.step)?.step?.recipeId;
+  if (!recipeId) return null;
+  return (
+    <div className="flex flex-wrap gap-3 print:hidden">
+      {dinner && canChange && <button type="button" onClick={onChange} className="rounded-xl bg-[#E9ECE4] px-4 py-2 text-sm font-semibold text-[#1B211D]">Change for this day</button>}
+      <Link to={`/recipes/${recipeId}/edit`} className="self-center text-sm font-semibold text-[#2D6A3E] underline">Edit recipe</Link>
+    </div>
+  );
+}
+
+/** The day's changed dinners (its own changes or Claude's), with Undo. */
+function DayChanges({ dinners, day, canChange, onUndo }: { dinners: Record<string, Dinner>; day: string; canChange: boolean; onUndo: (slotId: string) => void }) {
+  return (
+    <section aria-label="Changed for this day" className="grid gap-2 rounded-2xl bg-[#F3F4EF] p-4">
+      {Object.entries(dinners).map(([date, d]) => {
+        const v = dayVersion(d);
+        if (!v) return null;
+        return (
+          <div key={date} className="grid justify-items-start gap-1">
+            <p className="m-0">{`${date === day ? "Tonight's" : "Tomorrow's"} ${d.saved.title}, changed for that day: ${v.note}`}</p>
+            {canChange && d.slot.id && <button type="button" onClick={() => onUndo(d.slot.id!)} className="font-semibold text-[#2D6A3E] underline">Undo this day's changes</button>}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** Change one dinner step for this day only: its wording, timer, when it starts, or take it out. */
+function ChangeStep({ step, dinner, onClose, onSave }: { step: HourStep; dinner: Dinner; onClose: () => void; onSave: (v: SlotVersion) => Promise<void> }) {
+  const src = step.source!;
+  const own = (dayVersion(dinner)?.steps ?? dinner.saved.steps).find((s) => s.phase === src.phase && s.title.trim().toLowerCase() === src.title.trim().toLowerCase());
+  const [body, setBody] = useState(own?.body ?? step.body);
+  const [timer, setTimer] = useState(own?.timer_minutes != null ? String(own.timer_minutes) : '');
+  const [at, setAt] = useState(own?.at_minute != null ? String(own.at_minute) : '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const num = (t: string) => (t.trim() === '' ? null : Math.max(0, Math.round(Number(t))));
+  async function save(change: Omit<StepChange, 'phase' | 'title'>) {
+    const built = changeStepForDay(dinner.saved, dinner.slot.version, { phase: src.phase, title: src.title, ...change });
+    if ('error' in built) { setError(built.error); return; }
+    setBusy(true);
+    try { await onSave(built.version); } catch { setError("Couldn't save. Check your connection and try again."); setBusy(false); }
+  }
+  const field = 'rounded-lg border border-[#C9CEC6] bg-white px-3 py-2 text-base';
+  return (
+    <div className="fixed inset-0 z-[60] grid items-end bg-black/40 md:place-items-center" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-label={`Change for this day: ${src.title}`} onClick={(e) => e.stopPropagation()}
+        className="grid w-full max-w-xl gap-3 rounded-t-3xl bg-white p-5 text-[#1B211D] md:rounded-3xl">
+        <h2 className="m-0 text-xl font-bold">{src.title}</h2>
+        <p className="m-0 text-sm text-[#5D6760]">Just for this day: the recipe stays as it is. Put an ingredient in **double stars** to show it in bold.</p>
+        <label className="grid gap-1 text-sm font-semibold">What to do<textarea className={`${field} min-h-24`} value={body} onChange={(e) => setBody(e.target.value)} /></label>
+        <div className="flex gap-3">
+          <label className="grid gap-1 text-sm font-semibold">Timer (min)<input type="number" min={0} className={`${field} w-28`} value={timer} onChange={(e) => setTimer(e.target.value)} /></label>
+          {src.phase === 'finish' && <label className="grid gap-1 text-sm font-semibold">Starts at (min into the cook)<input type="number" min={0} className={`${field} w-28`} value={at} onChange={(e) => setAt(e.target.value)} /></label>}
+        </div>
+        {error && <p role="alert" className="m-0 text-sm font-semibold text-[#9A3412]">{error}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy || !body.trim()} onClick={() => void save({ body: body.trim(), timer: num(timer), ...(src.phase === 'finish' ? { at: num(at) } : {}) })}
+            className="rounded-xl bg-[#2D6A3E] px-4 py-2.5 font-semibold text-white disabled:opacity-50">Save for this day</button>
+          <button type="button" disabled={busy} onClick={() => void save({ remove: true })} className="rounded-xl bg-[#E9ECE4] px-4 py-2.5 font-semibold">Remove for this day</button>
+          <button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 font-semibold text-[#5D6760]">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
 }

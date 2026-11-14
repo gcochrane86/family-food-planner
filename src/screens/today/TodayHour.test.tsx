@@ -497,3 +497,38 @@ describe('previewing another day', () => {
     expect(screen.queryByText(/^Preview ·/)).not.toBeInTheDocument();
   });
 });
+
+describe('changing the hour for one day', () => {
+  test("a dinner step can be changed for that day: saved as that dinner's version, the recipe untouched", async () => {
+    open();
+    await user().click(await screen.findByRole('button', { name: 'Start' }));
+    while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+    await user().click(screen.getByRole('button', { name: 'Change for this day' }));
+    const sheet = screen.getByRole('dialog', { name: 'Change for this day: Rice on' });
+    const timer = within(sheet).getByRole('spinbutton', { name: /Timer/ });
+    await user().clear(timer);
+    await user().type(timer, '25');
+    await user().click(within(sheet).getByRole('button', { name: 'Save for this day' }));
+    expect(h.repo.setSlotVersion).toHaveBeenCalledWith('2026-10-19-dinner', expect.objectContaining({ note: 'Changed for this day: Rice on' }));
+    const v = h.repo.setSlotVersion.mock.calls[0][1] as { steps: { title: string; timer_minutes: number | null }[] };
+    expect(v.steps.find((s) => s.title === 'Rice on')!.timer_minutes).toBe(25);
+    expect(h.repo.saveRecipe).not.toHaveBeenCalled();
+  });
+
+  test("steps also link to Edit recipe for a lasting change; generated steps can't be changed", async () => {
+    open();
+    await user().click(await screen.findByRole('button', { name: 'Start' }));
+    expect(screen.queryByRole('button', { name: 'Change for this day' })).not.toBeInTheDocument();
+    while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('link', { name: 'Edit recipe' })).toHaveAttribute('href', '/recipes/r-honey/edit');
+  });
+
+  test("a day's changes show on the first page and can be undone", async () => {
+    h.repo.getWeek.mockImplementation(week((s) => (s.id === '2026-10-19-dinner' ? { ...s, version: HONEY_VERSION } : s)));
+    open();
+    const box = await screen.findByRole('region', { name: 'Changed for this day' });
+    expect(within(box).getByText(/Turkey instead of chicken/)).toBeInTheDocument();
+    await user().click(within(box).getByRole('button', { name: "Undo this day's changes" }));
+    expect(h.repo.setSlotVersion).toHaveBeenCalledWith('2026-10-19-dinner', null);
+  });
+});
