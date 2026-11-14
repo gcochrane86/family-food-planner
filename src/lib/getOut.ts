@@ -30,17 +30,19 @@ export type IngredientTile = GetOutItem & { where: Kept; note: string | null };
  *  left out unless asked for (a step needs it; the get-out list doesn't). */
 export function ingredientTiles(used: { i: RecipeIngredient; factor: number }[], icons: Record<string, string> = {}, opts: { water?: boolean } = {}): IngredientTile[] {
   const seen = new Set<RecipeIngredient>();
-  const byKey = new Map<string, { name: string; where: Kept; note: string | null; parts: { qty: number | null; unit: string; approx: boolean }[] }>();
+  const byKey = new Map<string, { name: string; key: string; where: Kept; note: string | null; parts: { qty: number | null; unit: string; approx: boolean }[] }>();
   for (const { i, factor } of used) {
     if (seen.has(i)) continue;
     seen.add(i);
     const k = iconKey(i.name);
     if (!opts.water && WATER.test(k.ingredient)) continue;
-    const e = byKey.get(k.key) ?? { name: k.ingredient, where: keptIn(i.name), note: i.note, parts: [] };
+    // One per ingredient (new potatoes and potatoes are two things to get out), with its picture, which may be shared.
+    const e = byKey.get(k.ingredient) ?? { name: k.ingredient, key: k.key, where: keptIn(i.name), note: i.note, parts: [] };
     e.parts.push({ qty: i.qty === null ? null : i.qty * factor, unit: i.unit, approx: i.qty_approx });
-    byKey.set(k.key, e);
+    byKey.set(k.ingredient, e);
   }
-  return [...byKey].map(([key, e]) => {
+  return [...byKey.values()].map((e) => {
+    const key = e.key;
     const units = new Map<string, { qty: number | null; approx: boolean }>();
     for (const p of e.parts) {
       const u = units.get(p.unit);

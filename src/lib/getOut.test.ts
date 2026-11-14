@@ -51,3 +51,14 @@ test("a step's tiles: its ingredients in order, merged, with the note, keeping w
     { name: 'water', qty: '300ml', key: 'icon:water', icon: null, where: 'fridge', note: null },
   ]);
 });
+
+test('new potatoes and potatoes stay two things to get out, sharing the potato picture', () => {
+  const [cupboard] = getOutList([
+    { i: ing('new potatoes', 500), factor: 1 },
+    { i: ing('potatoes', 2, ''), factor: 1 },
+  ], { 'icon:potato': 'h1/prep/icon-potato.jpg' });
+  expect(cupboard.items).toEqual([
+    { name: 'new potato', qty: '500g', key: 'icon:potato', icon: 'h1/prep/icon-potato.jpg' },
+    { name: 'potato', qty: '2', key: 'icon:potato', icon: 'h1/prep/icon-potato.jpg' },
+  ]);
+});

@@ -174,7 +174,7 @@ export default function CookMode() {
               const tiles = ingredientTiles(stepIngredients(step.body, recipe.ingredients).map((i) => ({ i, factor })), icons, { water: true });
               return tiles.length > 0 && (
                 <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
-                  {tiles.map((t) => <Tile key={t.key} item={t} note={t.note} onTap={cutGuide(t.name, t.qty, t.note) ? () => setCutting({ name: t.name, qty: t.qty, note: t.note }) : undefined} />)}
+                  {tiles.map((t) => <Tile key={t.name} item={t} note={t.note} onTap={cutGuide(t.name, t.qty, t.note) ? () => setCutting({ name: t.name, qty: t.qty, note: t.note }) : undefined} />)}
                 </ul>
               );
             })()}

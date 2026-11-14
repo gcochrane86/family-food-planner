@@ -68,8 +68,16 @@ export const isCartoonPrep = (path: string) => /\/prep\/(cartoon|own)-/.test(pat
  *  (prep_photos) under an `icon:` key. */
 export function iconKey(name: string): { key: string; ingredient: string; label: string } {
   const ingredient = ingredientOf(name);
-  return { key: `icon:${ingredient}`, ingredient, label: ingredient };
+  return { key: `icon:${SAME_PICTURE[ingredient] ?? ingredient}`, ingredient, label: ingredient };
 }
+
+/** Names for what looks the same out of the cupboard: they share one picture, each keeping its own name. Things that
+ *  look different (red onion, spring onion, sweet potato, tenderstem broccoli) keep their own. */
+const SAME_PICTURE: Record<string, string> = {
+  'new potato': 'potato', 'baby potato': 'potato', 'salad potato': 'potato', 'baking potato': 'potato',
+  'eating apple': 'apple',
+  'low-sodium soy sauce': 'soy sauce', 'light soy sauce': 'soy sauce', 'reduced-salt soy sauce': 'soy sauce',
+};
 
 /** A small cartoon of the ingredient as it comes out of the fridge or cupboard, like a picture-vocabulary card. */
 export function iconPrompt(ingredient: string, hint?: string | null): string {

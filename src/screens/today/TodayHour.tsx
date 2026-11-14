@@ -237,7 +237,7 @@ export default function TodayHour() {
             {step.ingredients.length > 0 && data && (
               <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
                 {ingredientTiles(step.ingredients.map((i) => ({ i, factor: step.factor })), data.input.prepPhotos ?? {}, { water: true }).map((t) => (
-                  <Tile key={t.key} item={t} note={t.note} onTap={guideFor(t.name, t.qty, t.note)} onHold={() => setMenu({ prep: { name: t.name, note: null, key: t.key, label: t.name, icon: true } })} />
+                  <Tile key={t.name} item={t} note={t.note} onTap={guideFor(t.name, t.qty, t.note)} onHold={() => setMenu({ prep: { name: t.name, note: null, key: t.key, label: t.name, icon: true } })} />
                 ))}
               </ul>
             )}
@@ -412,16 +412,16 @@ function GetOut({ groups, got, onTick, onHold }: { groups: GetOutGroup[]; got: s
       <p className="m-0 -mt-2 text-sm text-[#5D6760]">Tap each one as you get it out.</p>
       {groups.map((g) => {
         // Still to get first; what's out drops to the end.
-        const items = [...g.items.filter((it) => !got.includes(it.key)), ...g.items.filter((it) => got.includes(it.key))];
+        const items = [...g.items.filter((it) => !got.includes(it.name)), ...g.items.filter((it) => got.includes(it.name))];
         return (
           <div key={g.where} className="grid gap-2">
             <b>{KEPT[g.where]}</b>
             <ul aria-label={KEPT[g.where]} className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4 md:grid-cols-6">
               {items.map((it) => {
-                const done = got.includes(it.key);
+                const done = got.includes(it.name);
                 return (
-                  <li key={it.key} className="grid">
-                    <button type="button" role="checkbox" aria-checked={done} aria-label={it.name} onClick={() => onTick(it.key)}
+                  <li key={it.name} className="grid">
+                    <button type="button" role="checkbox" aria-checked={done} aria-label={it.name} onClick={() => onTick(it.name)}
                       className={`relative grid text-left transition-opacity ${done ? 'opacity-45' : ''}`}>
                       <Card item={it} onHold={() => onHold(it)} />
                       {done && <span aria-hidden="true" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-[#2D6A3E] text-lg font-bold text-white">✓</span>}

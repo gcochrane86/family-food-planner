@@ -319,6 +319,20 @@ test('tapping a get-out item ticks it off and drops it to the bottom; it stays t
   expect(within(await screen.findByRole('list', { name: 'Fridge' })).getByRole('checkbox', { name: 'chicken breast or thigh' })).toHaveAttribute('aria-checked', 'true');
 });
 
+test('new potatoes and potatoes share a picture but tick off on their own', async () => {
+  localStorage.clear();
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, ingredients: [
+    ...HONEY.ingredients,
+    { position: 3, group_name: null, name: 'new potatoes', qty: 500, unit: 'g', note: 'halved', qty_approx: false },
+    { position: 4, group_name: null, name: 'potatoes', qty: 2, unit: '', note: 'diced', qty_approx: false },
+  ] } : null));
+  open();
+  const cupboard = await screen.findByRole('list', { name: 'Cupboard' });
+  await user().click(within(cupboard).getByRole('checkbox', { name: 'new potato' }));
+  expect(within(cupboard).getByRole('checkbox', { name: 'new potato' })).toHaveAttribute('aria-checked', 'true');
+  expect(within(cupboard).getByRole('checkbox', { name: 'potato' })).toHaveAttribute('aria-checked', 'false');
+});
+
 test('swiping moves between the steps; oven settings show °F too, large', async () => {
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));

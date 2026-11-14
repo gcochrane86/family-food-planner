@@ -52,6 +52,16 @@ describe('ingredient icons', () => {
     expect(iconKey('Red Peppers (about 2)')).toEqual({ key: 'icon:red pepper', ingredient: 'red pepper', label: 'red pepper' });
     expect(iconKey('red pepper').key).toBe(iconKey('Red peppers').key);
   });
+  test('names that are the same thing share one picture, keeping their own name', async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    expect(iconKey('New potatoes')).toEqual({ key: 'icon:potato', ingredient: 'new potato', label: 'new potato' });
+    expect(iconKey('baby potatoes').key).toBe('icon:potato');
+    expect(iconKey('Eating apples').key).toBe('icon:apple');
+    expect(iconKey('low-sodium soy sauce').key).toBe('icon:soy sauce');
+    // Different-looking things keep their own.
+    expect(iconKey('red onion').key).toBe('icon:red onion');
+    expect(iconKey('sweet potato').key).toBe('icon:sweet potato');
+  });
   test('the icon prompt asks for a cartoon on white, with no words', async () => {
     const { iconPrompt } = await import('./prepCut.ts');
     const p = iconPrompt('olive oil', 'in a green bottle');
