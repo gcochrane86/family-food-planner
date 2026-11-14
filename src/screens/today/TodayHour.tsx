@@ -22,6 +22,8 @@ import { PHOTO_LARGE, PHOTO_SMALL } from '../../lib/photoSizes';
 import { ingredientTiles, type GetOutGroup, type GetOutItem } from '../../lib/getOut';
 import { chopInstruction, iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import ListenSwitch from '../../components/ListenSwitch';
+import CutGuideView from '../../components/CutGuide';
+import { cutGuide } from '../../lib/cutGuide';
 import { speakable } from '../../lib/voice';
 import { todayInLondon, useTodayHour } from './useTodayHour';
 
@@ -55,6 +57,9 @@ export default function TodayHour() {
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const [menu, setMenu] = useState<Held | null>(null);
+  // The ingredient whose cut guide is open (tap a card); `made`: a chopping picture was made from it.
+  const [cutting, setCutting] = useState<{ name: string; qty: string; note: string | null; made?: boolean } | null>(null);
+  const guideFor = (name: string, qty: string, note: string | null) => (cutGuide(name, qty, note) ? () => setCutting({ name, qty, note }) : undefined);
   // The step being changed for this day (Change for this day), if any.
   const [changing, setChanging] = useState<HourStep | null>(null);
   // What tonight's prep was before "I didn't get to it", so Undo puts that back (ahead when not known).
@@ -209,11 +214,15 @@ export default function TodayHour() {
                       <ul aria-label={sec.label ? sec.label.split(':')[0] : 'To chop'} className="m-0 grid list-none gap-3 p-0">
                         {sec.items.map((it, n) => {
                           const k = iconKey(it.name);
+                          const tap = guideFor(it.name, it.qty, it.note);
+                          const words = <span className="text-[clamp(19px,2.6vw,26px)] font-semibold leading-snug text-[#1B211D]">{chopInstruction(it.name, it.note)}</span>;
+                          const card = <Card item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }}
+                            onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />;
                           return (
-                            <li key={`${it.name}-${n}`} className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4">
-                              <Card item={{ name: k.ingredient, qty: it.qty, key: k.key, icon: data.input.prepPhotos?.[k.key] ?? null }}
-                                onHold={() => setMenu({ prep: { name: k.ingredient, note: null, key: k.key, label: k.ingredient, icon: true } })} />
-                              <span className="text-[clamp(19px,2.6vw,26px)] font-semibold leading-snug text-[#1B211D]">{chopInstruction(it.name, it.note)}</span>
+                            <li key={`${it.name}-${n}`} className="grid">
+                              {tap
+                                ? <button type="button" aria-label={`How to cut ${it.name}`} onClick={tap} className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4 text-left">{card}{words}</button>
+                                : <div className="grid grid-cols-[132px_minmax(0,1fr)] items-center gap-4">{card}{words}</div>}
                             </li>
                           );
                         })}
@@ -228,7 +237,7 @@ export default function TodayHour() {
             {step.ingredients.length > 0 && data && (
               <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
                 {ingredientTiles(step.ingredients.map((i) => ({ i, factor: step.factor })), data.input.prepPhotos ?? {}, { water: true }).map((t) => (
-                  <Tile key={t.key} item={t} note={t.note} onHold={() => setMenu({ prep: { name: t.name, note: null, key: t.key, label: t.name, icon: true } })} />
+                  <Tile key={t.key} item={t} note={t.note} onTap={guideFor(t.name, t.qty, t.note)} onHold={() => setMenu({ prep: { name: t.name, note: null, key: t.key, label: t.name, icon: true } })} />
                 ))}
               </ul>
             )}
@@ -247,6 +256,12 @@ export default function TodayHour() {
             ? <button type="button" onClick={() => setIndex((i) => i + 1)} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white">Next</button>
             : <Link to={back} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
         </div>
+      )}
+      {cutting && (
+        <CutGuideView name={cutting.name} qty={cutting.qty} note={cutting.note}
+          photo={data?.input.prepPhotos?.[cutGuide(cutting.name, cutting.qty, cutting.note)?.prep.key ?? ''] ?? null}
+          onMake={async () => { const path = await repo.generatePrepPhoto(householdId!, cutting.name, cutting.note); setCutting((c) => c && { ...c, made: true }); return path; }}
+          onClose={() => { if (cutting.made) reload(); setCutting(null); }} />
       )}
       {menu?.prep && (() => { const p = menu.prep; return (
         <PhotoOptions title={p.label} note={p.icon ? 'Changes this picture wherever this ingredient comes up.' : 'Changes this photo wherever this cut is used.'} onClose={() => setMenu(null)}

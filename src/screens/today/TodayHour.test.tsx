@@ -538,3 +538,20 @@ describe('changing the hour for one day', () => {
     expect(h.repo.setSlotVersion).toHaveBeenCalledWith('2026-10-19-dinner', null);
   });
 });
+
+test('tapping a thing to chop opens how to cut it, full screen, and can make its chopping picture', async () => {
+  h.repo.generatePrepPhoto.mockResolvedValue('h1/prep/cartoon-chicken.jpg');
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  await user().click(screen.getAllByRole('button', { name: 'How to cut chicken breast or thigh' })[0]);
+  const view = screen.getByRole('dialog', { name: 'How to cut chicken breast or thigh' });
+  expect(within(view).getByText('Cut the chicken breast or thigh into 10mm strips')).toBeInTheDocument();
+  expect(within(view).getByRole('button', { name: 'Set the ruler' })).toBeInTheDocument();
+  await user().click(within(view).getByRole('button', { name: 'Make the picture' }));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'chicken breast or thigh', '10mm batons');
+  await user().click(within(view).getByRole('button', { name: 'Close' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  // Something with nothing about cutting has no guide.
+  while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.queryByRole('button', { name: 'How to cut basmati rice' })).not.toBeInTheDocument();
+});

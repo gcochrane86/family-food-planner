@@ -17,6 +17,8 @@ import { Tile } from '../../components/IngredientCard';
 import { ingredientTiles } from '../../lib/getOut';
 import PhotoFrame from '../../components/PhotoFrame';
 import ListenSwitch from '../../components/ListenSwitch';
+import CutGuideView from '../../components/CutGuide';
+import { cutGuide } from '../../lib/cutGuide';
 import { speakable } from '../../lib/voice';
 
 export default function CookMode() {
@@ -29,10 +31,12 @@ export default function CookMode() {
   const { data: recipe, setData, error, loading, reload } = useAsync(() => loadDayRecipe(id, householdId, at), [id, householdId, at?.day, at?.slot]);
   const { data: kit } = useAsync(() => (householdId ? repo.listEquipment(householdId) : Promise.resolve([])), [householdId]);
   // The ingredient cartoons (made in Today's hour), by ingredient.
-  const { data: prep } = useAsync(() => (householdId ? repo.listPrepPhotos(householdId) : Promise.resolve([])), [householdId]);
+  const { data: prep, reload: reloadPrep } = useAsync(() => (householdId ? repo.listPrepPhotos(householdId) : Promise.resolve([])), [householdId]);
   const icons = Object.fromEntries((prep ?? []).map((p) => [p.key, p.path]));
   const kitPhotos = Object.fromEntries((kit ?? []).filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }]));
   const [index, setIndex] = useState(0);
+  // The ingredient whose cut guide is open (tap a card); `made`: a chopping picture was made from it.
+  const [cutting, setCutting] = useState<{ name: string; qty: string; note: string | null; made?: boolean } | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -114,6 +118,12 @@ export default function CookMode() {
 
   return (
     <div className={shell} style={pad}>
+      {cutting && (
+        <CutGuideView name={cutting.name} qty={cutting.qty} note={cutting.note}
+          photo={icons[cutGuide(cutting.name, cutting.qty, cutting.note)?.prep.key ?? ''] ?? null}
+          onMake={async () => { const path = await repo.generatePrepPhoto(householdId!, cutting.name, cutting.note); setCutting((c) => c && { ...c, made: true }); return path; }}
+          onClose={() => { if (cutting.made) void reloadPrep(); setCutting(null); }} />
+      )}
       <div className="flex items-center justify-between gap-3">
         <span aria-hidden="true" />
         <div className="relative flex items-center gap-2">
@@ -164,7 +174,7 @@ export default function CookMode() {
               const tiles = ingredientTiles(stepIngredients(step.body, recipe.ingredients).map((i) => ({ i, factor })), icons, { water: true });
               return tiles.length > 0 && (
                 <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">
-                  {tiles.map((t) => <Tile key={t.key} item={t} note={t.note} />)}
+                  {tiles.map((t) => <Tile key={t.key} item={t} note={t.note} onTap={cutGuide(t.name, t.qty, t.note) ? () => setCutting({ name: t.name, qty: t.qty, note: t.note }) : undefined} />)}
                 </ul>
               );
             })()}

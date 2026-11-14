@@ -224,3 +224,15 @@ test("cook mode looks like Today's hour: white, the cards with your cartoons, se
   expect(within(screen.getByRole('list', { name: 'For this step' })).getByRole('img', { name: 'basmati rice' })).toHaveAttribute('src', expect.stringContaining('icon-rice.jpg'));
   expect(screen.getByText(/100°C \/ 210°F/)).toBeInTheDocument();
 });
+
+test('tapping an ingredient that says how to prepare it opens how to cut it', async () => {
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey'
+    ? { ...ON_THE_DAY, ingredients: ON_THE_DAY.ingredients.map((i) => (i.name === 'basmati rice' ? { ...i, note: 'rinsed well' } : i)) } : null));
+  h.repo.generatePrepPhoto.mockResolvedValue('h1/prep/cartoon-rice.jpg');
+  open();
+  await screen.findByRole('heading', { name: 'Rice on' });
+  await userEvent.click(screen.getByRole('button', { name: 'How to cut basmati rice' }));
+  const view = screen.getByRole('dialog', { name: 'How to cut basmati rice' });
+  await userEvent.click(within(view).getByRole('button', { name: 'Make the picture' }));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'basmati rice', 'rinsed well');
+});

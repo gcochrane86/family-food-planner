@@ -16,8 +16,14 @@ export function Icon({ path, name, className }: { path: string | null; name: str
 }
 
 /** One ingredient as a card: its cartoon, its name in a label, the amount (and how it's prepared) underneath. */
-export function Tile(props: { item: GetOutItem; note?: string | null; onHold?: () => void }) {
-  return <li className="grid"><Card {...props} /></li>;
+export function Tile({ onTap, ...props }: { item: GetOutItem; note?: string | null; onHold?: () => void; /** Tapping opens how to cut it. */ onTap?: () => void }) {
+  return (
+    <li className="grid">
+      {onTap
+        ? <button type="button" aria-label={`How to cut ${props.item.name}`} onClick={onTap} className="grid text-left"><Card {...props} /></button>
+        : <Card {...props} />}
+    </li>
+  );
 }
 export function Card({ item, note, onHold }: { item: GetOutItem; note?: string | null; onHold?: () => void }) {
   return (
