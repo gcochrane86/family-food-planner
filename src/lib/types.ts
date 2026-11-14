@@ -194,6 +194,8 @@ export interface PlanWeek {
   status: 'draft' | 'approved';
   proposed_at: string;
   approved_at: string | null;
+  /** Today's cooking: this week's own time for a day, by date, when it differs from the day's setting (migration 0020). */
+  cooking_minutes?: Record<string, number> | null;
   planned_by?: 'planner' | 'claude';
   summary?: string | null; // Claude's note on why this week
 }

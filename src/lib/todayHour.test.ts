@@ -28,7 +28,7 @@ const HAND_PREP = step('prep_8pm', 1, null, 'Marinate the beef', 'Mix the **beef
 const TM7_PREP = step('prep_8pm', 1, null, 'Make the sauce', 'Cook the **beef stock** down.', 'tm7', '10 min · 100°C · speed 2', 10);
 
 const input = (over: Partial<HourInput> = {}): HourInput => ({
-  date: '2026-11-12', start: '17:30', minutes: 60, tm7Bowls: 1, tm7Machines: 1,
+  date: '2026-11-12', aim: 60, tm7Bowls: 1, tm7Machines: 1,
   tonight: { recipe: CURRY, portions: 4 }, yesterdayPlanned: false,
   tomorrow: { dinner: { recipe: STEW(HAND_PREP), portions: 4 }, lunch: null, breakfast: null },
   ...over,
@@ -43,7 +43,7 @@ describe('planHour', () => {
       step('finish', 1, 0, 'Build', 'Spread the **sourdough**.', null, null, null),
     ]);
     const plan = planHour(input({ tonight: null, tomorrow: { dinner: null, lunch: { kind: 'ahead', title: 'Chicken Sandwich', recipe: SANDWICH }, breakfast: null } }));
-    const titles = [...plan.steps, ...plan.after].map((s) => s.title);
+    const titles = plan.steps.map((s) => s.title);
     expect(titles).toContain("For tomorrow's lunch: Spatchcock the chicken");
     expect(titles).toContain("For tomorrow's lunch: Roast in the Anova");
     expect(titles.some((t) => t.includes('Build'))).toBe(false);
@@ -64,14 +64,14 @@ describe('planHour', () => {
 
   it('chops first, at the start, veg before raw meat, and boxes what keeps for tomorrow', () => {
     const plan = planHour(input());
-    expect(plan.steps[0]).toMatchObject({ at: '17:30', kind: 'chop' });
+    expect(plan.steps[0]).toMatchObject({ from: 0, kind: 'chop' });
     expect(plan.chop.map((g) => [g.where, g.raw])).toEqual([['tm7', false], ['bowl', false], ['box', false], ['bowl', true], ['bowl', true]]);
     expect(plan.chop[0].items.map((i) => i.name)).toEqual(['onion', 'garlic', 'ginger']);
     const box = plan.chop.find((g) => g.where === 'box')!;
     expect(box.label).toBe('For tomorrow: Beef Stew');
     expect(box.items.map((i) => i.name)).toEqual(['carrot']);
     expect(plan.chop.flatMap((g) => g.items.map((i) => i.name))).not.toContain('tomato');
-    expect(plan.steps[1]).toMatchObject({ at: '17:41', kind: 'clean', title: 'Board, knife and bowls into the dishwasher' });
+    expect(plan.steps[1]).toMatchObject({ from: 11, kind: 'clean', title: 'Board, knife and bowls into the dishwasher' });
   });
 
   it('scales the amounts to the portions', () => {
@@ -87,22 +87,22 @@ describe('planHour', () => {
 
   it("does tomorrow's hand prep during tonight's 15-minute TM7 wait", () => {
     const plan = planHour(input());
-    expect(titled(plan, 'Simmer')).toMatchObject({ at: '17:56', end: '18:11' });
-    expect(titled(plan, 'Marinate the beef')).toMatchObject({ at: '17:56', kind: 'extra' });
+    expect(titled(plan, 'Simmer')).toMatchObject({ from: 26, length: 15 });
+    expect(titled(plan, 'Marinate the beef')).toMatchObject({ from: 26, kind: 'extra' });
   });
 
   it('a TM7 prep job waits for the bowl, with a rinse in between, when there is one bowl', () => {
-    const plan = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
-    expect(titled(plan, 'Rinse the TM7 bowl')).toMatchObject({ at: '18:16', end: '18:18', kind: 'clean' });
-    expect(titled(plan, 'Make the sauce')).toMatchObject({ at: '18:18', end: '18:28' });
+    const plan = planHour(input({ aim: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    expect(titled(plan, 'Rinse the TM7 bowl')).toMatchObject({ from: 46, length: 2, kind: 'clean' });
+    expect(titled(plan, 'Make the sauce')).toMatchObject({ from: 48, length: 10 });
   });
 
   it('two bowls need no rinse; two machines can run together', () => {
-    const two = planHour(input({ minutes: 75, tm7Bowls: 2, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    const two = planHour(input({ aim: 75, tm7Bowls: 2, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
     expect(titled(two, 'Rinse')).toBeUndefined();
-    expect(titled(two, 'Make the sauce')).toMatchObject({ at: '18:16' });
+    expect(titled(two, 'Make the sauce')).toMatchObject({ from: 46 });
     const machines = planHour(input({ tm7Machines: 2, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
-    expect(titled(machines, 'Make the sauce')).toMatchObject({ at: '17:56' });
+    expect(titled(machines, 'Make the sauce')).toMatchObject({ from: 26 });
     expect(titled(machines, 'Rinse')).toBeUndefined();
   });
 
@@ -110,9 +110,9 @@ describe('planHour', () => {
     const plan = planHour(input({ tonight: null, tomorrow: { dinner: { recipe: STEW(HAND_PREP), portions: 4 }, breakfast: { title: 'Overnight oats' } } }));
     expect(plan.steps.filter((s) => s.kind === 'cook')).toEqual([]);
     expect(titled(plan, 'Plate up')).toBeUndefined();
-    expect(titled(plan, 'Marinate the beef')).toMatchObject({ at: '17:37' });
-    expect(titled(plan, 'Make the overnight oats')).toMatchObject({ at: '17:42' });
-    expect(plan.steps.at(-1)).toMatchObject({ kind: 'clean', title: 'Wipe down, load and start the dishwasher', at: '17:47' });
+    expect(titled(plan, 'Marinate the beef')).toMatchObject({ from: 7 });
+    expect(titled(plan, 'Make the overnight oats')).toMatchObject({ from: 12 });
+    expect(plan.steps.at(-1)).toMatchObject({ kind: 'clean', title: 'Wipe down, load and start the dishwasher', from: 17 });
   });
 
   it("with tomorrow not planned, there's only tonight", () => {
@@ -122,20 +122,31 @@ describe('planHour', () => {
     expect(plan.warnings).toEqual([]);
   });
 
-  it("warns when dinner runs over, and lists the extras that don't fit for after dinner", () => {
+  it("a long dinner just takes longer: no warning, and an extra that doesn't fit a wait comes after plating up", () => {
     const LONG = recipe('long', 'Big Casserole', ['carrot', 'celery', 'leek', 'onion', 'potato'].map((n, i) => ing(i + 1, n, 1, '', 'diced')),
       [step('finish', 1, 0, 'Casserole', 'Cook everything in the casserole.', 'hob', null, 55)]);
     const plan = planHour(input({ tonight: { recipe: LONG, portions: 4 }, tomorrow: { breakfast: { title: 'Overnight oats' } } }));
-    expect(plan.warnings).toContain('Tonight\'s dinner runs to 18:35');
-    expect(plan.warnings).toContain('Not enough time for Make the overnight oats: do it after dinner');
-    expect(plan.after.map((s) => s.title)).toEqual(['Make the overnight oats']);
-    expect(titled(plan, 'Plate up')).toMatchObject({ at: '18:35' });
+    expect(plan.warnings).toEqual([]);
+    const titles = plan.steps.map((s) => s.title);
+    expect(titles.indexOf('Make the overnight oats')).toBeGreaterThan(titles.indexOf('Plate up'));
+    expect(titles.at(-1)).toBe('Wipe down, load and start the dishwasher');
+    expect(titled(plan, 'Plate up')).toMatchObject({ from: 65 });
+    expect(titled(plan, 'Make the overnight oats')!.from).toBeGreaterThanOrEqual(70);
+    expect(plan).not.toHaveProperty('after');
+  });
+
+  it('the total is when the last step ends, counted from the start', () => {
+    const plan = planHour(input({ tomorrow: null }));
+    const last = plan.steps.at(-1)!;
+    expect(plan.total).toBe(Math.max(...plan.steps.map((s) => s.from + s.length)));
+    expect(plan.total).toBe(last.from + last.length);
+    expect(plan.steps.every((s) => !('at' in s))).toBe(true);
   });
 
   it("packs tomorrow's leftovers lunch straight after plating up", () => {
     const plan = planHour(input({ tomorrow: { lunch: { kind: 'leftovers', title: 'Chicken Curry' } } }));
     const i = plan.steps.findIndex((s) => s.title === 'Plate up');
-    expect(plan.steps[i]).toMatchObject({ at: '18:20' });
+    expect(plan.steps[i]).toMatchObject({ from: 50 });
     expect(plan.steps[i + 1]).toMatchObject({ title: "Pack tomorrow's lunch: Chicken Curry", kind: 'extra' });
     expect(plan.steps.at(-1)!.title).toBe('Wipe down, load and start the dishwasher');
   });
@@ -157,7 +168,7 @@ describe('review fixes', () => {
   it("no rinse between one extra recipe's own TM7 steps", () => {
     const plan = planHour(input({ tonight: null, tomorrow: { dinner: { recipe: PREP_CHAIN, portions: 4 } } }));
     expect(plan.steps.filter((s) => s.title.includes('Rinse'))).toEqual([]);
-    expect(titled(plan, 'Saute')!.at).toBe(titled(plan, 'Chop the soffritto')!.end);
+    expect(titled(plan, 'Saute')!.from).toBe(titled(plan, 'Chop the soffritto')!.from + titled(plan, 'Chop the soffritto')!.length);
   });
 
   it("never slots a TM7 extra between tonight's own TM7 steps when there's one bowl", () => {
@@ -166,13 +177,14 @@ describe('review fixes', () => {
       step('finish', 2, null, 'Roast', 'Roast it.', 'oven', '25 min · 200°C', 25),
       step('finish', 3, null, 'Finish sauce', 'Finish it.', 'tm7', '5 min · 100°C', 5),
     ]);
-    const plan = planHour(input({ minutes: 90, tonight: { recipe: SPLIT, portions: 4 }, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    const plan = planHour(input({ aim: 90, tonight: { recipe: SPLIT, portions: 4 }, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
     const sauce = titled(plan, 'Make the sauce')!;
-    expect(sauce.at >= titled(plan, 'Finish sauce')!.end).toBe(true);
+    const fin = titled(plan, 'Finish sauce')!;
+    expect(sauce.from >= fin.from + fin.length).toBe(true);
   });
 
   it("the rinse after tonight's TM7 cooking says to tip the dinner out first", () => {
-    const plan = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    const plan = planHour(input({ aim: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
     expect(titled(plan, 'Rinse the TM7 bowl')!.body).toMatch(/Tip tonight's dinner into a warm dish/);
   });
 
@@ -182,7 +194,7 @@ describe('review fixes', () => {
     expect(fridge.label).toBe('From the fridge box (chopped yesterday)');
     expect(fridge.items.map((i) => i.name)).toEqual(['onion', 'garlic', 'ginger', 'chicken thigh']);
     // Only the coriander is chopped: the 5-minute minimum.
-    expect(titled(plan, 'Chop all the ingredients below')).toMatchObject({ at: '17:30', end: '17:35' });
+    expect(titled(plan, 'Chop all the ingredients below')).toMatchObject({ from: 0, length: 5 });
   });
 
   it("gives each step a picture that makes sense: the step's photo, else its recipe's, and none for cleaning", () => {
@@ -209,7 +221,7 @@ describe('review fixes', () => {
     const plan = planHour(input({ tonight: { recipe: { ...fish, hero_image_path: 'h1/hero/fish.jpg' }, portions: 4 }, kitPhotos: kit }));
     expect(titled(plan, 'Heat the Anova')!.photos).toMatchObject([{ path: 'h1/kit/apo.jpg', alt: 'Anova Precision Oven' }]);
     expect(titled(plan, 'Roast')!.photos.map((p) => p.path)).toEqual(['h1/hero/fish.jpg']);
-    const tm7 = planHour(input({ minutes: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } }, kitPhotos: kit }));
+    const tm7 = planHour(input({ aim: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } }, kitPhotos: kit }));
     const rinse = tm7.steps.find((x) => x.title === 'Rinse the TM7 bowl');
     expect(rinse?.photos).toEqual([{ path: 'h1/kit/tm7.jpg', alt: 'Thermomix TM7' }]);
   });
@@ -240,7 +252,7 @@ describe('prep ahead: essential and optional', () => {
   const STEW2 = recipe('stew', 'Beef Stew', [
     ing(1, 'carrot', 3, '', 'diced'), ing(2, 'tomato', 2, '', 'chopped'), ing(3, 'beef', 600, 'g', 'cubed'), ing(4, 'beef stock', 300, 'ml', null),
   ], [MUST, OPTIONAL, step('finish', 1, 0, 'Stew', 'Add the **carrot** and **tomato** and cook.', 'apo', '60 min · 160°C', 60)]);
-  const all = (plan: ReturnType<typeof planHour>) => [...plan.steps, ...plan.after].map((s) => s.title);
+  const all = (plan: ReturnType<typeof planHour>) => plan.steps.map((s) => s.title);
 
   it("tomorrow's optional prep is in tonight's hour only when prep ahead is on; must-do prep always is", () => {
     const on = planHour(input({ tomorrow: { dinner: { recipe: STEW2, portions: 4, prepAhead: true }, lunch: null, breakfast: null } }));
@@ -285,8 +297,7 @@ describe('prep ahead: essential and optional', () => {
     const LONG = recipe('stew', 'Beef Stew', STEW2.ingredients, [{ ...MUST, timer_minutes: 480 }, ...STEW2.steps.slice(1)]);
     const plan = planHour(input({ yesterdayPlanned: false, tonight: { recipe: LONG, portions: 4 }, tomorrow: null }));
     const m = plan.steps.find((s) => s.title === "Marinate the beef")!;
-    const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
-    expect(mins(m.end) - mins(m.at)).toBe(30);
+    expect(m.length).toBe(30);
     expect(plan.handsOn).toBeLessThan(90);
   });
 

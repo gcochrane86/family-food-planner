@@ -7,6 +7,7 @@ import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
 import { aheadRecipeId, homeLunchOn } from '../../lib/lunchAhead';
 import { useAsync } from '../settings/useAsync';
+import { dayMinutes } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { isDay } from '../../lib/dayVersion';
 import { addDays } from '../week/useWeek';
 import { roastEveningSteps, type RoastPartRecipe } from '../../lib/roast';
@@ -107,8 +108,8 @@ export function useTodayHour(day?: string | null, now = new Date()) {
 
     const input: HourInput = {
       date: today,
-      start: settings.hour_start ?? '17:30',
-      minutes: settings.hour_minutes ?? 60,
+      // The day's cooking time: this week's own time for the day when it has one, else the day's setting.
+      aim: dayMinutes(today, settings, loaded[weeks.indexOf(mondayOf(today))]?.week?.cooking_minutes),
       tm7Bowls: settings.tm7_bowls ?? 1,
       tm7Machines: settings.tm7_machines ?? 1,
       prepPhotos: Object.fromEntries(prep.map((p) => [p.key, p.path])),

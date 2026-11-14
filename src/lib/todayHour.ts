@@ -5,9 +5,10 @@ import { chopInstruction, isCartoonPrep, prepKey } from '../../supabase/function
 import { getOutList, type GetOutGroup } from './getOut';
 
 /**
- * Today's hour: one cooking hour a day (17:30–18:30 by default). Chopping first, in one session; then tonight's
- * dinner, with tomorrow's prep, a night-before breakfast and tomorrow's lunch fitted into the waits; then plate up,
- * pack the leftovers lunch, wipe down and start the dishwasher.
+ * Today's cooking: the day's steps, aiming for the day's cooking time (an hour unless set). Chopping first, in one
+ * session; then tonight's dinner, with tomorrow's prep, a night-before breakfast and tomorrow's lunch fitted into the
+ * waits (what doesn't fit comes after plating up); then plate up, pack the leftovers lunch, wipe down and start the
+ * dishwasher. Times are minutes from the start: there's no clock and no cut-off.
  */
 
 type Cooked = { recipe: RecipeDetail; portions: number };
@@ -16,8 +17,8 @@ export interface RoastAhead { title: string; steps: { time: string; title: strin
 
 export interface HourInput {
   date: string;
-  start: string;
-  minutes: number;
+  /** The day's cooking time in minutes (cookingTime.ts): plating up is aimed at 10 minutes before it. */
+  aim: number;
   tm7Bowls: 1 | 2;
   tm7Machines: 1 | 2;
   /** Tonight's cooked dinner, if there is one, and whether its prep was done in yesterday's hour (ahead, the default),
@@ -51,8 +52,9 @@ export interface ChopGroup {
 }
 
 export interface HourStep {
-  at: string;
-  end: string;
+  /** Minutes from the start of the day's cooking. */
+  from: number;
+  length: number;
   /** serve: plating up, shown with the dish photo large and centred. */
   kind: 'chop' | 'cook' | 'extra' | 'clean' | 'serve';
   title: string;
@@ -80,9 +82,9 @@ export interface HourPlan {
   steps: HourStep[];
   /** Minutes you're busy (not counting the waits). */
   handsOn: number;
+  /** Minutes from the start to the end of the last step. */
+  total: number;
   toWash: string[];
-  /** Extras that didn't fit: do these after dinner. */
-  after: HourStep[];
   warnings: string[];
   /** Tomorrow's dinner prep: how many optional steps there are to tick, the must-do ones, and whether the optional
    *  ones are in this hour. Null without a cooked dinner with prep tomorrow. */
@@ -93,8 +95,6 @@ export interface HourPlan {
 }
 
 const nextDay = (iso: string) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
-const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
-const clock = (min: number) => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 const HANDS_OFF = new Set<Machine>(['tm7', 'apo', 'oven', 'hy24']);
 /** A machine that only does one thing at a time (the hob has several rings). */
@@ -113,8 +113,8 @@ const factorOf = (c: Cooked) => c.portions / (c.recipe.base_portions || c.portio
 interface Slot { start: number; end: number; busy: boolean; machine: Machine | null; step: HourStep; chain: number | 'dinner' | null }
 
 export function planHour(input: HourInput): HourPlan {
-  const start = toMin(input.start);
-  const plateAt = start + input.minutes - 10;
+  const start = 0;
+  const plateAt = input.aim - 10;
   const tomorrow = input.tomorrow ?? null;
   const warnings: string[] = [];
 
@@ -124,8 +124,8 @@ export function planHour(input: HourInput): HourPlan {
   const items = chop.filter((g) => g.where !== 'fridge').reduce((n, g) => n + g.items.length, 0);
 
   const slots: Slot[] = [];
-  const add = (start: number, length: number, busy: boolean, machine: Machine | null, step: Omit<HourStep, 'at' | 'end'>, chain: Slot['chain'] = null) => {
-    const slot: Slot = { start, end: start + length, busy, machine, chain, step: { ...step, at: clock(start), end: clock(start + length) } };
+  const add = (start: number, length: number, busy: boolean, machine: Machine | null, step: Omit<HourStep, 'from' | 'length'>, chain: Slot['chain'] = null) => {
+    const slot: Slot = { start, end: start + length, busy, machine, chain, step: { ...step, from: start, length } };
     slots.push(slot);
     return slot;
   };
@@ -179,28 +179,23 @@ export function planHour(input: HourInput): HourPlan {
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
-    if (dinnerEnd > plateAt) warnings.push(`Tonight's dinner runs to ${clock(dinnerEnd)}`);
   }
   const endAt = input.tonight ? Math.max(plateAt, dinnerEnd) : plateAt;
 
-  // 4. Extras into the waits, each chain in order; what doesn't fit goes after dinner.
-  const after: HourStep[] = [];
+  // 4. Extras into the waits before plating up, each chain in order; the rest of a chain comes after plating up.
   const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
+  const later: { ci: number; rest: Extra[] }[] = [];
+  const put = (e: Extra, placed: NonNullable<ReturnType<typeof place>>, ci: number) => {
+    if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse(placed.afterDinner, input.kitPhotos));
+    if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false, input.kitPhotos));
+    return add(placed.at, e.length, !e.handsOff, e.machine, e.step, ci).end;
+  };
   for (const [ci, chain] of extras(tomorrow, input.kitPhotos, nextDay(input.date)).entries()) {
     let earliest = base;
-    let stuck = false;
-    for (const e of chain) {
-      const placed = stuck ? null : place(e, earliest, endAt, slots, input.tm7Machines, bowls, ci);
-      if (!placed) {
-        stuck = true;
-        after.push({ ...e.step, at: '', end: '' });
-        warnings.push(`Not enough time for ${e.step.title}: do it after dinner`);
-        continue;
-      }
-      if (placed.rinseBefore !== null) add(placed.rinseBefore, RINSE, true, null, rinse(placed.afterDinner, input.kitPhotos));
-      if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false, input.kitPhotos));
-      const slot = add(placed.at, e.length, !e.handsOff, e.machine, e.step, ci);
-      earliest = slot.end;
+    for (const [n, e] of chain.entries()) {
+      const placed = place(e, earliest, endAt, slots, input.tm7Machines, bowls, ci);
+      if (!placed) { later.push({ ci, rest: chain.slice(n) }); break; }
+      earliest = put(e, placed, ci);
     }
   }
 
@@ -217,7 +212,16 @@ export function planHour(input: HourInput): HourPlan {
     add(tail, 3, true, null, { ...plain, photos: hero(input.tonight?.recipe), kind: 'extra', title: `Pack tomorrow's lunch: ${lunch.title}`, body: "Box up tomorrow's lunch while it's warm, let it cool, then into the fridge." });
     tail += 3;
   }
-  add(tail, Math.max(2, input.tonight ? endAt + 10 - tail : 5), true, null, { ...plain, kind: 'clean', title: 'Wipe down, load and start the dishwasher', body: 'Wipe the sides, load the last pans and start the dishwasher.' });
+  // What didn't fit a wait: after plating up, in order, with no cut-off.
+  for (const { ci, rest } of later) {
+    let earliest = tail;
+    for (const e of rest) {
+      const placed = place(e, earliest, Number.MAX_SAFE_INTEGER, slots, input.tm7Machines, bowls, ci);
+      if (placed) earliest = put(e, placed, ci);
+    }
+  }
+  tail = Math.max(tail, ...slots.map((s) => s.end));
+  add(tail, 5, true, null, { ...plain, kind: 'clean', title: 'Wipe down, load and start the dishwasher', body: 'Wipe the sides, load the last pans and start the dishwasher.' });
 
   const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
   const steps = ordered.map((s) => s.step);
@@ -238,11 +242,12 @@ export function planHour(input: HourInput): HourPlan {
   const doneSteps = state === 'on_the_day' ? tPrep.filter((s) => s.needs_night_before) : tPrep;
   const doneLastNight = input.yesterdayPlanned && input.tonight && doneSteps.length
     ? { title: input.tonight.recipe.title, steps: doneSteps.map((s) => s.title), state } : null;
-  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings,
+  const total = Math.max(0, ...ordered.map((s) => s.end));
+  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, total, toWash: toWash(items > 0, chop, steps, ordered, [...extras(tomorrow).flat()]), warnings,
     forTomorrow, doneLastNight, roastAhead: tomorrow?.roast ?? null };
 }
 
-function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'at' | 'end'> {
+function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'from' | 'length'> {
   const body = afterDinner
     ? "Tip tonight's dinner into a warm dish and cover it, then rinse the TM7 bowl so it is ready for the next job."
     : 'Rinse the TM7 bowl so it is ready for the next job.';
@@ -282,7 +287,7 @@ function carriedPrep(input: HourInput): RecipeStep[] {
 
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
 
-interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'at' | 'end'> }
+interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'from' | 'length'> }
 
 /** Tomorrow's prep steps, the night-before breakfast, then a lunch to make: each a chain of steps done in order. */
 function extras(tomorrow: HourInput['tomorrow'], kit?: Kit, tomorrowDate?: string): Extra[][] {

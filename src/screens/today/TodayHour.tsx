@@ -26,14 +26,12 @@ import CutGuideView from '../../components/CutGuide';
 import { cutGuide } from '../../lib/cutGuide';
 import { speakable } from '../../lib/voice';
 import { todayInLondon, useTodayHour } from './useTodayHour';
+import { minutesInWords } from '../../../supabase/functions/_shared/cookingTime.ts';
 
-const addMinutes = (hhmm: string, n: number) => {
-  const [h, m] = hhmm.split(':').map(Number);
-  const t = h * 60 + m + n;
-  return `${String(Math.floor(t / 60) % 24).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-};
+/** "Monday", for a YYYY-MM-DD date. */
+const weekdayName = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
 
-/** Today's hour: the plan for the evening's cooking hour, then one step at a time, with timers and the screen kept on. */
+/** Today's cooking: the plan for the day's cooking, then one step at a time, with the screen kept on. */
 export default function TodayHour() {
   useWakeLock();
   const { householdId } = useAuth();
@@ -67,7 +65,7 @@ export default function TodayHour() {
   // A photo being made or saved in the background, shown as a bar along the bottom until it's done.
   const [working, setWorking] = useState<{ label: string; error?: string } | null>(null);
   const [photos, setPhotos] = useState<{ done: number; total: number; finished?: boolean; error?: string } | null>(null);
-  const steps: (HourStep & { afterDinner?: boolean })[] = data ? [...data.plan.steps, ...data.plan.after.map((s) => ({ ...s, afterDinner: true }))] : [];
+  const steps: HourStep[] = data ? data.plan.steps : [];
   // A plan that changed since (a swapped dinner) can be shorter: come back to its last step, not past it.
   useEffect(() => { if (data && index > steps.length - 1) setIndex(steps.length - 1); }, [data, index, steps.length]);
   const step = index >= 0 ? steps[Math.min(index, steps.length - 1)] : undefined;
@@ -132,7 +130,7 @@ export default function TodayHour() {
   return (
     <div className="fixed inset-0 z-50 flex flex-col gap-4 overflow-auto bg-white p-4 pt-[calc(16px+env(safe-area-inset-top,0px))] pb-[calc(16px+env(safe-area-inset-bottom,0px))] text-[#1B211D] md:p-8">
       <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 md:max-w-6xl">
-        <b className="text-lg">Today's hour{step ? ` · ${Math.min(index, steps.length - 1) + 1} of ${steps.length}` : ''}</b>
+        <b className="text-lg">Today's cooking{step ? ` · ${Math.min(index, steps.length - 1) + 1} of ${steps.length}` : ''}</b>
         <div className="flex items-center gap-2">
           {data && steps.length > 0 && (
             <ListenSwitch light onNext={() => setIndex((i) => Math.min(i + 1, steps.length - 1))} onBack={() => setIndex((i) => Math.max(i - 1, -1))}
@@ -160,9 +158,12 @@ export default function TodayHour() {
         };
         return (
           <section className="mx-auto grid w-full max-w-3xl content-start gap-4">
-            <h1 className="m-0 text-[clamp(26px,3.6vw,38px)] font-bold">Today's hour · {input.start}–{addMinutes(input.start, input.minutes)}</h1>
+            <h1 className="m-0 text-[clamp(26px,3.6vw,38px)] font-bold">Today's cooking</h1>
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
-            <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
+            <p className="m-0 text-[#3F4A43]">About {plan.total} minutes · {plan.handsOn} minutes hands-on</p>
+            {plan.total > input.aim + 15 && (
+              <p className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">Longer than the {minutesInWords(input.aim)} you planned for {weekdayName(day)}</p>
+            )}
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
             {Object.values(data.dinners).some((d) => dayVersion(d)) && (
               <DayChanges dinners={data.dinners} day={day} canChange={!isPast}
@@ -193,9 +194,7 @@ export default function TodayHour() {
               ? 'mx-auto grid w-full max-w-4xl flex-1 content-start justify-items-center gap-6 text-center'
               : 'mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10'}>
             <div className="grid content-start gap-3">
-            {step.afterDinner
-              ? <span className="text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">After dinner</span>
-              : <span className="font-mono text-5xl font-bold tabular-nums">{step.at}<span className="ml-2 text-xl text-[#5D6760]">to {step.end}</span></span>}
+            <span className="font-mono text-3xl font-bold tabular-nums text-[#3F4A43]">{step.length} min</span>
             <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
             {step.kit && <span className="font-mono text-[clamp(22px,3vw,32px)] font-bold leading-tight text-[#1B211D]">{withFahrenheit(step.kit)}</span>}
             {step.kind === 'chop' && data ? (
@@ -444,7 +443,7 @@ function ForTomorrow({ prep, onChange }: { prep: NonNullable<HourPlan['forTomorr
       <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">For tomorrow</h2>
       {prep.optional > 0 && (
         <div className="flex items-center justify-between gap-3">
-          <span>Prep for tomorrow's {prep.title} <small className="block text-[#5D6760]">Recommended: {prep.ahead ? 'in this hour' : 'off, so it\'s done in tomorrow\'s hour'}</small></span>
+          <span>Prep for tomorrow's {prep.title} <small className="block text-[#5D6760]">Recommended: {prep.ahead ? 'done today' : 'off, so it\'s done tomorrow, before the cooking'}</small></span>
           <button type="button" role="switch" aria-checked={prep.ahead} aria-label={`Prep for tomorrow's ${prep.title} (recommended)`} onClick={() => onChange(!prep.ahead)}
             className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${prep.ahead ? 'bg-[#2D6A3E]' : 'bg-[#C9CEC6]'}`}>
             <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${prep.ahead ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -461,7 +460,7 @@ function DoneLastNight({ done, onChange, canChange = true }: { done: NonNullable
   const missed = done.state === 'missed';
   return (
     <section aria-label="Done last night" className="grid justify-items-start gap-2 rounded-2xl bg-[#F3F4EF] p-4">
-      <p className="m-0">{missed ? `Not done last night: the prep for tonight's ${done.title} is in tonight's hour.` : `Done last night: prep for tonight's ${done.title} (${done.steps.join(', ')}).`}</p>
+      <p className="m-0">{missed ? `Not done last night: the prep for tonight's ${done.title} is in tonight's cooking.` : `Done last night: prep for tonight's ${done.title} (${done.steps.join(', ')}).`}</p>
       {canChange && (missed
         ? <button type="button" onClick={() => onChange('ahead')} className="font-semibold text-[#2D6A3E] underline">Undo</button>
         : <button type="button" onClick={() => onChange('missed')} className="font-semibold text-[#2D6A3E] underline">I didn't get to it</button>)}

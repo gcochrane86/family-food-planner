@@ -28,9 +28,11 @@ const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 import { FakeRec, installFakeSpeech } from '../../test/fakeSpeech';
 const open = () => render(<TodayHour />, { wrapper: MemoryRouter });
 
-test('the first page is just the hour, what to get out, and Start; the chopping is on its own step', async () => {
+test("the first page is just today's cooking, what to get out, and Start; the chopping is on its own step", async () => {
   open();
-  expect(await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: "Today's cooking" })).toBeInTheDocument();
+  expect(screen.getByText(/^About \d+ minutes · \d+ minutes hands-on$/)).toBeInTheDocument();
+  expect(screen.queryByText(/Longer than/)).not.toBeInTheDocument();
   expect(within(screen.getByRole('region', { name: 'Get it out' })).getByText('Chicken breast or thigh')).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Chopping' })).not.toBeInTheDocument();
   expect(screen.queryByText(/To wash/)).not.toBeInTheDocument();
@@ -42,10 +44,27 @@ test('the first page is just the hour, what to get out, and Start; the chopping 
   expect(screen.getByText(/Raw meat and fish: last, on a separate board/)).toBeInTheDocument();
 });
 
+test("a day planned shorter than its steps says so gently, from the week's own time for that day", async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19'
+    ? { week: { ...NEXT_WEEK.week!, cooking_minutes: { '2026-10-19': 30 } }, slots: NEXT_WEEK.slots }
+    : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
+  open();
+  expect(await screen.findByText('Longer than the 30 minutes you planned for Monday')).toBeInTheDocument();
+});
+
+test('a day given more time in Settings has no note', async () => {
+  h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, cooking_minutes: { mon: 240 } });
+  open();
+  await screen.findByRole('heading', { name: "Today's cooking" });
+  expect(screen.queryByText(/Longer than/)).not.toBeInTheDocument();
+});
+
 test('Start goes to the first step and Next steps through, with no timers', async () => {
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
-  expect(screen.getByText('17:30')).toBeInTheDocument();
+  expect(screen.queryByText(/\d\d:\d\d/)).not.toBeInTheDocument();
+  expect(screen.getByText(/^\d+ min$/)).toBeInTheDocument();
+  expect(screen.getByText(/^Today's cooking · 1 of \d+$/)).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Chop all the ingredients below' })).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('heading', { name: 'Board, knife and bowls into the dishwasher' })).toBeInTheDocument();
@@ -426,6 +445,8 @@ describe('prep ahead on the first page', () => {
     open();
     const sw = await screen.findByRole('switch', { name: "Prep for tomorrow's Miso Salmon (recommended)" });
     expect(sw).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Recommended: done today')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\bhour\b/);
     await user().click(sw);
     expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-20-dinner', 'on_the_day');
   });
@@ -507,13 +528,13 @@ describe('previewing another day', () => {
 
   test("a ?day= that isn't a real date is today's hour", async () => {
     at('/today?day=2026-13-01');
-    await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" });
+    await screen.findByRole('heading', { name: "Today's cooking" });
     expect(screen.queryByText(/^Preview ·/)).not.toBeInTheDocument();
   });
 
   test('without ?day it is still today, with no preview bar', async () => {
     open();
-    await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" });
+    await screen.findByRole('heading', { name: "Today's cooking" });
     expect(screen.queryByText(/^Preview ·/)).not.toBeInTheDocument();
   });
 });

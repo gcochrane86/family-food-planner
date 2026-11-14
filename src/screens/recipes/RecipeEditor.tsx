@@ -129,7 +129,7 @@ export default function RecipeEditor() {
             {s.phase === 'prep_8pm' && (
               <label className="flex items-center gap-2 text-sm font-semibold">
                 <input type="checkbox" checked={!!s.needs_night_before} onChange={(e) => setStep(s.key, { needs_night_before: e.target.checked })} />
-                Needs the night before <span className="font-normal text-muted">(can't wait until the day's hour)</span>
+                Needs the night before <span className="font-normal text-muted">(can't wait until the day itself)</span>
               </label>
             )}
             <label className={label}>What to do<textarea className={`${input} min-h-20`} value={s.body} onChange={(e) => setStep(s.key, { body: e.target.value })} /></label>
