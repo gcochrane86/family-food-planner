@@ -1011,3 +1011,30 @@ test('coming back to the app (from the Claude app, say) loads the week again, so
   await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
   expect(h.repo.getWeek.mock.calls.length).toBeGreaterThan(before);
 });
+
+describe("a day's hour: prep for the next day", () => {
+  const prep = (title: string, must = false) => ({ id: title, phase: 'prep_8pm' as const, position: 1, at_minute: null, title, body: 'Do it.', machine: null, settings: null, timer_minutes: 5, image_path: null, image_source: null, needs_night_before: must });
+  const salmon = (steps: ReturnType<typeof prep>[]) => ({ ...HONEY, id: 'r-salmon', title: 'Miso Salmon', steps: [...steps, ...HONEY.steps.filter((s) => s.phase === 'finish')] });
+
+  test("a day sheet offers the next day's dinner prep as recommended, and unticking saves on_the_day on that dinner", async () => {
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-salmon' ? salmon([prep('Make the dressing')]) : id === 'r-honey' ? HONEY : null));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    const hour = await within(day(/Monday/)).findByRole('region', { name: "Today's hour" });
+    const sw = within(hour).getByRole('switch', { name: "Prep for Tuesday's Miso Salmon (recommended)" });
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    await user().click(sw);
+    expect(h.repo.saveSlots).toHaveBeenCalledWith([expect.objectContaining({ date: '2026-10-20', slot: 'dinner', prep_ahead: 'on_the_day' })]);
+  });
+
+  test('must-do prep shows as a line with no tick, and a day before leftovers shows no prep', async () => {
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-salmon' ? salmon([prep('Marinate the salmon', true)]) : id === 'r-honey' ? HONEY : null));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Mon');
+    const hour = await within(day(/Monday/)).findByRole('region', { name: "Today's hour" });
+    expect(within(hour).getByText('Needs the night before: Marinate the salmon')).toBeInTheDocument();
+    expect(within(hour).queryByRole('switch')).not.toBeInTheDocument();
+    await openDay('Sat');
+    expect(within(day(/Saturday/)).queryByRole('region', { name: "Today's hour" })).not.toBeInTheDocument();
+  });
+});

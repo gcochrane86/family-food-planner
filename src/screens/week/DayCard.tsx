@@ -1,13 +1,15 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PHOTO_LARGE } from '../../lib/photoSizes';
 import { routineRecipe } from '../../lib/mealPhotos';
 import { parseBatch } from '../../lib/batch';
 import { parseRoastChoice, roastQuery } from '../../lib/roastModel';
-import { switchClasses } from '../../lib/prepAhead';
+import { switchClasses } from '../../lib/switchClasses';
+import { repo } from '../../lib/repo';
 import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib/weekSummary';
-import type { MealSlot, Recipe } from '../../lib/types';
+import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
-import type { WeekState } from './useWeek';
+import { addDays, type WeekState } from './useWeek';
 import MealPhoto from './MealPhoto';
 import { HoldCard, OptionsSheet } from './MealCard';
 import MealOptions, { type OptionGroup } from './MealOptions';
@@ -60,6 +62,52 @@ function Stepper({ label, value, less, more, onLess, onMore, disabled }: {
       <b className="min-w-[2.5ch] text-center tabular-nums">{value}</b>
       <button type="button" className={b} aria-label={more} onClick={onMore}>+</button>
     </span>
+  );
+}
+
+/** The day's hour: prep for the next day's dinner, the optional part as one tick (recommended), must-do steps as
+ *  plain lines; a roast's own night-before prep as a link to its plan. */
+function HourPrep({ date, w }: { date: string; w: WeekState }) {
+  const nextDate = addDays(date, 1);
+  const next = w.slots.find((s) => s.date === nextDate && s.slot === 'dinner');
+  const cooked = next?.mode === 'cook' && next.recipe_id ? next : undefined;
+  const roast = cooked ? parseRoastChoice(cooked.roast) : null;
+  const [detail, setDetail] = useState<RecipeDetail | null>(null);
+  useEffect(() => {
+    setDetail(null);
+    if (!cooked?.recipe_id || roast) return;
+    let live = true;
+    repo.getRecipe(cooked.recipe_id).then((r) => { if (live) setDetail(r); }, () => {});
+    return () => { live = false; };
+  }, [cooked?.recipe_id, roast]);
+  const weekday = DAY[(new Date(`${nextDate}T00:00:00Z`).getUTCDay() + 6) % 7];
+  if (roast) {
+    return (
+      <section aria-label="Today's hour" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
+        <b>Today's hour</b>
+        <Link to={`/recipes/roast?${roastQuery(roast)}`} className="font-semibold text-accent underline">{weekday}'s roast: night-before prep in its plan</Link>
+      </section>
+    );
+  }
+  const prep = (detail?.steps ?? []).filter((s) => s.phase === 'prep_8pm');
+  if (!cooked || !detail || !prep.length) return null;
+  const optional = prep.filter((s) => !s.needs_night_before);
+  const must = prep.filter((s) => s.needs_night_before);
+  const on = (cooked.prep_ahead ?? 'ahead') === 'ahead';
+  return (
+    <section aria-label="Today's hour" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
+      <b>Today's hour</b>
+      {optional.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span>Prep for {weekday}'s {detail.title}<small className="block text-muted">Recommended{on ? '' : `: off, so it's done in ${weekday}'s hour`}</small></span>
+          <button type="button" role="switch" aria-checked={on} aria-label={`Prep for ${weekday}'s ${detail.title} (recommended)`}
+            onClick={() => void w.setPrepAhead(nextDate, on ? 'on_the_day' : 'ahead')} className={switchClasses(on)}>
+            <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      )}
+      {must.length > 0 && <p className="m-0 font-semibold">{`Needs the night before: ${must.map((s) => s.title).join(', ')}`}</p>}
+    </section>
   );
 }
 
@@ -174,6 +222,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       {dinner && <div className="grid gap-2"><Label tone="text-accent">Dinner</Label>{dinnerCard}</div>}
       {lunch && <div className="grid gap-2"><Label tone="text-lunch">Lunch</Label>{lunchCard}</div>}
       {breakfast && <div className="grid gap-2"><Label tone="text-yolk">Breakfast</Label>{breakfastCard}</div>}
+      <HourPrep date={date} w={w} />
 
       {sheet === 'breakfast' && breakfast && (
         <OptionsSheet title="Breakfast options" onClose={closeSheet}>

@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { CANCELLED } from '../../lib/types';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
-import type { BasketRun, BatchPlan, MealSlot, PlanWeek, PreparedItem, Recipe } from '../../lib/types';
+import type { BasketRun, BatchPlan, MealSlot, PlanWeek, PreparedItem, PrepAhead, Recipe } from '../../lib/types';
 import { availablePortions, parseBatch } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
@@ -202,6 +202,8 @@ export function useWeek() {
       return availablePortions(recipeId, data.freezer ?? [], others, starts.london.date);
     },
     /** Sets (or clears) a dinner's batch plan: make a batch, or use a frozen portion. */
+    /** A dinner's prep, done in the hour the evening before (ahead) or on its own day (Today's hour). */
+    setPrepAhead: (date: string, value: PrepAhead) => update(date, 'dinner', (d) => ({ ...d, prep_ahead: value })),
     batch: (date: string, plan: Extract<BatchPlan, 'make' | 'frozen'> | null) =>
       update(date, 'dinner', (d) => ((d.batch ?? null) === plan ? null : { ...d, batch: plan })),
     /** Your breakfast and home-lunch options (from household settings). */
