@@ -1,5 +1,9 @@
 # Playbook: add a recipe from a web link, or rework one
 
+> **Since 14 Nov 2026 recipes are added in the Claude app** through the connector (`get_recipe_rules`, `read_youtube`,
+> `add_recipe`; docs/spec.md §10). The Mac's `recipe-import` task is off; this playbook stays for manual use and for
+> Rework with Claude.
+
 Claude follows this when the household pastes a recipe link on the Recipes tab (**Add recipe**), which leaves a
 `requested` row in `recipe_imports`. Claude reads the page, converts it for the household, and saves it as a new
 recipe. The owner chose this route (Claude on the Mac rather than an AI call in the app) on 16 Oct 2026.

@@ -1,52 +1,22 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import ErrorBanner from '../../components/ErrorBanner';
-import { repo } from '../../lib/repo';
-import type { RecipeImport } from '../../lib/types';
+import { useState } from 'react';
 
-const host = (url: string) => { try { return new URL(url).host; } catch { return url; } };
-
-/** "Add recipe": paste a recipe page's link and Claude, on the owner's Mac, converts it for the household's
- *  portions and equipment. Pasted links show here until dismissed. */
-export default function AddRecipe({ householdId }: { householdId: string }) {
-  const [imports, setImports] = useState<RecipeImport[]>([]);
+/** "Add recipe": a recipe page or YouTube link (and anything to change) opens the Claude app with it typed in. Claude
+ *  reads it (Gemini watches a video), rewrites it for the household, shows it, and adds it through the connector when
+ *  you say so, with its main photo (docs/superpowers/specs/2026-11-14-recipe-import-in-claude-design.md). */
+export default function AddRecipe(_props: { householdId: string }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [note, setNote] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    repo.listImports(householdId).then(setImports, () => setError("Couldn't load your recipe links."));
-  }, [householdId]);
-
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
     const link = url.trim();
-    if (!/^https?:\/\/\S+$/i.test(link)) { setProblem('Paste a link to the recipe page (starting https://).'); return; }
+    if (!/^https?:\/\/\S+$/i.test(link)) { setProblem('Paste a link to the recipe page or video (starting https://).'); return; }
     setProblem(null);
-    try {
-      const row = await repo.requestImport(householdId, link, note.trim() || null);
-      setImports((list) => [row, ...list]);
-      setOpen(false); setUrl(''); setNote('');
-    } catch {
-      setProblem("Couldn't send that. Check your connection and try again.");
-    }
-  }
-
-  async function act(id: string, what: 'retry' | 'dismiss') {
-    setError(null);
-    try {
-      if (what === 'retry') {
-        await repo.retryImport(id);
-        setImports((list) => list.map((x) => (x.id === id ? { ...x, status: 'requested', summary: null } : x)));
-      } else {
-        await repo.dismissImport(id);
-        setImports((list) => list.filter((x) => x.id !== id));
-      }
-    } catch {
-      setError("Couldn't save that. Try again.");
-    }
+    const ask = `Add this recipe to the Family Food Planner: ${link}.${note.trim() ? ` ${note.trim()}` : ''}`;
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(ask)}`, '_blank', 'noopener');
+    setOpen(false); setUrl(''); setNote('');
   }
 
   return (
@@ -63,44 +33,20 @@ export default function AddRecipe({ householdId }: { householdId: string }) {
             <input type="url" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…"
               className="rounded-lg border border-line bg-bg px-3 py-2 text-base font-normal" />
           </label>
-          <p className="-mt-1 m-0 text-xs text-muted">A recipe page, or a YouTube video (Claude reads its description, then its subtitles).</p>
+          <p className="-mt-1 m-0 text-xs text-muted">A recipe page, or a YouTube video (Gemini watches it; for a long one, say which part, e.g. "the curry, from 1:12:00").</p>
           <label className="grid gap-1 text-sm font-semibold">
             Anything to change? (optional)
             <input type="text" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. no mushrooms, make it milder"
               className="rounded-lg border border-line bg-bg px-3 py-2 text-base font-normal" />
           </label>
-          <p className="m-0 text-sm text-muted">Claude scales it for your household and rewrites the steps for your TM7, APO and air-fryer. It starts within 15 minutes while your Mac is on.</p>
+          <p className="m-0 text-sm text-muted">It opens the Claude app: Claude rewrites it for your household and kit and shows you the recipe. Say "add it" and it's saved here with its main photo.</p>
           {problem && <p role="alert" className="m-0 text-sm font-semibold text-warn">{problem}</p>}
           <span className="flex gap-2">
-            <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Add recipe</button>
+            <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Add with Claude</button>
             <button type="button" onClick={() => { setOpen(false); setProblem(null); }} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Cancel</button>
           </span>
         </form>
       )}
-      {error && <ErrorBanner message={error} />}
-      {imports.map((i) => (
-        <div key={i.id} role="status" aria-label={`Recipe from ${host(i.url)}`}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-surface-2 px-3 py-2 text-sm">
-          <span className="min-w-0">
-            <b>{host(i.url)}</b>{' · '}
-            {i.status === 'requested' && 'Waiting for Claude. It starts within 15 minutes while your Mac is on.'}
-            {i.status === 'importing' && 'Claude is converting it now…'}
-            {i.status === 'done' && <span className="text-accent">✓ {i.summary ?? 'Added.'}</span>}
-            {i.status === 'failed' && <span className="text-warn">Couldn't add it: {i.summary ?? 'something went wrong.'}</span>}
-          </span>
-          <span className="flex gap-2">
-            {i.status === 'done' && i.recipe_id && (
-              <Link to={`/recipes/${i.recipe_id}`} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink no-underline">Open recipe</Link>
-            )}
-            {i.status === 'failed' && (
-              <button type="button" onClick={() => void act(i.id, 'retry')} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Try again</button>
-            )}
-            {(i.status === 'done' || i.status === 'failed') && (
-              <button type="button" aria-label="Dismiss" onClick={() => void act(i.id, 'dismiss')} className="rounded-lg px-2 py-1.5 font-semibold text-muted">×</button>
-            )}
-          </span>
-        </div>
-      ))}
     </div>
   );
 }
