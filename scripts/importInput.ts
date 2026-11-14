@@ -39,20 +39,7 @@ export function parseImportFailed(input: string): { import: string; summary: str
   return { import: id, summary };
 }
 
-const YT_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
-const YT_ID = /^[A-Za-z0-9_-]{11}$/;
-
-/** A YouTube video's id from a pasted link (watch, youtu.be, shorts or live), or null for any other link. Only the
- *  checked id is ever used to build the link the subtitle tool fetches. */
-export function youTubeId(link: string): string | null {
-  let u: URL;
-  try { u = new URL(link); } catch { return null; }
-  if (u.protocol !== 'https:' || !YT_HOSTS.includes(u.hostname)) return null;
-  const id = u.hostname === 'youtu.be' ? u.pathname.slice(1).split('/')[0]
-    : u.pathname === '/watch' ? u.searchParams.get('v') ?? ''
-      : (u.pathname.match(/^\/(?:shorts|live|embed)\/([^/]+)/) ?? [])[1] ?? '';
-  return YT_ID.test(id) ? id : null;
-}
+export { youTubeId } from '../supabase/functions/_shared/youtube.ts';
 
 /** Subtitles (WebVTT) as plain text: no header, timings or tags, and without the repeated lines auto-captions have. */
 export function vttToText(vtt: string): string {
