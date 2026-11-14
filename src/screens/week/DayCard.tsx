@@ -69,7 +69,7 @@ function Stepper({ label, value, less, more, onLess, onMore, disabled }: {
  *  plain lines; a roast's own night-before prep as a link to its plan. */
 function HourPrep({ date, w }: { date: string; w: WeekState }) {
   const nextDate = addDays(date, 1);
-  const next = w.slots.find((s) => s.date === nextDate && s.slot === 'dinner');
+  const next = w.dinnerOn(nextDate);
   const cooked = next?.mode === 'cook' && next.recipe_id ? next : undefined;
   const roast = cooked ? parseRoastChoice(cooked.roast) : null;
   const [detail, setDetail] = useState<RecipeDetail | null>(null);
@@ -101,7 +101,7 @@ function HourPrep({ date, w }: { date: string; w: WeekState }) {
         <div className="flex items-center justify-between gap-3">
           <span>Prep for {weekday}'s {detail.title}<small className="block text-muted">Recommended{on ? '' : `: off, so it's done in ${weekday}'s hour`}</small></span>
           <button type="button" role="switch" aria-checked={on} aria-label={`Prep for ${weekday}'s ${detail.title} (recommended)`}
-            onClick={() => void w.setPrepAhead(nextDate, on ? 'on_the_day' : 'ahead')} className={switchClasses(on)}>
+            onClick={() => void w.setPrepAhead(cooked, on ? 'on_the_day' : 'ahead')} className={switchClasses(on)}>
             <span className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
         </div>

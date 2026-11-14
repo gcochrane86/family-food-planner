@@ -46,6 +46,8 @@ export default function TodayHour() {
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   const [menu, setMenu] = useState<Held | null>(null);
+  // What tonight's prep was before "I didn't get to it", so Undo puts that back (ahead when not known).
+  const [prepBefore, setPrepBefore] = useState<PrepAhead>('ahead');
   // A photo being made or saved in the background, shown as a bar along the bottom until it's done.
   const [working, setWorking] = useState<{ label: string; error?: string } | null>(null);
   const [photos, setPhotos] = useState<{ done: number; total: number; finished?: boolean; error?: string } | null>(null);
@@ -140,7 +142,10 @@ export default function TodayHour() {
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
-            {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} onChange={(v) => setPrep(tonightSlot?.id, v)} />}
+            {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} onChange={(v) => {
+              if (v === 'missed') setPrepBefore(plan.doneLastNight!.state);
+              setPrep(tonightSlot?.id, v === 'missed' ? v : prepBefore);
+            }} />}
             {plan.getOut.length > 0 && <GetOut groups={plan.getOut} got={got} onTick={tick} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
             {plan.forTomorrow && <ForTomorrow prep={plan.forTomorrow} onChange={(on) => setPrep(tomorrowSlot?.id, on ? 'ahead' : 'on_the_day')} />}
             {plan.roastAhead && <RoastTomorrow roast={plan.roastAhead} />}

@@ -4,7 +4,7 @@ import type { ProposedSlot, SlotKind, SlotMode } from './planner.ts';
 
 export interface SlotLike {
   date: string; slot: SlotKind; recipe_id: string | null; mode: SlotMode; portions: number | null; guests: number;
-  locked: boolean; reason: string | null; source_date: string | null; batch?: unknown; roast?: unknown; version?: unknown;
+  locked: boolean; reason: string | null; source_date: string | null; batch?: unknown; roast?: unknown; version?: unknown; prep_ahead?: unknown;
 }
 
 export const toProposed = (s: SlotLike): ProposedSlot => ({
@@ -28,6 +28,8 @@ export function mergePlan<S extends SlotLike>(slots: S[], plan: ProposedSlot[]):
     if (s.roast && otherDinner) updated.roast = null;
     // And tonight's version, which was made from that recipe.
     if (s.version && otherDinner) updated.version = null;
+    // Its prep-ahead choice goes back to recommended, as the database does (migration 0018); it's never saved from here.
+    if (s.prep_ahead !== undefined && otherDinner) updated.prep_ahead = 'ahead';
     const differs = (['recipe_id', 'mode', 'portions', 'guests', 'locked', 'reason', 'source_date', 'batch', 'roast', 'version'] as const).some((k) => updated[k] !== s[k]);
     if (differs) changed.push(updated);
     return updated;

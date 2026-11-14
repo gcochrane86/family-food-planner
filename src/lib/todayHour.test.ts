@@ -281,6 +281,15 @@ describe('prep ahead: essential and optional', () => {
     expect(none.doneLastNight).toBeNull();
   });
 
+  it('a missed overnight marinade gets at most 30 minutes tonight, as a wait, not hours of hands-on', () => {
+    const LONG = recipe('stew', 'Beef Stew', STEW2.ingredients, [{ ...MUST, timer_minutes: 480 }, ...STEW2.steps.slice(1)]);
+    const plan = planHour(input({ yesterdayPlanned: false, tonight: { recipe: LONG, portions: 4 }, tomorrow: null }));
+    const m = plan.steps.find((s) => s.title === "From yesterday's prep: Marinate the beef")!;
+    const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+    expect(mins(m.end) - mins(m.at)).toBe(30);
+    expect(plan.handsOn).toBeLessThan(90);
+  });
+
   it('prep done last night stays out of tonight, and is listed as done', () => {
     const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'ahead' }, tomorrow: null }));
     expect(plan.steps.some((s) => s.title.startsWith("From yesterday's prep"))).toBe(false);

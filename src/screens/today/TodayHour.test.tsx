@@ -440,6 +440,23 @@ describe('prep ahead on the first page', () => {
     expect(h.repo.setPrepAhead).toHaveBeenLastCalledWith('2026-10-19-dinner', 'ahead');
   });
 
+  test("Undo after I didn't get to it puts back the choice that was there before", async () => {
+    const HONEY2 = { ...HONEY, steps: [...HONEY.steps, { ...HONEY.steps[0], id: 's-mar', position: 2, title: 'Marinate', needs_night_before: true }] };
+    h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY2, 'r-salmon': SALMON } as Record<string, typeof HONEY>)[id] ?? null);
+    const sunday = { ...NEXT_WEEK.slots[0], id: 'sun', date: '2026-10-18', slot: 'dinner' as const, mode: 'out' as const };
+    const withState = (v: 'on_the_day' | 'missed') => async (_hid: string, ws: string) => (ws === '2026-10-19'
+      ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => (s.id === '2026-10-19-dinner' ? { ...s, prep_ahead: v } : { ...s })) }
+      : ws === '2026-10-12' ? { week: null, slots: [sunday] } : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] };
+    h.repo.getWeek.mockImplementation(withState('on_the_day'));
+    open();
+    const box = await screen.findByRole('region', { name: 'Done last night' });
+    expect(within(box).getByText(/\(Marinate\)/)).toBeInTheDocument();
+    h.repo.getWeek.mockImplementation(withState('missed'));
+    await user().click(within(box).getByRole('button', { name: "I didn't get to it" }));
+    await user().click(await screen.findByRole('button', { name: 'Undo' }));
+    expect(h.repo.setPrepAhead).toHaveBeenLastCalledWith('2026-10-19-dinner', 'on_the_day');
+  });
+
   test("a roast tomorrow shows its night-before prep with a link to the roast cook view", async () => {
     const roast = { main: 'beef', sides: ['goose-fat-roasties'], people: 6, serve: '13:30' };
     h.repo.listRecipes.mockResolvedValue([HONEY, { ...HONEY, id: 'r-brisket', slug: 'roast-brisket', title: 'Brisket', roast: { part: 'main', mains: ['beef'], steps: [{ title: 'Overnight braise', before: 900, minutes: 600, kit: 'apo', temp: 80, when: 'night' }] } }]);

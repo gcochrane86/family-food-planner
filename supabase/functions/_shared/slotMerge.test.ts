@@ -42,3 +42,11 @@ test('batch and roast plans still go with their dinner', () => {
   const same = mergePlan(slots, slots.map(toProposed).map((p) => ({ ...p, portions: 4 })));
   expect(same.next[0].batch).toBe('make');
 });
+
+test("a different dinner puts its prep ahead back to recommended, as the database does", () => {
+  const s = { date: '2026-10-21', slot: 'dinner', recipe_id: 'a', mode: 'cook', portions: 3, guests: 0, locked: false, reason: null, source_date: null, prep_ahead: 'on_the_day' };
+  const { next } = mergePlan([s] as never, [{ date: '2026-10-21', slot: 'dinner', recipeId: 'b', mode: 'cook', portions: 3, guests: 0, locked: true, reason: null, sourceDate: null }] as never);
+  expect((next[0] as { prep_ahead?: string }).prep_ahead).toBe('ahead');
+  const same = mergePlan([s] as never, [{ date: '2026-10-21', slot: 'dinner', recipeId: 'a', mode: 'cook', portions: 4, guests: 0, locked: true, reason: null, sourceDate: null }] as never);
+  expect((same.next[0] as { prep_ahead?: string }).prep_ahead).toBe('on_the_day');
+});

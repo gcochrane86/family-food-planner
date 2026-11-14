@@ -165,6 +165,8 @@ export function useWeek() {
       const move = (from: MealSlot, to: MealSlot): MealSlot => ({
         ...to, recipe_id: from.recipe_id, mode: from.mode, portions: from.portions, guests: from.guests, reason: from.reason,
         batch: from.batch ?? null, roast: from.roast ?? null, locked: true,
+        // A different dinner here: its prep goes back to recommended (the database does the same).
+        prep_ahead: from.recipe_id === to.recipe_id ? to.prep_ahead : 'ahead',
       });
       const na = move(db, da);
       const nb = move(da, db);
@@ -202,8 +204,22 @@ export function useWeek() {
       return availablePortions(recipeId, data.freezer ?? [], others, starts.london.date);
     },
     /** Sets (or clears) a dinner's batch plan: make a batch, or use a frozen portion. */
-    /** A dinner's prep, done in the hour the evening before (ahead) or on its own day (Today's hour). */
-    setPrepAhead: (date: string, value: PrepAhead) => update(date, 'dinner', (d) => ({ ...d, prep_ahead: value })),
+    /** A day's dinner from either week (the day after Sunday is next week's Monday). */
+    dinnerOn: (date: string): MealSlot | undefined =>
+      [...(data?.thisWeek.slots ?? []), ...(data?.nextWeek.slots ?? [])].find((s) => s.date === date && s.slot === 'dinner'),
+    /** A dinner's prep, done in the hour the evening before (ahead) or on its own day (Today's hour). Saved on its own,
+     *  shown at once, and put back if the save fails. */
+    async setPrepAhead(slot: MealSlot, value: PrepAhead): Promise<boolean> {
+      if (!slot.id) return false;
+      const set = (v: PrepAhead | undefined) => {
+        const apply = (list: MealSlot[]) => list.map((s) => (s.id === slot.id ? { ...s, prep_ahead: v } : s));
+        latest.current = apply(latest.current);
+        setData((d) => d && { ...d, thisWeek: { ...d.thisWeek, slots: apply(d.thisWeek.slots) }, nextWeek: { ...d.nextWeek, slots: apply(d.nextWeek.slots) } });
+      };
+      const before = slot.prep_ahead;
+      set(value);
+      try { await repo.setPrepAhead(slot.id, value); return true; } catch { set(before); setSaveError("Couldn't save that change. Check your connection and try again."); return false; }
+    },
     batch: (date: string, plan: Extract<BatchPlan, 'make' | 'frozen'> | null) =>
       update(date, 'dinner', (d) => ((d.batch ?? null) === plan ? null : { ...d, batch: plan })),
     /** Your breakfast and home-lunch options (from household settings). */

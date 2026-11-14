@@ -113,3 +113,9 @@ describe('photo function errors', () => {
     await expect(repo.generateStepPhoto('r1', 's1')).rejects.toThrow('Only liked recipes get step photos.');
   });
 });
+
+test("saving slots from the app never sends a dinner's prep ahead (set on its own, so a stale copy can't undo it)", async () => {
+  await repo.saveSlots([{ id: 'x', plan_week_id: 'w', date: '2026-10-21', slot: 'dinner', recipe_id: 'b', mode: 'cook', portions: 3, guests: 0,
+    locked: true, reason: null, source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, prep_ahead: 'ahead' }]);
+  expect((h.upserts[0] as Record<string, unknown>[])[0]).not.toHaveProperty('prep_ahead');
+});

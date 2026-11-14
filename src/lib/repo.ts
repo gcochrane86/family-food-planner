@@ -210,7 +210,8 @@ export const repo = {
     if (!slots.length) return;
     // Tonight's version is only written by the Ask Claude connector, and cleared by the database when the day's
     // recipe changes: a stale copy on screen must never overwrite it either.
-    const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, ...s }) => s);
+    // A dinner's prep ahead is saved on its own (setPrepAhead), so a stale copy here can't undo a change made elsewhere.
+    const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, prep_ahead: _p, ...s }) => s);
     must(await db().from('meal_slots').upsert(rows, { onConflict: 'plan_week_id,date,slot' }));
   },
 

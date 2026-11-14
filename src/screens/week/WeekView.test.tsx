@@ -1024,7 +1024,22 @@ describe("a day's hour: prep for the next day", () => {
     const sw = within(hour).getByRole('switch', { name: "Prep for Tuesday's Miso Salmon (recommended)" });
     expect(sw).toHaveAttribute('aria-checked', 'true');
     await user().click(sw);
-    expect(h.repo.saveSlots).toHaveBeenCalledWith([expect.objectContaining({ date: '2026-10-20', slot: 'dinner', prep_ahead: 'on_the_day' })]);
+    expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-20-dinner', 'on_the_day');
+    expect(within(hour).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test("Sunday's sheet offers Monday's prep from next week", async () => {
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, title: 'Honey Chicken' } : null));
+    vi.setSystemTime(new Date('2026-10-14T12:00:00Z')); // Wednesday: this week is 12–18 Oct, next week starts Monday 19th
+    const thisWeek = { week: { ...NEXT_WEEK.week, id: 'w-this', week_start: '2026-10-12', status: 'approved' as const },
+      slots: NEXT_WEEK.slots.map((s) => ({ ...s, id: `t-${s.id}`, plan_week_id: 'w-this', date: s.date.replace(/2026-10-(\d+)/, (_m, d) => `2026-10-${String(Number(d) - 7).padStart(2, '0')}`) })) };
+    h.repo.getWeek.mockImplementation(async (_hid: string, start: string) => (start === '2026-10-12' ? thisWeek : start === '2026-10-19' ? NEXT_WEEK : { week: null, slots: [] }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('tab', { name: 'This week' }));
+    await openDay('Sun');
+    const hour = await within(day(/Sunday/)).findByRole('region', { name: "Today's hour" });
+    await user().click(within(hour).getByRole('switch', { name: "Prep for Monday's Honey Chicken (recommended)" }));
+    expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-19-dinner', 'on_the_day');
   });
 
   test('must-do prep shows as a line with no tick, and a day before leftovers shows no prep', async () => {

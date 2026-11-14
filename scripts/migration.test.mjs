@@ -666,3 +666,15 @@ test('0018: steps carry needs the night before, kept through save_recipe by phas
   await one(OWNER, `select save_recipe('${rid}', '{"title":"T"}', '[]', '[${step('Make the sauce')}]')`);
   expect(await one(OWNER, `select needs_night_before from recipe_steps where recipe_id = '${rid}'`)).toBe(false);
 });
+
+test("0018: a dinner swapped on its own day (or after) has had no prep, so it's missed, not done", async () => {
+  const { hid, rid } = await recipeFor(OWNER, 'a');
+  const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions)
+    values ('${hid}', 'b', 'Other', 'meal', 'own_doc', 4) returning id`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2020-01-06') returning id`);
+  const today = await one(OWNER, `select (now() at time zone 'Europe/London')::date::text`);
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id) values ('${wid}', '${today}', 'dinner', 'cook', '${rid}'), ('${wid}', '2099-01-05', 'dinner', 'cook', '${rid}')`);
+  await as(OWNER, `update meal_slots set recipe_id = '${other}'`);
+  expect(await one(OWNER, `select prep_ahead from meal_slots where date = '${today}'`)).toBe('missed');
+  expect(await one(OWNER, `select prep_ahead from meal_slots where date = '2099-01-05'`)).toBe('ahead');
+});

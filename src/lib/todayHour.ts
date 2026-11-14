@@ -97,6 +97,8 @@ const HANDS_OFF = new Set<Machine>(['tm7', 'apo', 'oven', 'hy24']);
 /** A machine that only does one thing at a time (the hob has several rings). */
 const SINGLE = new Set<Machine>(['apo', 'hy24', 'oven']);
 const RINSE = 2;
+/** The most a must-do prep step that missed its night (a long marinade) gets in tonight's hour. */
+const CARRIED_MAX = 30;
 const CHOP_CLEAN = 2;
 const lengthOf = (s: RecipeStep) => s.timer_minutes ?? 5;
 const isHandsOff = (s: { machine: Machine | null; timer_minutes: number | null }) =>
@@ -157,7 +159,12 @@ export function planHour(input: HourInput): HourPlan {
     let prevEnd = base;
     // Prep that wasn't done in yesterday's hour comes first, then tonight's own steps from when it ends.
     for (const s of carriedPrep(input)) {
-      const slot = add(prevEnd, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
+      // Must-do prep that missed its night (a long marinade) gets what it can tonight: at most 30 minutes, and a timed
+      // step with no machine is a wait, not hands-on work.
+      const must = !!s.needs_night_before;
+      const length = must ? Math.min(lengthOf(s), CARRIED_MAX) : lengthOf(s);
+      const waiting = must && !s.machine && (s.timer_minutes ?? 0) >= 10;
+      const slot = add(prevEnd, length, !waiting && !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
       if (s.needs_night_before) warnings.push(`${s.title}: this needed the night before, so it gets less time tonight`);

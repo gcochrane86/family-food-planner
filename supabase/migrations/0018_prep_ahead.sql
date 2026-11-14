@@ -9,11 +9,12 @@ alter table public.meal_slots add column prep_ahead text not null default 'ahead
   check (prep_ahead in ('ahead', 'on_the_day', 'missed'));
 
 -- The choice belongs to that day's recipe: when the recipe changes, or the meal is no longer cooked, it goes back to
--- the default, whoever made the change (the app, the connector, a day swap or a roast).
+-- the default, whoever made the change (the app, the connector, a day swap or a roast). A new dinner on its own day
+-- (or a past one) had no hour the evening before, so its prep is 'missed': all of it is done in that day's hour.
 create function public.prep_ahead_follows_recipe() returns trigger language plpgsql as $$
 begin
   if new.recipe_id is distinct from old.recipe_id or new.mode is distinct from 'cook' then
-    new.prep_ahead := 'ahead';
+    new.prep_ahead := case when new.mode = 'cook' and new.date <= (now() at time zone 'Europe/London')::date then 'missed' else 'ahead' end;
   end if;
   return new;
 end $$;

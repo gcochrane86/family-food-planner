@@ -148,8 +148,10 @@ Optional, recommended, ticked by default:
    planning): `'ahead'` (the default), `'on_the_day'` (optional prep skipped; must-do prep still done the evening
    before) and `'missed'` (nothing done last night, so all of it, must-do included, comes into tonight). Yesterday's
    sheet then reads "skipped", which is what happened. Tapping it again (Undo) sets it back to `'ahead'`.
-5. **The trigger resets `prep_ahead` to true** when the slot's recipe changes or its mode changes away from cook. A
-   re-inserted row gets the default anyway.
+5. **The trigger resets `prep_ahead`** when the slot's recipe changes or its mode changes away from cook: to `'ahead'`,
+   or to `'missed'` when the dinner is today or past (changed on its own day, it had no hour the evening before; ruling
+   after the final review). A re-inserted row gets the default anyway. The app never saves `prep_ahead` with other slot
+   changes, only on its own, so a stale copy can't undo a choice made on another device.
 
 ## Approaches considered (for the must-do flag)
 
