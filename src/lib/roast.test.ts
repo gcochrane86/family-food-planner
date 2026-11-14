@@ -1,4 +1,4 @@
-import { planRoast, type RoastPartRecipe } from './roast';
+import { planRoast, roastEveningSteps, type RoastPartRecipe } from './roast';
 
 // Parts as the owner's roast describes them (serve 13:30, prep from 08:45).
 const p = (slug: string, part: 'main' | 'side', mains: string[], base: number, steps: object[]): RoastPartRecipe =>
@@ -172,4 +172,9 @@ describe('beef cuts', () => {
     expect(at('well_done')).toMatchObject({ time: '11:20', minutes: 110 });
     expect(find(planRoast({ ...choice, cut: 'roast-ribeye', doneness: 'well_done' }, CUTS), 'roast-ribeye', 'Rest').time).toBe('13:10');
   });
+});
+
+test("the evening before a roast: its night-before steps, for Today's hour to show", () => {
+  expect(roastEveningSteps(beef, parts)).toEqual([{ time: '22:30', title: 'Overnight braise', partTitle: 'roast-brisket' }]);
+  expect(roastEveningSteps({ main: 'lamb', sides: ['goose-fat-roasties'], people: 6, serve: '13:30' }, parts)).toEqual([]);
 });

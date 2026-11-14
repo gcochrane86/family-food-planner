@@ -8,7 +8,7 @@ import { makeStepPhotos, needsRedraw } from '../../lib/stepPhotos';
 import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
 import type { HourInput, HourPlan, HourStep } from '../../lib/todayHour';
-import type { RecipeDetail } from '../../lib/types';
+import type { PrepAhead, RecipeDetail } from '../../lib/types';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
 import { StepText } from '../recipes/MachineBadge';
@@ -129,14 +129,21 @@ export default function TodayHour() {
       {loading && !data && <p className="text-[#5D6760]">Loading…</p>}
 
       {data && !step && (() => {
-        const { input, plan } = data;
+        const { input, plan, tonightSlot, tomorrowSlot } = data;
+        const setPrep = (slotId: string | undefined, value: PrepAhead) => {
+          if (!slotId) return;
+          void repo.setPrepAhead(slotId, value).then(reload, () => setWorking({ label: "Couldn't save that", error: 'Check your connection and try again.' }));
+        };
         return (
           <section className="mx-auto grid w-full max-w-3xl content-start gap-4">
             <h1 className="m-0 text-[clamp(26px,3.6vw,38px)] font-bold">Today's hour · {input.start}–{addMinutes(input.start, input.minutes)}</h1>
             <p className="m-0 text-lg text-[#3F4A43]">{input.tonight ? `Tonight: ${input.tonight.recipe.title}` : 'No dinner to cook tonight'}</p>
             <p className="m-0 text-[#3F4A43]">{plan.handsOn} minutes hands-on</p>
             {plan.warnings.map((w) => <p key={w} className="m-0 rounded-xl bg-[#FBEFD0] px-3 py-2 text-[#7A4F00]">{w}</p>)}
+            {plan.doneLastNight && <DoneLastNight done={plan.doneLastNight} onChange={(v) => setPrep(tonightSlot?.id, v)} />}
             {plan.getOut.length > 0 && <GetOut groups={plan.getOut} got={got} onTick={tick} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
+            {plan.forTomorrow && <ForTomorrow prep={plan.forTomorrow} onChange={(on) => setPrep(tomorrowSlot?.id, on ? 'ahead' : 'on_the_day')} />}
+            {plan.roastAhead && <RoastTomorrow roast={plan.roastAhead} />}
             <MissingPhotos recipes={hourRecipes(input)} prep={plan.prepMissing} icons={plan.iconsMissing} state={photos} onStart={(rs) => void addPhotos(rs, plan.prepMissing, plan.iconsMissing)} />
             {steps.length > 0 && (
               <button type="button" onClick={() => setIndex(0)} className="justify-self-start rounded-xl bg-[#2D6A3E] px-8 py-3.5 text-lg font-semibold text-white">Start</button>
@@ -380,6 +387,51 @@ function GetOut({ groups, got, onTick, onHold }: { groups: GetOutGroup[]; got: s
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/** Tomorrow's dinner prep: the optional part as one tick (recommended, on by default); must-do steps as plain lines. */
+function ForTomorrow({ prep, onChange }: { prep: NonNullable<HourPlan['forTomorrow']>; onChange: (on: boolean) => void }) {
+  return (
+    <section aria-label="Prep for tomorrow" className="grid gap-2 rounded-2xl bg-[#F3F4EF] p-4">
+      <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">For tomorrow</h2>
+      {prep.optional > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span>Prep for tomorrow's {prep.title} <small className="block text-[#5D6760]">Recommended: {prep.ahead ? 'in this hour' : 'off, so it\'s done in tomorrow\'s hour'}</small></span>
+          <button type="button" role="switch" aria-checked={prep.ahead} aria-label={`Prep for tomorrow's ${prep.title} (recommended)`} onClick={() => onChange(!prep.ahead)}
+            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${prep.ahead ? 'bg-[#2D6A3E]' : 'bg-[#C9CEC6]'}`}>
+            <span className={`inline-block h-6 w-6 rounded-full bg-white shadow transition-transform ${prep.ahead ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+      )}
+      {prep.mustDo.length > 0 && <p className="m-0 font-semibold">{`Needs the night before: ${prep.mustDo.join(', ')}`}</p>}
+    </section>
+  );
+}
+
+/** Tonight's prep that yesterday's hour did, with a way to say it didn't happen (it then comes into tonight). */
+function DoneLastNight({ done, onChange }: { done: NonNullable<HourPlan['doneLastNight']>; onChange: (v: PrepAhead) => void }) {
+  const missed = done.state === 'missed';
+  return (
+    <section aria-label="Done last night" className="grid justify-items-start gap-2 rounded-2xl bg-[#F3F4EF] p-4">
+      <p className="m-0">{missed ? `Not done last night: the prep for tonight's ${done.title} is in tonight's hour.` : `Done last night: prep for tonight's ${done.title} (${done.steps.join(', ')}).`}</p>
+      {missed
+        ? <button type="button" onClick={() => onChange('ahead')} className="font-semibold text-[#2D6A3E] underline">Undo</button>
+        : <button type="button" onClick={() => onChange('missed')} className="font-semibold text-[#2D6A3E] underline">I didn't get to it</button>}
+    </section>
+  );
+}
+
+/** A roast tomorrow: its own plan's evening-before prep, always done (not fitted into the hour). */
+function RoastTomorrow({ roast }: { roast: NonNullable<HourPlan['roastAhead']> }) {
+  return (
+    <section aria-label="Tomorrow's roast" className="grid justify-items-start gap-2 rounded-2xl bg-[#F3F4EF] p-4">
+      <h2 className="m-0 text-sm font-bold uppercase tracking-[0.08em] text-[#2D6A3E]">Tomorrow's roast: night-before prep</h2>
+      <ul className="m-0 grid gap-1 pl-5">
+        {roast.steps.map((st) => <li key={`${st.time}-${st.title}`}>{st.time} · {st.partTitle}: {st.title}</li>)}
+      </ul>
+      {roast.link && <Link to={roast.link} className="font-semibold text-[#2D6A3E] underline">Open the roast plan</Link>}
     </section>
   );
 }

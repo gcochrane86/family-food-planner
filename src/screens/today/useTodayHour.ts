@@ -8,6 +8,8 @@ import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
 import { aheadRecipeId, homeLunchOn } from '../../lib/lunchAhead';
 import { useAsync } from '../settings/useAsync';
 import { addDays } from '../week/useWeek';
+import { roastEveningSteps, type RoastPartRecipe } from '../../lib/roast';
+import { parseRoastChoice, parseRoastPart, roastQuery } from '../../lib/roastModel';
 
 /** The Monday of the week a date is in. */
 const mondayOf = (iso: string) => addDays(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 6) % 7));
@@ -46,14 +48,22 @@ export function useTodayHour(now = new Date()) {
     const tonightRecipe = await forSlot(tonightSlot);
     // Cooked for the household plus tomorrow's leftovers lunch, as the shopping list and Cookidoo count it.
     const portionsOf = (slot: MealSlot, r: RecipeDetail) => (slot.portions ?? r.base_portions) + leftoverLunchPortions(slot, slots, byId);
-    const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: portionsOf(tonightSlot, tonightRecipe) } : null;
+    const tonight = tonightSlot && tonightRecipe ? { recipe: tonightRecipe, portions: portionsOf(tonightSlot, tonightRecipe), prepAhead: tonightSlot.prep_ahead ?? 'ahead' } : null;
 
     const anyTomorrow = slots.some((s) => s.date === tomorrow);
     let next: HourInput['tomorrow'] = null;
     if (anyTomorrow) {
-      const dSlot = cooked(find(tomorrow, 'dinner'));
+      // A roast keeps its own plan: the hour only shows its evening-before prep.
+      const roastChoice = parseRoastChoice(find(tomorrow, 'dinner')?.roast);
+      const dSlot = roastChoice ? undefined : cooked(find(tomorrow, 'dinner'));
       const dRecipe = await forSlot(dSlot);
-      const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: portionsOf(dSlot, dRecipe) } : null;
+      const dinner = dSlot && dRecipe ? { recipe: dRecipe, portions: portionsOf(dSlot, dRecipe), prepAhead: (dSlot.prep_ahead ?? 'ahead') === 'ahead' } : null;
+      let roast: NonNullable<HourInput['tomorrow']>['roast'] = null;
+      if (roastChoice) {
+        const parts = new Map(recipes.filter((r: Recipe) => parseRoastPart(r.roast)).map((r: Recipe) => [r.slug, r as unknown as RoastPartRecipe]));
+        const steps = roastEveningSteps(roastChoice, parts);
+        if (steps.length) roast = { title: find(tomorrow, 'dinner')?.reason?.split(' · ')[0] ?? 'Roast', steps, link: `/recipes/roast/cook?${roastQuery(roastChoice)}` };
+      }
 
       // Tomorrow's lunch: tonight's leftovers (picked, or packed/reheated from tonight), else a lunch recipe to make.
       const l = find(tomorrow, 'lunch');
@@ -83,7 +93,7 @@ export function useTodayHour(now = new Date()) {
         const r = await detail(match?.id);
         breakfast = hasSteps(r) ? { title: ahead, recipe: r! } : { title: ahead };
       }
-      next = { dinner, lunch, breakfast };
+      next = { dinner, lunch, breakfast, roast };
     }
 
     const input: HourInput = {
@@ -99,6 +109,6 @@ export function useTodayHour(now = new Date()) {
       yesterdayPlanned: slots.some((s) => s.date === yesterday),
       tomorrow: next,
     };
-    return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null };
+    return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null, tomorrowSlot: find(tomorrow, 'dinner') ?? null };
   }, [hid, today], { onReturn: true });
 }

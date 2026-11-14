@@ -397,3 +397,56 @@ test("the chopping picture is the board with a small cartoon of each thing to ch
   expect(within(pic).getByRole('img', { name: 'chicken breast or thigh, strips (10mm)' })).toBeInTheDocument();
   expect([...pic.querySelectorAll('img')].map((i) => i.getAttribute('src'))).toEqual(expect.arrayContaining([expect.stringContaining('icon-chicken.jpg')]));
 });
+
+describe('prep ahead on the first page', () => {
+  const SALMON = { ...HONEY, id: 'r-salmon', slug: 'salmon', title: 'Miso Salmon', steps: [
+    { id: 'p1', phase: 'prep_8pm' as const, position: 1, at_minute: null, title: 'Marinate the salmon', body: 'Coat the **chicken breast or thigh**.', machine: null, settings: null, timer_minutes: 5, image_path: null, image_source: null, needs_night_before: true },
+    { id: 'p2', phase: 'prep_8pm' as const, position: 2, at_minute: null, title: 'Make the dressing', body: 'Whisk it.', machine: null, settings: null, timer_minutes: 5, image_path: null, image_source: null },
+    ...HONEY.steps.filter((s) => s.phase === 'finish'),
+  ] };
+  beforeEach(() => {
+    h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY, 'r-salmon': SALMON } as Record<string, typeof HONEY>)[id] ?? null);
+  });
+
+  test("the first page offers tomorrow's prep as recommended, ticked, and unticking saves on_the_day", async () => {
+    open();
+    const sw = await screen.findByRole('switch', { name: "Prep for tomorrow's Miso Salmon (recommended)" });
+    expect(sw).toHaveAttribute('aria-checked', 'true');
+    await user().click(sw);
+    expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-20-dinner', 'on_the_day');
+  });
+
+  test('must-do prep for tomorrow is listed with no tick', async () => {
+    open();
+    const box = await screen.findByRole('region', { name: 'Prep for tomorrow' });
+    expect(within(box).getByText(/Needs the night before: Marinate the salmon/)).toBeInTheDocument();
+    expect(within(box).getAllByRole('switch')).toHaveLength(1);
+  });
+
+  test("done last night shows with I didn't get to it, which saves missed and can be undone", async () => {
+    const sunday = { ...NEXT_WEEK.slots[0], id: 'sun', date: '2026-10-18', slot: 'dinner' as const, mode: 'out' as const };
+    h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19' ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => ({ ...s })) }
+      : ws === '2026-10-12' ? { week: null, slots: [sunday] } : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
+    open();
+    const box = await screen.findByRole('region', { name: 'Done last night' });
+    expect(within(box).getByText(/prep for tonight's Almond-Crusted Honey Chilli Chicken/)).toBeInTheDocument();
+    await user().click(within(box).getByRole('button', { name: "I didn't get to it" }));
+    expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-19-dinner', 'missed');
+    h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19' ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => (s.id === '2026-10-19-dinner' ? { ...s, prep_ahead: 'missed' as const } : { ...s })) }
+      : ws === '2026-10-12' ? { week: null, slots: [sunday] } : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
+    await user().click(within(box).getByRole('button', { name: "I didn't get to it" }));
+    const undo = await screen.findByRole('button', { name: 'Undo' });
+    await user().click(undo);
+    expect(h.repo.setPrepAhead).toHaveBeenLastCalledWith('2026-10-19-dinner', 'ahead');
+  });
+
+  test("a roast tomorrow shows its night-before prep with a link to the roast cook view", async () => {
+    const roast = { main: 'beef', sides: ['goose-fat-roasties'], people: 6, serve: '13:30' };
+    h.repo.listRecipes.mockResolvedValue([HONEY, { ...HONEY, id: 'r-brisket', slug: 'roast-brisket', title: 'Brisket', roast: { part: 'main', mains: ['beef'], steps: [{ title: 'Overnight braise', before: 900, minutes: 600, kit: 'apo', temp: 80, when: 'night' }] } }]);
+    h.repo.getWeek.mockImplementation(week((s) => (s.id === '2026-10-20-dinner' ? { ...s, recipe_id: 'r-brisket', roast } : s)));
+    open();
+    const box = await screen.findByRole('region', { name: "Tomorrow's roast" });
+    expect(within(box).getByText(/Overnight braise/)).toBeInTheDocument();
+    expect(within(box).getByRole('link', { name: /roast plan/i })).toHaveAttribute('href', expect.stringContaining('/recipes/roast/cook?'));
+  });
+});

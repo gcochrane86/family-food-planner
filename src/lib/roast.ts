@@ -165,3 +165,10 @@ export function planRoast(choice: RoastChoice & { prepAt?: string }, parts: Map<
   }
   return { phases, kit, warnings: [...new Set(warnings)] };
 }
+
+/** The roast's prep the evening before (Today's hour shows it, unscheduled): its night-before steps, and day-before
+ *  steps from 17:00. */
+export function roastEveningSteps(choice: RoastChoice & { prepAt?: string }, parts: Map<string, RoastPartRecipe>): { time: string; title: string; partTitle: string }[] {
+  return planRoast(choice, parts).phases.flatMap((ph) => ph.steps.filter((s) => ph.name === 'Night before' || (ph.name === 'Day before' && s.time >= '17:00')))
+    .map((s) => ({ time: s.time, title: s.title, partTitle: s.partTitle }));
+}

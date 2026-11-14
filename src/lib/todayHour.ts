@@ -12,7 +12,7 @@ import { getOutList, type GetOutGroup } from './getOut';
 
 type Cooked = { recipe: RecipeDetail; portions: number };
 /** A roast's prep the evening before, from its own plan (shown, not fitted into the hour). */
-export interface RoastAhead { title: string; steps: { time: string; title: string; partTitle: string }[] }
+export interface RoastAhead { title: string; steps: { time: string; title: string; partTitle: string }[]; /** The roast's cook view. */ link?: string }
 
 export interface HourInput {
   date: string;
