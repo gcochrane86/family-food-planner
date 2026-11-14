@@ -1020,7 +1020,7 @@ describe("a day's hour: prep for the next day", () => {
     h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-salmon' ? salmon([prep('Make the dressing')]) : id === 'r-honey' ? HONEY : null));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    const hour = await within(day(/Monday/)).findByRole('region', { name: "Today's hour" });
+    const hour = await within(day(/Monday/)).findByRole('region', { name: 'Prep for the next day' });
     const sw = within(hour).getByRole('switch', { name: "Prep for Tuesday's Miso Salmon (recommended)" });
     expect(sw).toHaveAttribute('aria-checked', 'true');
     await user().click(sw);
@@ -1037,7 +1037,7 @@ describe("a day's hour: prep for the next day", () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await user().click(await screen.findByRole('tab', { name: 'This week' }));
     await openDay('Sun');
-    const hour = await within(day(/Sunday/)).findByRole('region', { name: "Today's hour" });
+    const hour = await within(day(/Sunday/)).findByRole('region', { name: 'Prep for the next day' });
     await user().click(within(hour).getByRole('switch', { name: "Prep for Monday's Honey Chicken (recommended)" }));
     expect(h.repo.setPrepAhead).toHaveBeenCalledWith('2026-10-19-dinner', 'on_the_day');
   });
@@ -1046,11 +1046,11 @@ describe("a day's hour: prep for the next day", () => {
     h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-salmon' ? salmon([prep('Marinate the salmon', true)]) : id === 'r-honey' ? HONEY : null));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Mon');
-    const hour = await within(day(/Monday/)).findByRole('region', { name: "Today's hour" });
+    const hour = await within(day(/Monday/)).findByRole('region', { name: 'Prep for the next day' });
     expect(within(hour).getByText('Needs the night before: Marinate the salmon')).toBeInTheDocument();
     expect(within(hour).queryByRole('switch')).not.toBeInTheDocument();
     await openDay('Sat');
-    expect(within(day(/Saturday/)).queryByRole('region', { name: "Today's hour" })).not.toBeInTheDocument();
+    expect(within(day(/Saturday/)).queryByRole('region', { name: 'Prep for the next day' })).not.toBeInTheDocument();
   });
 });
 
@@ -1059,6 +1059,8 @@ describe('previewing the hour from the planner', () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Tue');
     expect(within(day(/Tuesday/)).getByRole('link', { name: 'Preview the hour' })).toHaveAttribute('href', '/today?day=2026-10-20');
+    // At the top of the day, before the meals.
+    expect(within(day(/Tuesday/)).getAllByRole('link')[0]).toHaveAccessibleName('Preview the hour');
   });
 
   test("?day= opens that day's sheet", async () => {

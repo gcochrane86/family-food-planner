@@ -83,8 +83,8 @@ function HourPrep({ date, w }: { date: string; w: WeekState }) {
   const weekday = DAY[(new Date(`${nextDate}T00:00:00Z`).getUTCDay() + 6) % 7];
   if (roast) {
     return (
-      <section aria-label="Today's hour" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
-        <b>Today's hour</b>
+      <section aria-label="Prep for the next day" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
+        <b>Prep for the next day</b>
         <Link to={`/recipes/roast?${roastQuery(roast)}`} className="font-semibold text-accent underline">{weekday}'s roast: night-before prep in its plan</Link>
       </section>
     );
@@ -95,8 +95,8 @@ function HourPrep({ date, w }: { date: string; w: WeekState }) {
   const must = prep.filter((s) => s.needs_night_before);
   const on = (cooked.prep_ahead ?? 'ahead') === 'ahead';
   return (
-    <section aria-label="Today's hour" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
-      <b>Today's hour</b>
+    <section aria-label="Prep for the next day" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 text-sm shadow-sm">
+      <b>Prep for the next day</b>
       {optional.length > 0 && (
         <div className="flex items-center justify-between gap-3">
           <span>Prep for {weekday}'s {detail.title}<small className="block text-muted">Recommended{on ? '' : `: off, so it's done in ${weekday}'s hour`}</small></span>
@@ -218,12 +218,20 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   return (
     <section aria-label={dayLabel(date)} className="grid gap-5">
       <h2 className={hideTitle ? 'sr-only' : 'text-xl font-bold'}>{dayLabel(date)}</h2>
+      {/* The day's hour, to step through exactly as it will run on the day (and make its photos ahead). */}
+      <Link to={`/today?day=${date}`} aria-label="Preview the hour"
+        className="flex items-center justify-between gap-3 rounded-2xl bg-accent px-4 py-3.5 text-accent-ink no-underline shadow-sm">
+        <span>
+          <span className="block font-bold">Preview the hour · {w.hourStart}</span>
+          <span className="block text-sm opacity-90">Step through it exactly as on the day</span>
+        </span>
+        <span aria-hidden="true" className="text-2xl">›</span>
+      </Link>
 
       {dinner && <div className="grid gap-2"><Label tone="text-accent">Dinner</Label>{dinnerCard}</div>}
       {lunch && <div className="grid gap-2"><Label tone="text-lunch">Lunch</Label>{lunchCard}</div>}
       {breakfast && <div className="grid gap-2"><Label tone="text-yolk">Breakfast</Label>{breakfastCard}</div>}
       <HourPrep date={date} w={w} />
-      <Link to={`/today?day=${date}`} className="justify-self-start font-semibold text-accent underline">Preview the hour</Link>
 
       {sheet === 'breakfast' && breakfast && (
         <OptionsSheet title="Breakfast options" onClose={closeSheet}>
