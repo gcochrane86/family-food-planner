@@ -1,6 +1,6 @@
 import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
-import type { Machine, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
+import type { Machine, PrepAhead, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
 import { chopInstruction, isCartoonPrep, prepKey } from '../../supabase/functions/_shared/prepCut.ts';
 import { getOutList, type GetOutGroup } from './getOut';
 
@@ -11,6 +11,8 @@ import { getOutList, type GetOutGroup } from './getOut';
  */
 
 type Cooked = { recipe: RecipeDetail; portions: number };
+/** A roast's prep the evening before, from its own plan (shown, not fitted into the hour). */
+export interface RoastAhead { title: string; steps: { time: string; title: string; partTitle: string }[] }
 
 export interface HourInput {
   date: string;
@@ -18,16 +20,20 @@ export interface HourInput {
   minutes: number;
   tm7Bowls: 1 | 2;
   tm7Machines: 1 | 2;
-  /** Tonight's cooked dinner, if there is one. */
-  tonight?: Cooked | null;
-  /** Yesterday's hour ran, so tonight's veg that keeps was chopped then. */
+  /** Tonight's cooked dinner, if there is one, and whether its prep was done in yesterday's hour (ahead, the default),
+   *  skipped to tonight (on_the_day: only its must-do prep was done) or not done after all (missed). */
+  tonight?: (Cooked & { prepAhead?: PrepAhead }) | null;
+  /** Yesterday's hour ran, so tonight's prep (and veg that keeps) was done then, as tonight's prepAhead says. */
   yesterdayPlanned: boolean;
   /** Your photos of your machines, by machine code (Settings → Kitchen), for steps that are only about a machine. */
   kitPhotos?: Record<string, { path: string; name: string }>;
   /** Saved chopping photos, by ingredient-and-cut key (prepCut.ts). */
   prepPhotos?: Record<string, string>;
   tomorrow?: {
-    dinner?: Cooked | null;
+    /** prepAhead: its optional prep is done tonight (the default); must-do prep always is. */
+    dinner?: (Cooked & { prepAhead?: boolean }) | null;
+    /** A roast tomorrow: its evening-before prep, shown on the first page. */
+    roast?: RoastAhead | null;
     /** leftovers: pack tonight's; make: make it tonight; ahead: a home lunch made on the day, whose night-before part
      *  (the chicken sandwich's roast chicken) is done tonight. */
     lunch?: { kind: 'leftovers'; title: string } | { kind: 'make'; title: string; recipe?: RecipeDetail } | { kind: 'ahead'; title: string; recipe: RecipeDetail } | null;
@@ -76,6 +82,12 @@ export interface HourPlan {
   /** Extras that didn't fit: do these after dinner. */
   after: HourStep[];
   warnings: string[];
+  /** Tomorrow's dinner prep: how many optional steps there are to tick, the must-do ones, and whether the optional
+   *  ones are in this hour. Null without a cooked dinner with prep tomorrow. */
+  forTomorrow: { title: string; optional: number; mustDo: string[]; ahead: boolean } | null;
+  /** Tonight's prep that yesterday's hour did (or was meant to): null when yesterday's hour didn't run or there's none. */
+  doneLastNight: { title: string; steps: string[]; state: PrepAhead } | null;
+  roastAhead: RoastAhead | null;
 }
 
 const toMin = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
@@ -143,8 +155,16 @@ export function planHour(input: HourInput): HourPlan {
     const factor = factorOf(input.tonight);
     const r = input.tonight.recipe;
     let prevEnd = base;
+    // Prep that wasn't done in yesterday's hour comes first, then tonight's own steps from when it ends.
+    for (const s of carriedPrep(input)) {
+      const slot = add(prevEnd, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: `From yesterday's prep: ${s.title}`, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
+      prevEnd = slot.end;
+      dinnerEnd = Math.max(dinnerEnd, slot.end);
+      if (s.needs_night_before) warnings.push(`${s.title}: this needed the night before, so it gets less time tonight`);
+    }
+    const cookFrom = prevEnd;
     for (const s of finishSteps(r)) {
-      const at = s.at_minute !== null ? base + s.at_minute : prevEnd;
+      const at = s.at_minute !== null ? cookFrom + s.at_minute : prevEnd;
       const slot = add(at, lengthOf(s), !isHandsOff(s), s.machine, { kind: 'cook', title: s.title, body: s.body, kit: kitOf(s), timer: s.timer_minutes, ingredients: stepIngredients(s.body, r.ingredients), factor, photos: stepPhotos(r, s, input.kitPhotos) }, 'dinner');
       prevEnd = slot.end;
       dinnerEnd = Math.max(dinnerEnd, slot.end);
@@ -199,7 +219,17 @@ export function planHour(input: HourInput): HourPlan {
     ...extras(tomorrow).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
   ], input.prepPhotos);
   const iconsMissing = getOut.flatMap((g) => g.items).filter((i) => !i.icon).map(({ name, key }) => ({ name, key }));
-  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings };
+  const d = tomorrow?.dinner;
+  const dPrep = d ? prepSteps(d.recipe) : [];
+  const forTomorrow = d && dPrep.length ? { title: d.recipe.title, optional: dPrep.filter((s) => !s.needs_night_before).length,
+    mustDo: dPrep.filter((s) => s.needs_night_before).map((s) => s.title), ahead: d.prepAhead !== false } : null;
+  const state = tonightState(input);
+  const tPrep = input.tonight ? prepSteps(input.tonight.recipe) : [];
+  const doneSteps = state === 'on_the_day' ? tPrep.filter((s) => s.needs_night_before) : tPrep;
+  const doneLastNight = input.yesterdayPlanned && input.tonight && doneSteps.length
+    ? { title: input.tonight.recipe.title, steps: doneSteps.map((s) => s.title), state } : null;
+  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, toWash: toWash(items > 0, chop, [...steps, ...after], ordered, [...extras(tomorrow).flat()]), after, warnings,
+    forTomorrow, doneLastNight, roastAhead: tomorrow?.roast ?? null };
 }
 
 function rinse(afterDinner: boolean, kit?: Kit): Omit<HourStep, 'at' | 'end'> {
@@ -226,6 +256,20 @@ export function stepPhotos(r: RecipeDetail, s: RecipeStep, kit?: Kit): HourStep[
   return photos.map((p) => ({ ...p, step }));
 }
 
+const prepSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+/** Tomorrow's prep done tonight: must-do steps always, the rest when prep ahead is on. */
+const tomorrowPrep = (d: NonNullable<NonNullable<HourInput['tomorrow']>['dinner']>) =>
+  prepSteps(d.recipe).filter((s) => s.needs_night_before || d.prepAhead !== false);
+/** What tonight's prep state is: no hour yesterday means nothing was done. */
+const tonightState = (input: HourInput): PrepAhead => (input.yesterdayPlanned ? input.tonight?.prepAhead ?? 'ahead' : 'missed');
+/** Tonight's prep that wasn't done yesterday, so it's done tonight before the cook. */
+function carriedPrep(input: HourInput): RecipeStep[] {
+  if (!input.tonight) return [];
+  const state = tonightState(input);
+  const prep = prepSteps(input.tonight.recipe);
+  return state === 'missed' ? prep : state === 'on_the_day' ? prep.filter((s) => !s.needs_night_before) : [];
+}
+
 const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
 
 interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'at' | 'end'> }
@@ -243,7 +287,7 @@ function extras(tomorrow: HourInput['tomorrow'], kit?: Kit): Extra[][] {
   const chains: Extra[][] = [];
   if (tomorrow.dinner) {
     const r = tomorrow.dinner.recipe;
-    const prep = r.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
+    const prep = tomorrowPrep(tomorrow.dinner);
     if (prep.length) chains.push(fromSteps(r, prep, 'For tomorrow: ', factorOf(tomorrow.dinner)));
   }
   const b = tomorrow.breakfast;
@@ -339,11 +383,11 @@ function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number 
     // Chopped in yesterday's hour, if there was one: anything that keeps a day or more. Listed to check, not dropped.
     const fridge: RecipeIngredient[] = [];
     const keep = (i: RecipeIngredient) => {
-      if (!(input.yesterdayPlanned && keepsDays(i.name) >= 1)) return true;
+      if (!(tonightState(input) === 'ahead' && keepsDays(i.name) >= 1)) return true;
       if (!fridge.includes(i)) fridge.push(i);
       return false;
     };
-    fromSteps(r, finishSteps(r), f, (s) => `For ${s.title}`, keep);
+    fromSteps(r, [...carriedPrep(input), ...finishSteps(r)], f, (s) => `For ${s.title}`, keep);
     rest(r, f, `For ${r.title}`, 'bowl', keep);
     fridge.forEach((i) => seen.add(i));
     if (fridge.length) groups.unshift({ label: 'From the fridge box (chopped yesterday)', where: 'fridge', items: fridge.map((i) => item(i, f)), raw: false });
@@ -353,13 +397,13 @@ function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number 
   if (t?.dinner) {
     const r = t.dinner.recipe;
     const f = factorOf(t.dinner);
-    const prep = r.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
-    fromSteps(r, prep, f, (s) => `For tomorrow's prep: ${s.title}`, all);
+    fromSteps(r, tomorrowPrep(t.dinner), f, (s) => `For tomorrow's prep: ${s.title}`, all);
   }
   for (const x of [t?.breakfast, t?.lunch?.kind === 'make' ? t.lunch : null]) {
     if (x && 'recipe' in x && x.recipe) fromSteps(x.recipe, finishSteps(x.recipe), 1, () => `For ${x.title}`, all);
   }
-  if (t?.dinner) {
+  // What keeps of tomorrow's dinner is chopped now and boxed: part of tomorrow's prep, so only when that's on.
+  if (t?.dinner && t.dinner.prepAhead !== false) {
     const r = t.dinner.recipe;
     const f = factorOf(t.dinner);
     const box: RecipeIngredient[] = [];
