@@ -1,6 +1,7 @@
 // Planning a week with Claude (docs/playbooks/week-plan.md): everything the plan needs, and saving Claude's dinners
 // (and any new recipes) as a draft week, all or nothing. Shared by the week CLI on the Mac and the Ask Claude
 // connector, so the two can't drift. Pure TS with the database client passed in.
+import { MAX_MINUTES, MIN_MINUTES } from './cookingTime.ts';
 import { loadPlannerInput } from './loadPlan.ts';
 import { MEAL_SPEC } from './mealSpec.ts';
 import { slotRows } from './planInput.ts';
@@ -24,6 +25,8 @@ export interface WeekPlan {
   summary: string;
   dinners: { date: string; recipe: string; reason: string }[]; // recipe: a slug, existing or new
   newRecipes: SeedRecipe[];
+  /** Today's cooking: the week's own time for some days, from the household's note; null when there are none. */
+  cookingMinutes: Record<string, number> | null;
 }
 
 /** Everything the plan needs: the week, the household's specifications and rules, recipes, freezer, pantry, pack
@@ -119,7 +122,14 @@ export function parsePlan(input: unknown, week: { weekStart: string; days: numbe
     const problems = validateRecipeSeed({ recipes: newRecipes });
     if (problems.length) throw new Error(`A new recipe has problems:\n- ${problems.join('\n- ')}`);
   }
-  return { summary, dinners, newRecipes };
+  // The week's own cooking times: days in the week, 30–240 minutes; anything else is left out.
+  const cooking: Record<string, number> = {};
+  if (o.cooking_minutes && typeof o.cooking_minutes === 'object' && !Array.isArray(o.cooking_minutes)) {
+    for (const [date, m] of Object.entries(o.cooking_minutes as Record<string, unknown>)) {
+      if (dates.includes(date) && typeof m === 'number' && m >= MIN_MINUTES && m <= MAX_MINUTES) cooking[date] = Math.round(m);
+    }
+  }
+  return { summary, dinners, newRecipes, cookingMinutes: Object.keys(cooking).length ? cooking : null };
 }
 
 // The week can't be saved any more: the request is closed with why, so the app says so.
@@ -153,12 +163,15 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
       const saved = await db.rpc('replace_recipe_contents', { p_recipe_id: row.data.id, p_ingredients: ingredients, p_steps: steps });
       if (saved.error) throw new Error(`Saving ${n.title}'s ingredients and steps: ${saved.error.message}`);
     }
-    const input = await loadInput(db, hid, weekStart);
+    const loaded = await loadInput(db, hid, weekStart);
+    // The week's own times win over the days' settings for the planning around Claude's dinners.
+    const own = plan.cookingMinutes;
+    const input = own && loaded.dayMinutes ? { ...loaded, dayMinutes: loaded.dayMinutes.map((m, i) => own[addDays(weekStart, i)] ?? m) } : loaded;
     const plannable = new Set(input.recipes.map((x) => x.id));
     const chosen = plan.dinners.map((d) => ({ date: d.date, recipeId: bySlug.get(d.recipe)!, reason: d.reason }));
     const left = plan.dinners.filter((d) => !plannable.has(bySlug.get(d.recipe)!));
     if (left.length) throw new Error(`Not plannable (archived, rated 👎, or a roast or hosting recipe): ${left.map((d) => d.recipe).join(', ')}.`);
-    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: propose(input, chosen), p_summary: plan.summary });
+    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: propose(input, chosen), p_summary: plan.summary, p_cooking: plan.cookingMinutes });
     if (res.error) {
       const code = Object.keys(CLOSED).find((k) => res.error.message.includes(k));
       if (code) {

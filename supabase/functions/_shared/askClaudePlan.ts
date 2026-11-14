@@ -2,6 +2,7 @@
 // planning context, chooses the dinners (and up to the allowed new recipes) with the household, and saves the week
 // as a draft the household approves in the app. Saving goes through a plan request and save_claude_week, exactly as
 // the Mac's planning did: all or nothing, never over an approved week.
+import { minutesInWords } from './cookingTime.ts';
 import { weekStartFor } from './askClaude.ts';
 import { loadPlannerInput } from './loadPlan.ts';
 import { addDays } from './planner.ts';
@@ -22,7 +23,7 @@ export const HOW_TO_PLAN = [
   '1. Meal specifications and the private rules: every dinner meets them (never name or hint at the private rules in anything you write).',
   '2. The household\'s note and the day rules (a fish dinner on Thursday); on another shop\'s day, a dinner built on what it sells.',
   '3. Protein balance (rules.proteinBalance), never the same protein two nights running.',
-  '4. Time: Monday to Friday within weekdayDinnerMaxMinutes, office days within officeDayMaxMinutes; on weekdays a dinner\'s handsOn at most todaysHour.weekdayHandsOnMax.',
+  '4. Time: each day has its cooking time (rules.cookingTime) for the dinner\'s cook, the next day\'s prep and the extras. Monday to Friday a dinner\'s cookHandsOn within that day\'s minutes less 15, and its prepMinutes within the day before\'s (prep is done the evening before); a weekday with more than an hour can take a dinner up to its minutes less 15 in all, otherwise within weekdayDinnerMaxMinutes; office days within officeDayMaxMinutes. When the household says a day has more or less time ("Wednesday I\'ve got 2 hours"), save it in cooking_minutes for that date (only days that differ) and plan to it.',
   '5. Flavour variety: no two dinners in a row from the same cuisine, at most two of one cuisine a week, no flavour (spicy, creamy, tomato) more than twice.',
   '6. No repeats: nothing cooked in the last two weeks (recentDinners, lastCooked), nothing twice in the week.',
   '7. Use up: match fresh ingredients against packSizes so a later dinner uses what\'s left; use freezer portions and fridge items before they go off.',
@@ -92,7 +93,7 @@ export function makePlanner(db: Db, householdId: string, now = new Date(),
       const input = await loadInput(db, householdId, w.start);
       let plan;
       try {
-        plan = parsePlan({ summary: a?.summary, dinners: resolved, new_recipes: fresh }, { weekStart: w.start, days: input.days, adventure: settings?.data?.adventure ?? 1 });
+        plan = parsePlan({ summary: a?.summary, dinners: resolved, new_recipes: fresh, cooking_minutes: a?.cooking_minutes }, { weekStart: w.start, days: input.days, adventure: settings?.data?.adventure ?? 1 });
       } catch (e) {
         return `The plan needs fixing before it can be saved: ${e instanceof Error ? e.message : String(e)}`;
       }
@@ -128,6 +129,7 @@ export function makePlanner(db: Db, householdId: string, now = new Date(),
         const titleOf = new Map([...recipes.map((r) => [r.slug, r.title] as const), ...plan.newRecipes.map((n) => [n.slug, n.title] as const)]);
         const lines = [`Saved a draft for the week of ${day(w.start)}${existing ? ' (it replaced the draft that was there)' : ''}:`];
         for (const d of [...plan.dinners].sort((x, y) => x.date.localeCompare(y.date))) lines.push(`- ${day(d.date)}: ${titleOf.get(d.recipe) ?? d.recipe}`);
+        if (plan.cookingMinutes) lines.push(`Cooking time: ${Object.entries(plan.cookingMinutes).sort().map(([d, m]) => `${day(d)} ${minutesInWords(m)}`).join(', ')} (the rest as in Settings).`);
         if (added) lines.push(`${added} new recipe${added === 1 ? '' : 's'} added: ${plan.newRecipes.map((n) => n.title).join(', ')} (no photos yet: Make photos is on the Recipes tab).`);
         lines.push("Breakfasts and lunches were filled by the app. Approve it in the app's Week tab; Cookidoo and the Sainsbury's basket follow from there.");
         return lines.join('\n');

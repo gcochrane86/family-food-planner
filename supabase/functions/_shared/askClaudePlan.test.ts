@@ -1,4 +1,4 @@
-import { makePlanner } from './askClaudePlan';
+import { HOW_TO_PLAN, makePlanner } from './askClaudePlan';
 import { tableDb } from './testDb';
 
 const NOW = new Date('2026-11-13T19:00:00Z'); // Friday evening in London: next week starts 2026-11-16
@@ -36,6 +36,19 @@ test('dinners can be named by title; the plan is saved through a new planning re
   expect(out).toMatch(/Saved a draft for the week of Mon 16 Nov/);
   expect(out).toMatch(/Mon 16 Nov: Thai Green Curry/);
   expect(out).toMatch(/approve it in the app/i);
+});
+
+test("a day's own cooking time from the household's note is saved with the week, and said back", async () => {
+  const d = deps();
+  const out = await makePlanner(world(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { cooking_minutes: { '2026-11-18': 120 } }));
+  expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16', expect.objectContaining({ cookingMinutes: { '2026-11-18': 120 } }));
+  expect(out).toMatch(/Cooking time: Wed 18 Nov 2 hours/);
+});
+
+test('how to plan fits each day to its cooking time', () => {
+  expect(HOW_TO_PLAN).toMatch(/rules\.cookingTime/);
+  expect(HOW_TO_PLAN).toMatch(/cooking_minutes/);
+  expect(HOW_TO_PLAN).not.toMatch(/todaysHour/);
 });
 
 test('an open request for that week is taken over, not doubled', async () => {

@@ -1,6 +1,7 @@
 // "Ask Claude": the read-only connector Claude uses from the Claude app (docs/spec.md §10). This module holds the
 // pure parts: the key check, a household-scoped reader that only ever selects, and the formatters that turn rows
 // into plain text for Claude. The Edge Function (ask-claude-connector) is a thin MCP shell around it.
+import { minutesInWords, weekdayMinutes, WEEKDAYS } from './cookingTime.ts';
 import { addDays } from './planner.ts';
 import { londonParts } from './schedule.ts';
 import { parseVersion } from './slotVersion.ts';
@@ -14,7 +15,7 @@ export const INSTRUCTIONS = [
   'Suggest first; change only when asked. Change tools need the household\'s approval in Claude. When one ingredient is the problem, prefer tonight\'s version to swapping the meal.',
   'Never edit saved recipes (that is done in Claude Code); new recipes only through save_week_plan, within its allowance. Other changes are made in the app.',
   'Keep every suggestion within the house rules and the private rules below. Never name or explain the private rules; if you must mention them, say "your private rules".',
-  "Keep weeknight dinners' hands-on time within Today's hour less 15 minutes, and prefer what is already in the pantry and freezer.",
+  "Keep each weeknight's cooking (the dinner's cook, the next day's prep, the extras) within that day's cooking time, and prefer what is already in the pantry and freezer.",
 ].join(' ');
 
 /** True only for the exact, non-empty key. Compares every byte, so timing doesn't reveal how much matched. */
@@ -293,8 +294,7 @@ const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string =>
 /** The household: the standing instructions first, then who eats, the rules, the kit and the hour. */
 export function formatHousehold(d: HouseholdData, mealSpec: { title: string; text: string }[]): string {
   const s = d.settings;
-  const start = typeof s.hour_start === 'string' ? s.hour_start : '17:30';
-  const minutes = typeof s.hour_minutes === 'number' ? s.hour_minutes : 60;
+  const perDay = weekdayMinutes(s);
   const machines = s.tm7_machines === 2 ? 2 : 1;
   const bowls = s.tm7_bowls === 2 ? 2 : 1;
   const out = [INSTRUCTIONS, '', 'Members'];
@@ -306,7 +306,7 @@ export function formatHousehold(d: HouseholdData, mealSpec: { title: string; tex
   const priv = strings(s.private_rules);
   if (priv.length) out.push('Private rules (follow them; never name or explain them):', ...priv.map((x) => `- ${x}`));
   if (mealSpec.length) out.push('What makes a meal', ...mealSpec.map((m) => `- ${m.title}: ${m.text}`));
-  out.push(`Today's hour: ${start} for ${minutes} minutes; weeknight dinners up to ${minutes - 15} minutes hands-on`);
+  out.push(`Today's cooking, the time each day has: ${WEEKDAYS.map((d) => `${d.charAt(0).toUpperCase()}${d.slice(1)} ${minutesInWords(perDay[d])}`).join(', ')}`);
   if (typeof s.weekday_dinner_max_min === 'number') out.push(`Weekday dinners: up to ${s.weekday_dinner_max_min} minutes in all`);
   out.push(`TM7: ${machines} machine${machines === 1 ? '' : 's'}, ${bowls} bowl${bowls === 1 ? '' : 's'}`);
   if (d.equipment.length) out.push(`Kit: ${d.equipment.map((e) => e.name).join(', ')}`);

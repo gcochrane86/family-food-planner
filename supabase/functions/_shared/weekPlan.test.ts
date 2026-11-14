@@ -23,6 +23,25 @@ describe('parsePlan', () => {
   });
 });
 
+describe("a week's own cooking times", () => {
+  test('kept for days in the week, 30–240 minutes, whole minutes; anything else dropped', () => {
+    const plan = parsePlan({ summary: 'x', dinners: [dinner('2026-11-16')], cooking_minutes: { '2026-11-18': 120, '2026-11-19': 92.6, '2026-11-25': 90, '2026-11-20': 10, '2026-11-21': 'lots' } }, WEEK);
+    expect(plan.cookingMinutes).toEqual({ '2026-11-18': 120, '2026-11-19': 93 });
+    expect(parsePlan({ summary: 'x', dinners: [dinner('2026-11-16')] }, WEEK).cookingMinutes).toBeNull();
+  });
+  test('saved with the week, and the planner around the dinners uses them', async () => {
+    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }] });
+    let seen: number[] | undefined;
+    const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], cooking_minutes: { '2026-11-18': 120 } }, WEEK);
+    await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, {
+      loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }], dayMinutes: [60, 60, 60, 60, 60, 60, 60] }) as never,
+      propose: (input) => { seen = input.dayMinutes; return []; },
+    });
+    expect(seen).toEqual([60, 60, 120, 60, 60, 60, 60]);
+    expect(db.rpcs.at(-1)!.args).toMatchObject({ p_cooking: { '2026-11-18': 120 } });
+  });
+});
+
 describe('saveWeekPlan', () => {
   const input = { days: 7, recipes: [{ id: 'r-curry', handsOn: 20 }, { id: 'r-new', handsOn: 20 }] };
   const deps = {

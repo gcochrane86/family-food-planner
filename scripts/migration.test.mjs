@@ -685,3 +685,16 @@ test("0019: a recipe's main-photo description, up to 600 characters", async () =
   expect(await one(OWNER, `select length(hero_hint) from recipes where id = '${rid}'`)).toBe(600);
   await expect(as(OWNER, `update recipes set hero_hint = '${'x'.repeat(601)}' where id = '${rid}'`)).rejects.toThrow();
 });
+
+test("0020: save_claude_week keeps the week's own cooking times, on a new week and a replan; the old call still works", async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S', '{"2026-10-28": 120}')`);
+  expect(await one(OWNER, `select cooking_minutes from plan_weeks where week_start = '2026-10-26'`)).toEqual({ '2026-10-28': 120 });
+  await svc(`update week_plan_requests set status = 'failed' where id = '${req}'`);
+  const req2 = await one(OWNER, `insert into week_plan_requests (household_id, week_start, replace) values ('${hid}', '2026-10-26', true) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req2}'`);
+  await svc(`select save_claude_week('${req2}', 7, '${claudeSlots(rid)}', 'S')`);
+  expect(await one(OWNER, `select cooking_minutes from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
+  expect(await fails(OWNER, `select save_claude_week('${req2}', 7, '[]', 'S', null)`)).toMatch(/permission denied/);
+});

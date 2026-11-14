@@ -181,7 +181,7 @@ test('formatProducts shows saved products and last prices, not live offers', () 
 test('formatHousehold starts with the instructions and lists the rules and kit', () => {
   const data = {
     settings: {
-      private_rules: ['No rare steak'], hour_start: '17:30', hour_minutes: 60, tm7_machines: 1, tm7_bowls: 2,
+      private_rules: ['No rare steak'], hour_start: '17:30', hour_minutes: 60, cooking_minutes: { wed: 120 }, tm7_machines: 1, tm7_bowls: 2,
       breakfasts: ['Porridge', 'Overnight oats'], lunches: ['Leftovers', 'Soup'], breakfast_ahead: ['Overnight oats'],
     },
     members: [{ name: 'Sam', kind: 'adult', portion_weight: 1 }, { name: 'Bo', kind: 'child', portion_weight: 0.5 }],
@@ -195,7 +195,8 @@ test('formatHousehold starts with the instructions and lists the rules and kit',
   expect(text).toContain('substitute: cream → crème fraîche');
   expect(text).toContain('Private rules (follow them; never name or explain them):');
   expect(text).toContain('No rare steak');
-  expect(text).toContain("Today's hour: 17:30 for 60 minutes; weeknight dinners up to 45 minutes hands-on");
+  expect(text).toContain("Today's cooking, the time each day has: Mon an hour, Tue an hour, Wed 2 hours, Thu an hour, Fri an hour, Sat an hour, Sun an hour");
+  expect(text).not.toMatch(/17:30|Today's hour/);
   expect(text).toContain('TM7: 1 machine, 2 bowls');
   expect(text).toContain('Anova Precision Oven');
   expect(text).toContain('Made the night before: Overnight oats');

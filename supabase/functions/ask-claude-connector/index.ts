@@ -63,7 +63,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
     handler: (args: Record<string, unknown>) => safely(() => recipes.add(args ?? {}), 'add the recipe'),
   });
   mcp.tool('get_household', {
-    description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), Today's hour and the breakfast and lunch options.",
+    description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), each day's cooking time and the breakfast and lunch options.",
     annotations: readOnly,
     handler: () => safely(async () => formatHousehold(await read.household(), MEAL_SPEC)),
   });
@@ -155,6 +155,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
           recipe: { type: 'string', description: "The recipe's slug or title, or a new recipe's slug" },
           reason: { type: 'string', description: 'One line shown on the day, up to 200 characters' } } } },
         new_recipes: { type: 'array', description: 'New recipes in the seed format from newRecipeRules (up to the allowance)', items: { type: 'object' } },
+        cooking_minutes: { type: 'object', description: "This week's own cooking time for a day, as { \"YYYY-MM-DD\": minutes } (30–240), only for days the household says differ from rules.cookingTime", additionalProperties: { type: 'number' } },
       },
     },
     annotations: changes,
