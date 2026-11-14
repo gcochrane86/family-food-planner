@@ -2,9 +2,9 @@
 // custom connector with the secret link …/functions/v1/ask-claude-connector/<key>; Claude then looks up recipes,
 // plans, the pantry and saved products while they chat, and (each call approved by the household in Claude) saves
 // tonight's version of a day's recipe, swaps a dinner, marks a staple, or plans a week's dinners as a draft (adding
-// any new recipes for it). It never edits saved recipes.
+// any new recipes for it), or adds a recipe from a link or video (add only, with its main photo). It never edits saved recipes.
 // Deployed with --no-verify-jwt (Claude has no app login); the key in the path is the lock. A missing or wrong key
-// gets a bare 404. Secrets: CONNECTOR_KEY, CONNECTOR_HOUSEHOLD_ID.
+// gets a bare 404. Secrets: CONNECTOR_KEY, CONNECTOR_HOUSEHOLD_ID, GOOGLE_AI_API_KEY (photos and videos).
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { McpServer, StreamableHttpTransport } from 'npm:mcp-lite@0.10.0';
 import {
@@ -13,6 +13,8 @@ import {
 } from '../_shared/askClaude.ts';
 import { makeChanger } from '../_shared/askClaudeWrite.ts';
 import { makePlanner } from '../_shared/askClaudePlan.ts';
+import { makeRecipeAdder } from '../_shared/askClaudeRecipe.ts';
+import { makeHeroImage } from '../_shared/heroMake.ts';
 import { MEAL_SPEC } from '../_shared/mealSpec.ts';
 
 const notFound = () => new Response('Not found', { status: 404 });
@@ -27,8 +29,26 @@ const safely = async (run: () => Promise<string>, what = 'read the planner') => 
   try { return text(await run()); } catch (e) { return text(`Couldn't ${what} just now: ${e instanceof Error ? e.message : String(e)}`); }
 };
 
-function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: ReturnType<typeof makePlanner>) {
+function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: ReturnType<typeof makePlanner>, recipes: ReturnType<typeof makeRecipeAdder>) {
   const mcp = new McpServer({ name: 'family-food-planner', version: '1.0.0' });
+  mcp.tool('get_recipe_rules', {
+    description: "Call this before adding a recipe from a link, a YouTube video or a transcript the household gave you: how to add one, the recipe format and rules (including a picture description for every step and a photo description for the main photo), the household (portions, kit, house and private rules, what makes a meal) and the recipes already in the library. Read-only.",
+    inputSchema: { type: 'object', properties: {} },
+    annotations: readOnly,
+    handler: () => safely(() => recipes.rules()),
+  });
+  mcp.tool('add_recipe', {
+    description: "Changes the library (the household approves each call in Claude): adds one new recipe in the format from get_recipe_rules, then makes its main photo from its photo description (about 3p). Add only: a recipe whose title or slug is already in the library is refused. Show the household the whole recipe and get their go-ahead first.",
+    inputSchema: {
+      type: 'object', required: ['recipe'],
+      properties: {
+        recipe: { type: 'object', description: 'The recipe in the seed format from get_recipe_rules' },
+        source_url: { type: 'string', description: 'The page or video it came from' },
+      },
+    },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => recipes.add(args ?? {}), 'add the recipe'),
+  });
   mcp.tool('get_household', {
     description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), Today's hour and the breakfast and lunch options.",
     annotations: readOnly,
@@ -147,5 +167,7 @@ Deno.serve((req) => {
   if (!householdId) return notFound();
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-  return new StreamableHttpTransport().bind(server(makeReader(db, householdId), makeChanger(db, householdId), makePlanner(db, householdId)))(req);
+  const google = Deno.env.get('GOOGLE_AI_API_KEY');
+  const recipes = makeRecipeAdder(db, householdId, google ? { makeHero: (id) => makeHeroImage(db, google, id) } : {});
+  return new StreamableHttpTransport().bind(server(makeReader(db, householdId), makeChanger(db, householdId), makePlanner(db, householdId), recipes))(req);
 });
