@@ -59,8 +59,10 @@ recipe. The owner chose this route (Claude on the Mac rather than an AI call in 
        63°C / 145°F. Never lower, and no pink or rare.
      - `oven`, `kettle` when nothing else fits.
      List the machines used in `equipment`.
-   - **Prep ahead.** Steps that can be done the night before (sauces, marinades, chopping) go in phase `prep_8pm`,
-     the rest in `finish`. Add a `reheat` phase or `reheat` note when it reheats well.
+   - **Prep ahead.** Steps that can be done the day before, in Today's hour (sauces, marinades, chopping), go in phase
+     `prep_8pm`, the rest in `finish`. The household chooses each day whether that prep is done the evening before or on
+     the day, so add `"night": true` only to a prep step that can't wait until the day's own hour (marinating for hours,
+     soaking, overnight chilling or setting). Add a `reheat` phase or `reheat` note when it reheats well.
    - **Private rules** (`privateRules` in `context`): rules the household keeps out of the app. Follow them exactly like
      the meal rules, and never mention them, or the reason for them, in any recipe text or summary.
    - **Meal rules** (Settings → Meal specifications; `houseRules` in `context`). Apply the substitutions, preferences and avoids, including which kit does what (from-scratch, no ultra-processed

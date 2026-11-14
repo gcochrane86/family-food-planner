@@ -10,10 +10,13 @@
 //   npx tsx scripts/recipes.ts add --import <id> < recipe.json   {"recipe": {seed format}, "summary": "..."}
 //   npx tsx scripts/recipes.ts failed < failed.json              {"import": "<id>", "summary": "why"}
 //   npx tsx scripts/recipes.ts youtube --import <id>            a YouTube link's subtitles as plain text (needs yt-dlp)
+//   npx tsx scripts/recipes.ts prep-steps --household <id>       every prep-ahead step, for Claude to judge which need the night before
+//   npx tsx scripts/recipes.ts flag-night --household <id> < flags.json   {"night": ["<step id>", …]}: those need the night before,
+//                                                                the household's other prep steps don't (backed up first)
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { MEAL_SPEC } from '../src/lib/mealSpec';
 import { execFile } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseImport, parseImportFailed, parseRework, parseReworkFailed, vttToText, youTubeId } from './importInput';
@@ -196,8 +199,44 @@ async function youtube() {
   }
 }
 
+type PrepStepRow = { id: string; title: string; body: string; timer_minutes: number | null; needs_night_before: boolean; recipes: { title: string } };
+
+/** The household's prep-ahead steps (prep_8pm), with their recipe. */
+async function prepStepRows(householdId: string): Promise<PrepStepRow[]> {
+  const res = await db.from('recipe_steps').select('id, title, body, timer_minutes, needs_night_before, recipes!inner(title, household_id)')
+    .eq('phase', 'prep_8pm').eq('recipes.household_id', householdId);
+  return must(res as unknown as { data: PrepStepRow[] | null; error: { message: string } | null }, 'Reading prep steps') ?? [];
+}
+
+async function prepSteps() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const rows = await prepStepRows(householdId);
+  console.log(JSON.stringify(rows.map((r) => ({ id: r.id, recipe: r.recipes.title, step: r.title, body: r.body, timer: r.timer_minutes, night: r.needs_night_before })), null, 2));
+}
+
+/** Sets which prep steps need the night before: the listed ones, and no others. Backs up the current flags first. */
+async function flagNight() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const input = JSON.parse(await stdin()) as { night?: unknown };
+  if (!Array.isArray(input.night) || input.night.some((x) => typeof x !== 'string')) fail('Send {"night": ["<step id>", …]}.');
+  const night = new Set(input.night as string[]);
+  const rows = await prepStepRows(householdId);
+  const ours = new Set(rows.map((r) => r.id));
+  const strangers = [...night].filter((id) => !ours.has(id));
+  if (strangers.length) fail(`Not this household's prep steps: ${strangers.join(', ')}. Nothing was changed.`);
+  mkdirSync('seed/private/backups', { recursive: true });
+  const backup = `seed/private/backups/night-flags-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+  writeFileSync(backup, JSON.stringify(rows.map((r) => ({ id: r.id, recipe: r.recipes.title, step: r.title, night: r.needs_night_before })), null, 2));
+  const on = rows.filter((r) => night.has(r.id)).map((r) => r.id);
+  const off = rows.filter((r) => !night.has(r.id)).map((r) => r.id);
+  if (on.length) must(await db.from('recipe_steps').update({ needs_night_before: true }).in('id', on), 'Flagging steps');
+  if (off.length) must(await db.from('recipe_steps').update({ needs_night_before: false }).in('id', off), 'Clearing steps');
+  console.log(`${on.length} prep steps need the night before; ${off.length} can wait until the day. Backup: ${backup}`);
+}
+
 const commands: Record<string, () => Promise<void>> = {
+  'prep-steps': prepSteps, 'flag-night': flagNight,
   youtube,
   pending, claim, context, add, failed, 'claim-rework': claimRework, show, rework, 'rework-failed': reworkFailed,
 };
-await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed | youtube | claim-rework | show | rework | rework-failed')))();
+await (commands[command] ?? (() => fail('Use: pending | claim | context | add | failed | youtube | claim-rework | show | rework | rework-failed | prep-steps | flag-night')))();
