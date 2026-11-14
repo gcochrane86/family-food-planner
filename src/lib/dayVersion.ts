@@ -5,6 +5,13 @@ export interface StepChange { phase: string; title: string; body?: string; timer
 
 const key = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 
+/** A real calendar date as YYYY-MM-DD (not 2026-13-01 or 2026-02-30). */
+export function isDay(s: string | null | undefined): s is string {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}
+
 /** Changes one step of a day's dinner for that day only, as its tonight's version (the saved recipe is untouched).
  *  Starts from the day's current version when it's for this recipe (Claude's changes are kept), else the recipe. */
 export function changeStepForDay(recipe: RecipeDetail, current: unknown, change: StepChange): { version: SlotVersion } | { error: string } {
@@ -20,7 +27,8 @@ export function changeStepForDay(recipe: RecipeDetail, current: unknown, change:
     machine: s.machine, settings: s.settings,
     timer_minutes: s === target && change.timer !== undefined ? change.timer : s.timer_minutes,
     at_minute: s === target && change.at !== undefined ? change.at : s.at_minute,
-    needs_night_before: s.needs_night_before ?? false,
+    // Left as it is: a version saved before the flag existed then still takes it from the saved recipe.
+    needs_night_before: s.needs_night_before,
   }));
   const line = `${change.remove ? 'Removed' : 'Changed'} for this day: ${target.title}`;
   const input: VersionInput = {

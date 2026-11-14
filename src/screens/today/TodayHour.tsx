@@ -9,7 +9,7 @@ import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
 import type { HourInput, HourPlan, HourStep } from '../../lib/todayHour';
 import type { MealSlot, PrepAhead, RecipeDetail } from '../../lib/types';
-import { changeStepForDay, type StepChange } from '../../lib/dayVersion';
+import { changeStepForDay, isDay, type StepChange } from '../../lib/dayVersion';
 import { parseVersion, type SlotVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { photoCost } from '../recipes/RecipeCard';
 import { useWakeLock } from '../../lib/wakeLock';
@@ -38,7 +38,7 @@ export default function TodayHour() {
   // ?day=YYYY-MM-DD previews that day's hour (from the Week tab); without it, today's.
   const [params] = useSearchParams();
   const asked = params.get('day');
-  const day = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) ? asked : todayInLondon();
+  const day = isDay(asked) ? asked : todayInLondon();
   const preview = day !== todayInLondon();
   const isPast = day < todayInLondon();
   const back = preview ? `/week?day=${day}` : '/week';

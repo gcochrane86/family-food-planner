@@ -208,7 +208,7 @@ export const repo = {
    *  the Cookidoo sync, so it's left out here: a stale copy on screen must never overwrite it. */
   async saveSlots(slots: MealSlot[]): Promise<void> {
     if (!slots.length) return;
-    // Tonight's version is only written by the Ask Claude connector, and cleared by the database when the day's
+    // Tonight's version is only written on its own (the connector, or setSlotVersion), and cleared by the database when the day's
     // recipe changes: a stale copy on screen must never overwrite it either.
     // A dinner's prep ahead is saved on its own (setPrepAhead), so a stale copy here can't undo a change made elsewhere.
     const rows = slots.map(({ id: _id, cookidoo_recipe_id: _c, version: _v, prep_ahead: _p, ...s }) => s);

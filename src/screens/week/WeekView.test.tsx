@@ -1066,3 +1066,12 @@ describe('previewing the hour from the planner', () => {
     expect(await screen.findByRole('dialog', { name: /Wednesday/ })).toBeInTheDocument();
   });
 });
+
+test("a ?day= that isn't a real date, or isn't in this week or next, opens nothing and doesn't break the Week tab", async () => {
+  for (const bad of ['2026-13-01', 'x', '2026-02-30', '2026-09-01']) {
+    const { unmount } = render(<MemoryRouter initialEntries={[`/week?day=${bad}`]}><WeekView /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    unmount();
+  }
+});

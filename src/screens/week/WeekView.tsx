@@ -9,6 +9,7 @@ import ClaudeWeekNotes, { Failed, PlanForm, Planning, usePlanRequest } from './P
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
 import { addDays, useWeek } from './useWeek';
+import { isDay } from '../../lib/dayVersion';
 
 export default function WeekView() {
   const w = useWeek();
@@ -20,6 +21,8 @@ export default function WeekView() {
   const askedDay = params.get('day');
   useEffect(() => {
     if (!askedDay || w.loading) return;
+    // Only a real day in this week or next: anything else is ignored.
+    if (!isDay(askedDay) || askedDay < w.starts.thisWeek || askedDay > addDays(w.starts.nextWeek, 6)) { setParams({}, { replace: true }); return; }
     const inNext = askedDay >= w.starts.nextWeek;
     if (w.shown !== (inNext ? 'next' : 'this')) { w.setWhich(inNext ? 'next' : 'this'); return; }
     setOpen(askedDay);

@@ -32,3 +32,10 @@ test('a version made for another recipe is ignored, and an unknown step is refus
   expect(v.note).toBe('Changed for this day: Rice on');
   expect(changeStepForDay(HONEY, null, { phase: 'finish', title: 'Nope', timer: 3 })).toEqual({ error: expect.stringMatching(/isn't in/) });
 });
+
+test("a version saved before the night-before flag existed keeps the recipe's flag after a day edit", () => {
+  const recipe = { ...HONEY, steps: HONEY.steps.map((s) => (s.phase === 'prep_8pm' ? { ...s, needs_night_before: true } : s)) };
+  const old = { ...HONEY_VERSION, steps: HONEY_VERSION.steps.map(({ needs_night_before: _n, ...s }) => s) };
+  const v = ok(changeStepForDay(recipe, old, { phase: 'finish', title: 'Final toss', timer: 3 }));
+  expect(v.steps.find((s) => s.phase === 'prep_8pm')!.needs_night_before).toBe(true);
+});

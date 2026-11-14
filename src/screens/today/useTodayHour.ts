@@ -7,6 +7,7 @@ import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
 import { aheadRecipeId, homeLunchOn } from '../../lib/lunchAhead';
 import { useAsync } from '../settings/useAsync';
+import { isDay } from '../../lib/dayVersion';
 import { addDays } from '../week/useWeek';
 import { roastEveningSteps, type RoastPartRecipe } from '../../lib/roast';
 import { parseRoastChoice, parseRoastPart, roastQuery } from '../../lib/roastModel';
@@ -23,7 +24,7 @@ export function useTodayHour(day?: string | null, now = new Date()) {
   const { householdId } = useAuth();
   const hid = householdId!;
   const realToday = todayInLondon(now);
-  const today = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : realToday;
+  const today = isDay(day) ? day : realToday;
   return useAsync(async () => {
     const yesterday = addDays(today, -1);
     const tomorrow = addDays(today, 1);

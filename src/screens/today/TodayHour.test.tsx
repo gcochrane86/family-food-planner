@@ -491,6 +491,12 @@ describe('previewing another day', () => {
     expect(screen.getByText(/look only/i)).toBeInTheDocument();
   });
 
+  test("a ?day= that isn't a real date is today's hour", async () => {
+    at('/today?day=2026-13-01');
+    await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" });
+    expect(screen.queryByText(/^Preview ·/)).not.toBeInTheDocument();
+  });
+
   test('without ?day it is still today, with no preview bar', async () => {
     open();
     await screen.findByRole('heading', { name: "Today's hour · 17:30–18:30" });
