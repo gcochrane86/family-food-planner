@@ -65,7 +65,7 @@ export interface RecipeRow {
 export interface RecipeData {
   recipe: RecipeRow & { reheat: string | null; toddler_note: string | null };
   ingredients: { group_name: string | null; name: string; qty: number | null; unit: string; note: string | null; qty_approx?: boolean }[];
-  steps: { phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null; settings: string | null; timer_minutes: number | null }[];
+  steps: { phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null; settings: string | null; timer_minutes: number | null; needs_night_before?: boolean }[];
 }
 export interface PantryData {
   items: { name: string; staple_status: string | null; qty: number | null; unit: string | null; location: string }[];
@@ -140,7 +140,7 @@ export function makeReader(db: Db, householdId: string): Reader {
       if (!rec?.id) return null;
       const [i, s] = await Promise.all([
         db.from('recipe_ingredients').select('group_name, name, qty, unit, note, qty_approx, position').eq('recipe_id', id).order('position'),
-        db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes').eq('recipe_id', id).order('position'),
+        db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes, needs_night_before').eq('recipe_id', id).order('position'),
       ]);
       return { recipe: { ...rec, tags: rec.tags ?? [], lastCooked: null }, ingredients: list(rows(i, 'Reading ingredients')), steps: list(rows(s, 'Reading steps')) };
     },
@@ -229,7 +229,7 @@ export function pickRecipe(rs: RecipeRow[], title: string): { id: string } | { t
   return { text: `No recipe called "${title}". Use find_recipes to see the list.` };
 }
 
-const PHASES: [string, string][] = [['prep_8pm', 'The night before'], ['finish', 'At dinner time'], ['reheat', 'Reheating']];
+const PHASES: [string, string][] = [['prep_8pm', 'Prep ahead (can be done the day before)'], ['finish', 'At dinner time'], ['reheat', 'Reheating']];
 
 /** One recipe in full. */
 export function formatRecipe(d: RecipeData): string {
@@ -251,7 +251,7 @@ export function formatRecipe(d: RecipeData): string {
     steps.forEach((s, n) => {
       const meta = [s.at_minute !== null && s.at_minute !== undefined ? `+${s.at_minute} min` : null, s.machine, s.settings, s.timer_minutes ? `timer ${s.timer_minutes} min` : null].filter(Boolean).join(', ');
       // The **bold** marks the ingredient words the app links to amounts: shown, so Claude keeps them in tonight's version.
-      out.push(`${n + 1}. ${s.title}${meta ? ` [${meta}]` : ''}: ${s.body}`);
+      out.push(`${n + 1}. ${s.title}${meta ? ` [${meta}]` : ''}: ${s.body}${s.needs_night_before ? ' (needs the night before)' : ''}`);
     });
   }
   return out.join('\n');

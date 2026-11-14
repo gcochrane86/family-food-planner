@@ -52,6 +52,8 @@ export function validateRecipeSeed(file: any): string[] {
       if (s?.settings != null && typeof s.settings !== 'string') problems.push(`${at}.steps[${j}].settings must be text`);
       if (s?.timer != null && (!Number.isInteger(s.timer) || s.timer <= 0)) problems.push(`${at}.steps[${j}].timer must be whole minutes`);
       if (s?.picture != null && typeof s.picture !== 'string') problems.push(`${at}.steps[${j}].picture must be text`);
+      if (s?.night != null && typeof s.night !== 'boolean') problems.push(`${at}.steps[${j}].night must be true or false`);
+      else if (s?.night === true && s?.phase !== 'prep_8pm') problems.push(`${at}.steps[${j}].night is only for prep_8pm steps`);
     });
     if (r?.roast != null) {
       const KITS = ['oven', 'grill', 'warm', 'apo', 'tm7', 'hob', 'hy24', 'counter'];
@@ -99,6 +101,8 @@ export function contentRows(r: SeedRecipe): { ingredients: Record<string, unknow
     machine: s.machine ?? null, settings: s.settings ?? null, timer_minutes: s.timer ?? null,
     // What the step's cartoon picture shows; left out, the step keeps the one it has.
     ...(s.picture ? { photo_hint: s.picture } : {}),
+    // A prep step that can't wait until the day's own hour (a long marinade, an overnight soak).
+    needs_night_before: s.phase === 'prep_8pm' && s.night === true,
   }));
   const ingredients = r.ingredients.map((g: any, i: number) => ({
     position: i + 1, group_name: g.group ?? null, name: g.name, qty: g.qty ?? null,

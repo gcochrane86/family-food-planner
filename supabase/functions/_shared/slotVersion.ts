@@ -7,18 +7,20 @@ export interface VersionIngredient { group_name: string | null; name: string; qt
 export interface VersionStep {
   phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null;
   settings: string | null; timer_minutes: number | null; changed: boolean;
+  /** A prep step that can't wait until the day's own hour. Missing on versions saved before 14 Nov 2026. */
+  needs_night_before?: boolean;
 }
 export interface SlotVersion { based_on: string; note: string; ingredients: VersionIngredient[]; steps: VersionStep[] }
 
 type InIngredient = { group_name?: string | null; name: string; qty?: number | null; unit?: string; note?: string | null; replaces?: string };
 type InStep = {
   phase: string; position?: number; at_minute?: number | null; title: string; body: string; machine?: string | null;
-  settings?: string | null; timer_minutes?: number | null; replaces?: string;
+  settings?: string | null; timer_minutes?: number | null; replaces?: string; needs_night_before?: boolean;
 };
 export interface VersionInput { note: string; ingredients: InIngredient[]; removed_ingredients?: string[]; steps: InStep[]; removed_steps?: string[] }
 
 type SavedIngredient = { group_name: string | null; name: string; qty: number | null; unit: string; note: string | null; qty_approx?: boolean };
-type SavedStep = { phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null; settings: string | null; timer_minutes: number | null; image_path?: string | null; image_source?: string | null };
+type SavedStep = { phase: string; position: number; at_minute: number | null; title: string; body: string; machine: string | null; settings: string | null; timer_minutes: number | null; image_path?: string | null; image_source?: string | null; needs_night_before?: boolean };
 type Saved = { id: string; ingredients: SavedIngredient[]; steps: SavedStep[] };
 
 const key = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
@@ -72,9 +74,12 @@ export function buildVersion(saved: Saved, input: VersionInput): { version: Slot
     const was = s.replaces ? undefined : savedS.get(`${v.phase}|${key(v.title)}`);
     // Sent back as plain text: it's the saved step, with its **bold** ingredient words kept.
     if (was && plain(was.body) === plain(v.body)) v.body = was.body;
+    // The night-before flag: as Claude sends it, else the saved step's with the same phase and title, else false.
+    const same = savedS.get(`${v.phase}|${key(v.title)}`);
+    const night = v.phase === 'prep_8pm' && (typeof s.needs_night_before === 'boolean' ? s.needs_night_before : !!same?.needs_night_before);
     const changed = !was || was.body !== v.body || num(was.at_minute) !== v.at_minute || (was.machine ?? null) !== v.machine
       || (was.settings ?? null) !== v.settings || num(was.timer_minutes) !== v.timer_minutes;
-    return { ...v, changed };
+    return { ...v, changed, needs_night_before: night };
   });
   return { version: { based_on: saved.id, note, ingredients, steps } };
 }
@@ -91,9 +96,14 @@ export function parseVersion(v: unknown): SlotVersion | null {
 export function applyVersion<R extends Saved>(recipe: R, version: unknown): R & { versionNote?: string; changedIngredients?: Set<string>; changedSteps?: Set<number> } {
   const v = parseVersion(version);
   if (!v || v.based_on !== recipe.id) return recipe;
-  const photo = new Map(recipe.steps.map((s) => [`${s.phase}|${key(s.title)}`, { image_path: s.image_path ?? null, image_source: s.image_source ?? null }]));
+  const own = new Map(recipe.steps.map((s) => [`${s.phase}|${key(s.title)}`, s]));
   const ingredients = v.ingredients.map((i, n) => ({ ...i, position: n + 1 }));
-  const steps = v.steps.map((s) => ({ ...s, ...(photo.get(`${s.phase}|${key(s.title)}`) ?? { image_path: null, image_source: null }) }));
+  const steps = v.steps.map((s) => {
+    const o = own.get(`${s.phase}|${key(s.title)}`);
+    return { ...s, image_path: o?.image_path ?? null, image_source: o?.image_source ?? null,
+      // A version saved before the flag existed takes it from the recipe's own step.
+      needs_night_before: s.needs_night_before ?? !!o?.needs_night_before };
+  });
   return {
     ...recipe, ingredients, steps, versionNote: v.note,
     changedIngredients: new Set(v.ingredients.filter((i) => i.changed).map((i) => i.name)),

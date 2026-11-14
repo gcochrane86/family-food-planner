@@ -132,7 +132,7 @@ async function loadRework(id: string) {
 async function show() {
   const { w, recipe } = await loadRework(arg('rework') ?? fail('--rework is required'));
   const ingredients = must<unknown[]>(await db.from('recipe_ingredients').select('position, group_name, name, qty, unit, note, qty_approx').eq('recipe_id', recipe.id), 'Reading ingredients');
-  const steps = must<unknown[]>(await db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes, photo_hint').eq('recipe_id', recipe.id), 'Reading steps');
+  const steps = must<unknown[]>(await db.from('recipe_steps').select('phase, position, at_minute, title, body, machine, settings, timer_minutes, photo_hint, needs_night_before').eq('recipe_id', recipe.id), 'Reading steps');
   console.log(JSON.stringify({ request: w.request, recipe: seedFromDetail({ ...recipe, ingredients, steps }) }, null, 2));
 }
 

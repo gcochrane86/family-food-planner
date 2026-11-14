@@ -19,6 +19,7 @@ export function seedFromDetail(d) {
   r.steps = [...d.steps].sort((a, b) => order[a.phase] - order[b.phase] || a.position - b.position).map((s) => ({
     phase: s.phase, at: s.at_minute, title: s.title, body: s.body, machine: s.machine, settings: s.settings, timer: s.timer_minutes,
     ...(s.photo_hint ? { picture: s.photo_hint } : {}),
+    ...(s.needs_night_before ? { night: true } : {}),
   }));
   return r;
 }

@@ -90,7 +90,8 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
         steps: { type: 'array', items: { type: 'object', required: ['phase', 'title', 'body'], properties: {
           phase: { type: 'string', enum: ['prep_8pm', 'finish', 'reheat'] }, title: { type: 'string' }, body: { type: 'string' },
           at_minute: { type: ['number', 'null'] }, machine: { type: ['string', 'null'] }, settings: { type: ['string', 'null'] },
-          timer_minutes: { type: ['number', 'null'] }, replaces: { type: 'string', description: 'The saved step title this one replaces' } } } },
+          timer_minutes: { type: ['number', 'null'] }, replaces: { type: 'string', description: 'The saved step title this one replaces' },
+          needs_night_before: { type: 'boolean', description: 'A prep_8pm step that must be done the night before (a long marinade); kept from the saved step of the same title when left out' } } } },
         removed_steps: { type: 'array', items: { type: 'string' } },
       },
     },

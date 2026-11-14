@@ -131,12 +131,15 @@ test('formatRecipe lists ingredients and steps by phase', () => {
     steps: [
       { phase: 'finish', position: 1, at_minute: 12, title: 'Bake', body: 'Bake the **pie**.', machine: 'oven', settings: '200C fan', timer_minutes: 20 },
       { phase: 'prep_8pm', position: 1, at_minute: null, title: 'Peel', body: 'Peel the **potatoes**.', machine: null, settings: null, timer_minutes: null },
+      { phase: 'prep_8pm', position: 2, at_minute: null, title: 'Marinate', body: 'Marinate the **cod**.', machine: null, settings: null, timer_minutes: null, needs_night_before: true },
     ],
   });
   expect(text).toContain('400g cod, skinned');
   expect(text).toContain('Topping');
   expect(text).toContain('salt');
-  expect(text.indexOf('The night before')).toBeLessThan(text.indexOf('At dinner time'));
+  expect(text.indexOf('Prep ahead (can be done the day before)')).toBeLessThan(text.indexOf('At dinner time'));
+  expect(text).toContain('Marinate the **cod**. (needs the night before)');
+  expect(text).not.toMatch(/Peel the \*\*potatoes\*\*\. \(needs/);
   expect(text).toContain('+12 min');
   expect(text).toContain('oven');
   expect(text).toContain('200C fan');

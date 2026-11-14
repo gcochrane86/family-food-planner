@@ -87,3 +87,18 @@ test('a kept ingredient keeps its saved group and approximate amount unless told
   if (!('version' in moved)) throw new Error(moved.error);
   expect(moved.version.ingredients[2]).toMatchObject({ group_name: 'Side', changed: true });
 });
+
+test('a step keeps its needs-the-night-before flag by phase and title; a new step takes the one Claude sends, else false', () => {
+  const withPrep = { ...saved, steps: [
+    { phase: 'prep_8pm', position: 1, at_minute: null, title: 'Marinate', body: 'Marinate the **chicken**.', machine: null, settings: null, timer_minutes: null, image_path: null, needs_night_before: true },
+    ...saved.steps,
+  ] };
+  const prep = { phase: 'prep_8pm', title: 'Marinate', body: 'Marinate the **chicken**.' };
+  const r = buildVersion(withPrep, input({ steps: [prep, { phase: 'prep_8pm', title: 'Pickle', body: 'Pickle the onions.' },
+    { phase: 'prep_8pm', title: 'Soak', body: 'Soak the beans.', needs_night_before: true }, ...input().steps] }));
+  if (!('version' in r)) throw new Error(r.error);
+  expect(r.version.steps.map((s) => [s.title, s.needs_night_before])).toEqual([['Marinate', true], ['Pickle', false], ['Soak', true], ['Brown', false], ['Sauce', false]]);
+  // A version saved before the flag existed takes it from the recipe's own step.
+  const old = { ...r.version, steps: r.version.steps.map(({ needs_night_before: _n, ...s }) => s) };
+  expect(applyVersion(withPrep, old).steps.find((s) => s.title === 'Marinate')?.needs_night_before).toBe(true);
+});

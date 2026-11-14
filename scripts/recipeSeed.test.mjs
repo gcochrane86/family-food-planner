@@ -154,3 +154,18 @@ test("a step's picture description goes to photo_hint and comes back out; withou
   bad.recipes[0].steps[0].picture = 5;
   expect(validateRecipeSeed(bad)).toContain('recipes[0].steps[0].picture must be text');
 });
+
+test('a prep step can need the night before, and only a prep step', () => {
+  const r = { ingredients: [], steps: [
+    { phase: 'prep_8pm', title: 'Marinate', body: 'Marinate.', night: true },
+    { phase: 'prep_8pm', title: 'Sauce', body: 'Make it.' },
+    { phase: 'finish', title: 'Cook', body: 'Cook.' },
+  ] };
+  const { steps } = contentRows(r);
+  expect(steps.map((s) => s.needs_night_before)).toEqual([true, false, false]);
+  const back = seedFromDetail({ title: 'X', ingredients: [], steps: steps.map((s) => ({ ...s, machine: null, settings: null, timer_minutes: null })) });
+  expect(back.steps.map((s) => s.night)).toEqual([true, undefined, undefined]);
+  const bad = clone();
+  bad.recipes[0].steps.find((s) => s.phase === 'finish').night = true;
+  expect(validateRecipeSeed(bad).some((p) => /night is only for prep_8pm steps/.test(p))).toBe(true);
+});
