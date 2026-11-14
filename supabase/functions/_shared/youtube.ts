@@ -8,6 +8,7 @@ const VIDEO_URL = `https://generativelanguage.googleapis.com/v1beta/models/${VID
 const LONG = 20 * 60;       // over this, one frame every 5 seconds
 const MAX = 3 * 60 * 60;    // over this, only a named part
 const PRICE_PER_M = 0.3;    // US$ per million input tokens (Flash-Lite, Nov 2026)
+const TIME_LIMIT_MS = 120_000; // under the Edge Function's ~150 s
 
 const YT_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -88,9 +89,16 @@ export function makeYouTubeReader(apiKey: string, fetchFn: typeof fetch = fetch)
       } catch { /* unknown length */ }
       const req = videoRequest({ id, length, start: str(a.start), end: str(a.end), which: str(a.which) });
       if ('error' in req) return req.error;
-      const res = await fetchFn(VIDEO_URL, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(req.body),
-      });
+      // A time limit under the function's own, so a long video ends in advice, not a dropped call.
+      let res: Response;
+      try {
+        res = await fetchFn(VIDEO_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify(req.body),
+          signal: AbortSignal.timeout(TIME_LIMIT_MS),
+        });
+      } catch {
+        return `Gemini took too long or couldn't be reached. For a long video, ask which part the recipe is in and send a start and end. ${transcript}`;
+      }
       const body = await res.json().catch(() => null) as GeminiReply;
       if (!res.ok) return `Gemini couldn't watch that video (${body?.error?.message ?? `HTTP ${res.status}`}). ${transcript}`;
       const text = (body?.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('').trim();

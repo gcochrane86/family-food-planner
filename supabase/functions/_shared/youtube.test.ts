@@ -68,3 +68,15 @@ test("a video Gemini can't read asks for the transcript; a non-YouTube link is t
   expect(await r.read({ url: 'https://youtu.be/abcDEF12345' })).toMatch(/couldn't watch.*Video is private.*Show transcript/s);
   expect(await r.read({ url: 'https://example.com/v' })).toMatch(/isn't a YouTube video/);
 });
+
+test('Gemini taking too long (or the network failing) still ends in the transcript advice, and the call has a time limit', async () => {
+  let signal: AbortSignal | undefined;
+  const fetchFn = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url.includes('youtube.com')) return new Response('{"lengthSeconds":"600"}');
+    signal = init?.signal ?? undefined;
+    throw new DOMException('The operation timed out.', 'TimeoutError');
+  });
+  const out = await makeYouTubeReader('key', fetchFn as never).read({ url: 'https://youtu.be/abcDEF12345' });
+  expect(signal).toBeInstanceOf(AbortSignal);
+  expect(out).toMatch(/took too long or couldn't be reached.*Show transcript/s);
+});
