@@ -90,3 +90,14 @@ test('Cancel goes back without saving', async () => {
   expect(h.repo.saveRecipe).not.toHaveBeenCalled();
   expect(await screen.findByRole('heading', { name: 'Recipe card' })).toBeInTheDocument();
 });
+
+test('the editor can mark a prep step as needing the night before', async () => {
+  open();
+  const sauce = await screen.findByRole('group', { name: 'Step: The bulk sauce' });
+  expect(within(sauce).getByRole('combobox', { name: 'When' })).toHaveDisplayValue('Prep ahead');
+  expect(within(step('Rice on')).queryByRole('checkbox', { name: /Needs the night before/ })).not.toBeInTheDocument();
+  await userEvent.click(within(sauce).getByRole('checkbox', { name: /Needs the night before/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  const [, , , steps] = h.repo.saveRecipe.mock.calls[0];
+  expect(steps.find((s: { title: string }) => s.title === 'The bulk sauce')).toMatchObject({ needs_night_before: true });
+});

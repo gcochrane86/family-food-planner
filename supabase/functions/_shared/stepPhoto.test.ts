@@ -38,7 +38,7 @@ test('step pictures are cartoons in the chopping-board style; the dish photo onl
 
 test('a prep step is shown as made-ahead', () => {
   const p = stepPhotoPrompt('Salmon', [step('Mix the **yoghurt** and **dill**.', 'tm7', 'prep_8pm')], 0);
-  expect(p).toContain('the night before');
+  expect(p).toContain('made ahead');
   expect(p).toContain('jar or container');
 });
 

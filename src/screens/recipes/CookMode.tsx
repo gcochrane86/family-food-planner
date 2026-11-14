@@ -9,8 +9,7 @@ import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { stepPhotos } from '../../lib/todayHour';
 import { photoCost } from './RecipeCard';
-import { switchClasses, usePrepAhead } from '../../lib/prepAhead';
-import type { Phase, RecipeStep } from '../../lib/types';
+import type { RecipeStep } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import { StepText } from './MachineBadge';
 import { useWakeLock } from '../../lib/wakeLock';
@@ -33,8 +32,6 @@ export default function CookMode() {
   const { data: prep } = useAsync(() => (householdId ? repo.listPrepPhotos(householdId) : Promise.resolve([])), [householdId]);
   const icons = Object.fromEntries((prep ?? []).map((p) => [p.key, p.path]));
   const kitPhotos = Object.fromEntries((kit ?? []).filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }]));
-  const [phase, setPhase] = useState<Phase>('finish');
-  const [prepAhead, setPrepAhead] = usePrepAhead();
   const [index, setIndex] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -62,9 +59,8 @@ export default function CookMode() {
 
   const prepSteps = recipe.steps.filter((s) => s.phase === 'prep_8pm').sort((a, b) => a.position - b.position);
   const finishSteps = recipe.steps.filter((s) => s.phase === 'finish').sort((a, b) => a.position - b.position);
-  // Prep ahead on: two tabs (night before / on the night). Off: every step in cooking order.
-  const split = prepAhead && prepSteps.length > 0;
-  const steps = split ? (phase === 'prep_8pm' ? prepSteps : finishSteps) : [...prepSteps, ...finishSteps];
+  // Every step in cooking order; prep steps say they can be done the day before (or need the night before).
+  const steps = [...prepSteps, ...finishSteps];
   const step: RecipeStep | undefined = steps[Math.min(index, steps.length - 1)];
   const last = index >= steps.length - 1;
 
@@ -119,27 +115,7 @@ export default function CookMode() {
   return (
     <div className={shell} style={pad}>
       <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          {split && (
-            <div role="tablist" aria-label="Phase" className="flex gap-1 rounded-xl bg-[#E9ECE4] p-1">
-              {(['prep_8pm', 'finish'] as const).map((p) => (
-                <button key={p} type="button" role="tab" aria-selected={phase === p} onClick={() => { setPhase(p); setIndex(0); setPhotoError(null); }}
-                  className={`rounded-lg px-4 py-1.5 text-sm font-semibold ${phase === p ? 'bg-white shadow-sm text-[#1B211D]' : 'text-[#5D6760]'}`}>
-                  {p === 'prep_8pm' ? 'Night before' : 'On the night'}
-                </button>
-              ))}
-            </div>
-          )}
-          {prepSteps.length > 0 && (
-            <label className="flex items-center gap-2 text-sm font-semibold text-[#5D6760]">
-              <button type="button" role="switch" aria-checked={split} aria-label="Prep ahead"
-                onClick={() => { setPrepAhead(!split); setPhase('finish'); setIndex(0); setPhotoError(null); }} className={switchClasses(split)}>
-                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${split ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
-              Prep ahead
-            </label>
-          )}
-        </div>
+        <span aria-hidden="true" />
         <div className="relative flex items-center gap-2">
           <ListenSwitch light onNext={goNext} onBack={goBack} text={() => (step ? speakable(step.title, step.body) : '')} />
           <button type="button" aria-label="Cook mode settings" aria-haspopup="menu" aria-expanded={menuOpen} disabled={!step}
@@ -164,7 +140,7 @@ export default function CookMode() {
       <section aria-label="Step" onTouchStart={(e) => { const t = e.touches[0]; touch.current = t ? { x: t.clientX, y: t.clientY } : null; }} onTouchEnd={onTouchEnd}
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-start gap-5 overflow-auto py-4 md:grid md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:content-start md:items-start md:gap-10">
         {!step ? (
-          <p className="text-xl">No {split && phase === 'prep_8pm' ? 'night-before' : ''} steps for this recipe.</p>
+          <p className="text-xl">No steps for this recipe.</p>
         ) : (
           <>
             <div className="flex flex-col gap-5">
@@ -172,6 +148,7 @@ export default function CookMode() {
               {recipe.title.toUpperCase()} · Step {index + 1} of {steps.length}{step.at_minute !== null ? ` · at ${step.at_minute} min` : ''}{step.timer_minutes ? ` · ${step.timer_minutes} min` : ''}
             </p>
             {recipe.versionNote && <p className="self-start rounded-xl bg-[#FBEFD0] px-3 py-1.5 text-sm text-[#7A4F00]">Tonight's version: {recipe.versionNote}</p>}
+            {step.phase === 'prep_8pm' && <PrepBadge step={step} />}
             <h1 className="text-[clamp(28px,5vw,46px)] font-bold text-[#1B211D]">{step.title}</h1>
             {(step as { changed?: boolean }).changed && recipe.versionNote && <span className="self-start rounded-full bg-[#2D6A3E] px-3 py-0.5 text-sm font-semibold text-white">Changed tonight</span>}
             {step.machine && (
@@ -243,5 +220,14 @@ export default function CookMode() {
         </button>
       </div>
     </div>
+  );
+}
+
+/** A prep step's badge: it can be done the day before in Today's hour, or must be. */
+export function PrepBadge({ step }: { step: RecipeStep }) {
+  return (
+    <small className="w-max rounded-full bg-evening-soft px-2.5 py-0.5 text-xs font-semibold text-evening">
+      {step.needs_night_before ? 'Needs the night before' : 'Can be done the day before'}
+    </small>
   );
 }

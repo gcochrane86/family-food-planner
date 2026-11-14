@@ -71,7 +71,7 @@ export function stepPhotoPrompt(recipeTitle: string, steps: PromptStep[], index:
     `The step: ${step.title}. ${step.body.replace(/\*\*/g, '')}`,
     ingredients.length ? `Only these ingredients are in it so far: ${ingredients.join(', ')}.` : '',
     prep
-      ? 'This is made the night before: show it finished in a glass jar or container.'
+      ? 'This is made ahead: show it finished in a glass jar or container.'
       : `Show the food at this moment ${container(step.machine)}.`,
     rules,
   ].filter(Boolean).join(' ');

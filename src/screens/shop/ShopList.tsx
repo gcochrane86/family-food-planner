@@ -7,7 +7,7 @@ import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../
 import SparList from './SparList';
 import { packsNeeded } from '../../lib/packs';
 import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
-import { switchClasses } from '../../lib/prepAhead';
+import { switchClasses } from '../../lib/switchClasses';
 import { parseBatch } from '../../lib/batch';
 import { parseRoastChoice, roastPartSlugs } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';

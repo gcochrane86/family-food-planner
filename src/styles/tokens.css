@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tokens from mockup/family-food-planner.html. Slot colours: breakfast = yolk, lunch = lunch (blue, so it stands apart from dinner's green), dinner = accent, 8pm prep = evening. */
+/* Tokens from mockup/family-food-planner.html. Slot colours: breakfast = yolk, lunch = lunch (blue, so it stands apart from dinner's green), dinner = accent, prep ahead = evening. */
 :root {
   --bg: #F3F4EF; --surface: #FFFFFF; --surface-2: #E9ECE4; --ink: #1B211D; --muted: #5D6760; --line: #D9DDD3;
   --accent: #2D6A3E; --accent-ink: #FFFFFF; --accent-soft: #DCEADF;

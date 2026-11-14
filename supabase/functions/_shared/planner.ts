@@ -199,7 +199,7 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const turns: string[] = homeTurns.length ? homeTurns : list;
   dates.forEach((date, i) => {
     const office = input.officeDays.includes(i);
-    // Overnight oats on office days (made at 8pm the night before) when it's one of your breakfasts; other days
+    // Overnight oats on office days (made in Today's hour the night before) when it's one of your breakfasts; other days
     // take turns through the rest of your list.
     const breakfast = office && hasOvernight ? 'Overnight oats' : turns[homeBreakfasts++ % turns.length];
     slots.push({

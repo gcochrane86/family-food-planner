@@ -6,7 +6,7 @@ import type { Machine, Phase, RecipeDetail, RecipeIngredient, RecipeStep } from 
 import { useAsync } from '../settings/useAsync';
 
 const PHASES: { value: Phase; label: string }[] = [
-  { value: 'prep_8pm', label: 'Night before' }, { value: 'finish', label: 'On the night' }, { value: 'reheat', label: 'Reheat' },
+  { value: 'prep_8pm', label: 'Prep ahead' }, { value: 'finish', label: 'On the day' }, { value: 'reheat', label: 'Reheat' },
 ];
 const MACHINES: { value: Machine; label: string }[] = [
   { value: 'tm7', label: 'TM7' }, { value: 'apo', label: 'Anova oven' }, { value: 'hy24', label: 'HY air-fryer' },
@@ -126,6 +126,12 @@ export default function RecipeEditor() {
               </label>
               <label className={label}>Step title<input className={input} value={s.title} onChange={(e) => setStep(s.key, { title: e.target.value })} /></label>
             </div>
+            {s.phase === 'prep_8pm' && (
+              <label className="flex items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" checked={!!s.needs_night_before} onChange={(e) => setStep(s.key, { needs_night_before: e.target.checked })} />
+                Needs the night before <span className="font-normal text-muted">(can't wait until the day's hour)</span>
+              </label>
+            )}
             <label className={label}>What to do<textarea className={`${input} min-h-20`} value={s.body} onChange={(e) => setStep(s.key, { body: e.target.value })} /></label>
             <div className="grid grid-cols-[1fr_1fr] gap-2 sm:grid-cols-[10rem_1fr_7rem]">
               <label className={label}>Machine

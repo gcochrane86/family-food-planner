@@ -58,27 +58,20 @@ test('steps read as one method by default, in cooking order', async () => {
   expect(screen.queryByRole('heading', { name: /night before/i })).not.toBeInTheDocument();
 });
 
-test('prep ahead splits out the steps you can do the night before, and is remembered', async () => {
+test('the recipe card has no prep ahead switch, and badges prep steps', async () => {
+  h.repo.getRecipe.mockImplementation(async () => ({ ...HONEY, steps: HONEY.steps.concat([{ ...HONEY.steps[0], id: 's-marinate', position: 2, title: 'Marinate', needs_night_before: true }]) }));
   open('r-honey');
-  const toggle = await screen.findByRole('switch', { name: 'Prep ahead' });
-  expect(toggle).toHaveAttribute('aria-checked', 'false');
-  await userEvent.click(toggle);
-  expect(within(screen.getByRole('region', { name: 'The night before' })).getByText('The bulk sauce')).toBeInTheDocument();
-  expect(within(screen.getByRole('region', { name: 'On the night' })).getByText('Rice on')).toBeInTheDocument();
-  expect(localStorage.getItem('ffp.prepAhead')).toBe('on');
-});
-
-test('no prep ahead switch when nothing can be done ahead', async () => {
-  open('r-doner');
-  await screen.findByRole('region', { name: 'Method' });
+  const method = await screen.findByRole('region', { name: 'Method' });
   expect(screen.queryByRole('switch', { name: 'Prep ahead' })).not.toBeInTheDocument();
+  expect(within(method).getByText('Can be done the day before')).toBeInTheDocument();
+  expect(within(method).getByText('Needs the night before')).toBeInTheDocument();
+  expect(screen.getByText('Prep ahead', { selector: 'dt' })).toBeInTheDocument();
+  expect(screen.getByText('On the day', { selector: 'dt' })).toBeInTheDocument();
 });
 
-test('both phases, machine badges and bold ingredients are shown', async () => {
-  localStorage.setItem('ffp.prepAhead', 'on');
+test('machine badges and bold ingredients are shown', async () => {
   open('r-honey');
-  expect(await screen.findByRole('heading', { name: 'The night before' })).toBeInTheDocument();
-  const finish = screen.getByRole('region', { name: 'On the night' });
+  const finish = await screen.findByRole('region', { name: 'Method' });
   expect(within(finish).getByText('Rice on')).toBeInTheDocument();
   expect(within(finish).getAllByText('TM7')[0]).toBeInTheDocument();
   expect(within(finish).getByText('20 min · 100°C / 210°F · speed 4')).toBeInTheDocument();

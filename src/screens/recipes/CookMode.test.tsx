@@ -11,7 +11,12 @@ vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../../lib/image')>()), resizeImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })) }));
 
-beforeEach(() => { h.repo = fakeRepo(); sessionStorage.clear(); localStorage.setItem('ffp.prepAhead', 'on'); });
+// Most tests walk tonight's own steps; the prep-ahead tests use the whole recipe.
+const ON_THE_DAY = { ...HONEY, steps: HONEY.steps.filter((s) => s.phase === 'finish') };
+beforeEach(() => {
+  h.repo = fakeRepo(); sessionStorage.clear();
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? ON_THE_DAY : null));
+});
 afterEach(() => { vi.useRealTimers(); });
 
 function open(query = '') {
@@ -35,11 +40,17 @@ test('starts on the first dinner step and moves through the steps', async () => 
   expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
 });
 
-test('the night before tab shows the prep steps', async () => {
+test('cook mode shows every step in one list, prep first with its badge, and no prep ahead switch', async () => {
+  h.repo.getRecipe.mockResolvedValue(HONEY);
   open();
-  await screen.findByRole('heading', { name: 'Rice on' });
-  await userEvent.click(screen.getByRole('tab', { name: 'Night before' }));
-  expect(screen.getByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
+  expect(screen.getByText('Can be done the day before')).toBeInTheDocument();
+  expect(screen.getByText(/Step 1 of 3/)).toBeInTheDocument();
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  expect(screen.queryByRole('switch', { name: 'Prep ahead' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  expect(screen.queryByText('Can be done the day before')).not.toBeInTheDocument();
 });
 
 test('Done on the last step goes back to the recipe', async () => {
@@ -71,9 +82,9 @@ test('a step without its own photo shows the main photo; a generated photo is la
   const steps = HONEY.steps.map((s) => (s.id === 's-sauce' ? { ...s, image_path: 'h1/steps/gen.jpg', image_source: 'generated' as const } : s));
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', steps });
   open();
-  expect(await screen.findByRole('img', { name: HONEY.title })).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('tab', { name: 'Night before' }));
-  expect(screen.getByRole('img', { name: 'Photo of this step' })).toBeInTheDocument();
+  expect(await screen.findByRole('img', { name: 'Photo of this step' })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.getByRole('img', { name: HONEY.title })).toBeInTheDocument();
 });
 
 test('adding a step photo lives in the cook mode settings menu', async () => {
@@ -87,7 +98,7 @@ test('adding a step photo lives in the cook mode settings menu', async () => {
 
 
 test('make a new photo from cook mode: your description, the cost, then progress and the new photo', async () => {
-  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg' });
+  h.repo.getRecipe.mockResolvedValue({ ...ON_THE_DAY, hero_image_path: 'h1/hero/r-honey.jpg' });
   let release = () => {};
   const held = new Promise<void>((r) => { release = r; });
   h.repo.generateStepPhoto.mockImplementationOnce(async () => { await held; return 'h1/steps/new.jpg'; });
@@ -107,7 +118,7 @@ test('make a new photo from cook mode: your description, the cost, then progress
 });
 
 test('a new photo over your own photo warns first and replaces it', async () => {
-  const steps = HONEY.steps.map((s) => (s.id === 's-rice' ? { ...s, image_path: 'h1/steps/mine.jpg', image_source: 'own' as const } : s));
+  const steps = ON_THE_DAY.steps.map((s) => (s.id === 's-rice' ? { ...s, image_path: 'h1/steps/mine.jpg', image_source: 'own' as const } : s));
   h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', steps });
   open();
   await screen.findByRole('heading', { name: 'Rice on' });
@@ -135,18 +146,6 @@ test('swiping moves between steps', async () => {
 });
 
 
-test('with prep ahead off, cook mode walks every step in order, and the switch splits them', async () => {
-  localStorage.removeItem('ffp.prepAhead');
-  open();
-  expect(await screen.findByRole('heading', { name: 'The bulk sauce' })).toBeInTheDocument();
-  expect(screen.getByText(/Step 1 of 3/)).toBeInTheDocument();
-  expect(screen.queryByRole('tab')).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
-  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('switch', { name: 'Prep ahead' }));
-  expect(screen.getByRole('tab', { name: 'On the night' })).toHaveAttribute('aria-selected', 'true');
-});
-
 test("each step lists what it uses, scaled to the portions you picked on the recipe", async () => {
   open('?portions=3');
   await screen.findByRole('heading', { name: 'Rice on' });
@@ -168,8 +167,12 @@ test("from a day with tonight's version, cook mode shows the changed step", asyn
   h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === NEXT_WEEK.week.week_start
     ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, version: HONEY_VERSION } : s)) }
     : { week: null, slots: [] }));
+  // Tonight's version is of the whole recipe, prep step first.
+  h.repo.getRecipe.mockResolvedValue(HONEY);
   open('?portions=3&day=2026-10-19&slot=dinner');
-  expect(await screen.findByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  await screen.findByRole('heading', { name: /./, level: 1 });
+  while (!screen.queryByRole('heading', { name: 'Rice on' })) await userEvent.click(screen.getByRole('button', { name: 'Next step' }));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
   expect(screen.getByText(/twice and start/)).toBeInTheDocument();
   expect(screen.getByText('Changed tonight')).toBeInTheDocument();
   expect(screen.getByText(/Tonight's version: Turkey instead of chicken/)).toBeInTheDocument();
