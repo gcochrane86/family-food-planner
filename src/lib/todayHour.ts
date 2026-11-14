@@ -180,7 +180,8 @@ export function planHour(input: HourInput): HourPlan {
       dinnerEnd = Math.max(dinnerEnd, slot.end);
     }
   }
-  const endAt = input.tonight ? Math.max(plateAt, dinnerEnd) : plateAt;
+  // Plating up is when the dinner is ready: extras fit into its waits, the rest come after.
+  const endAt = input.tonight ? dinnerEnd : plateAt;
 
   // 4. Extras into the waits before plating up, each chain in order; the rest of a chain comes after plating up.
   const bowls = Math.max(input.tm7Bowls, input.tm7Machines);
@@ -216,7 +217,7 @@ export function planHour(input: HourInput): HourPlan {
   for (const { ci, rest } of later) {
     let earliest = tail;
     for (const e of rest) {
-      const placed = place(e, earliest, Number.MAX_SAFE_INTEGER, slots, input.tm7Machines, bowls, ci);
+      const placed = place(e, earliest, Number.MAX_SAFE_INTEGER, slots, input.tm7Machines, bowls, ci, true);
       if (placed) earliest = put(e, placed, ci);
     }
   }
@@ -327,7 +328,7 @@ const overlaps = (a: number, b: number, s: { start: number; end: number }) => a 
 
 /** The earliest time an extra fits: you're free (for its whole length, or just to set a machine going), its machine
  *  is free, and with one TM7 bowl there's time to rinse it between jobs. */
-function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machines: number, bowls: number, chain: number):
+function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machines: number, bowls: number, chain: number, served = false):
   { at: number; rinseBefore: number | null; rinseAfter: number | null; afterDinner: boolean } | null {
   // With one bowl, tonight's dinner holds the bowl from its first TM7 step to its last.
   const dinnerTm7 = slots.filter((s) => s.machine === 'tm7' && s.chain === 'dinner');
@@ -352,7 +353,8 @@ function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machine
         const next = tm7.filter((s) => s.start >= end).sort((a, b) => a.start - b.start)[0];
         // A recipe's own TM7 steps follow on in the bowl, so there's no rinse between them.
         if (before && before.chain !== chain) {
-          afterDinner = before.chain === 'dinner';
+          // Before plating up, the dinner is still in the bowl; after, it's served.
+          afterDinner = before.chain === 'dinner' && !served;
           if (t - before.end < RINSE || !free(t - RINSE, t)) continue;
           rinseBefore = t - RINSE;
         }

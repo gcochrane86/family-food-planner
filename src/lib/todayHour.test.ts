@@ -93,14 +93,18 @@ describe('planHour', () => {
 
   it('a TM7 prep job waits for the bowl, with a rinse in between, when there is one bowl', () => {
     const plan = planHour(input({ aim: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
-    expect(titled(plan, 'Rinse the TM7 bowl')).toMatchObject({ from: 46, length: 2, kind: 'clean' });
-    expect(titled(plan, 'Make the sauce')).toMatchObject({ from: 48, length: 10 });
+    // Tonight's TM7 dinner runs to plating up, so tomorrow's sauce comes after, with a rinse first.
+    const plate = titled(plan, 'Plate up')!.from;
+    const rinse = titled(plan, 'Rinse the TM7 bowl')!;
+    expect(rinse).toMatchObject({ length: 2, kind: 'clean' });
+    expect(rinse.from).toBeGreaterThanOrEqual(plate);
+    expect(titled(plan, 'Make the sauce')).toMatchObject({ from: rinse.from + 2, length: 10 });
   });
 
   it('two bowls need no rinse; two machines can run together', () => {
     const two = planHour(input({ aim: 75, tm7Bowls: 2, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
     expect(titled(two, 'Rinse')).toBeUndefined();
-    expect(titled(two, 'Make the sauce')).toMatchObject({ from: 46 });
+    expect(titled(two, 'Make the sauce')!.from).toBeGreaterThanOrEqual(titled(two, 'Plate up')!.from);
     const machines = planHour(input({ tm7Machines: 2, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
     expect(titled(machines, 'Make the sauce')).toMatchObject({ from: 26 });
     expect(titled(machines, 'Rinse')).toBeUndefined();
@@ -146,7 +150,7 @@ describe('planHour', () => {
   it("packs tomorrow's leftovers lunch straight after plating up", () => {
     const plan = planHour(input({ tomorrow: { lunch: { kind: 'leftovers', title: 'Chicken Curry' } } }));
     const i = plan.steps.findIndex((s) => s.title === 'Plate up');
-    expect(plan.steps[i]).toMatchObject({ from: 50 });
+    expect(plan.steps[i].from).toBe(Math.max(...plan.steps.filter((x) => x.kind === 'cook').map((x) => x.from + x.length)));
     expect(plan.steps[i + 1]).toMatchObject({ title: "Pack tomorrow's lunch: Chicken Curry", kind: 'extra' });
     expect(plan.steps.at(-1)!.title).toBe('Wipe down, load and start the dishwasher');
   });
@@ -183,9 +187,29 @@ describe('review fixes', () => {
     expect(sauce.from >= fin.from + fin.length).toBe(true);
   });
 
-  it("the rinse after tonight's TM7 cooking says to tip the dinner out first", () => {
-    const plan = planHour(input({ aim: 75, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+  it("the rinse after tonight's TM7 cooking, while the dinner is still cooking, says to tip it out first", () => {
+    const TM7_THEN_OVEN = recipe('bake', 'Sauce Bake', [], [
+      step('finish', 1, 0, 'Sauce', 'Make the sauce.', 'tm7', '5 min · 100°C', 5),
+      step('finish', 2, null, 'Bake', 'Bake it.', 'oven', '30 min · 200°C', 30),
+    ]);
+    const plan = planHour(input({ tonight: { recipe: TM7_THEN_OVEN, portions: 4 }, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    expect(titled(plan, 'Rinse the TM7 bowl')!.from).toBeLessThan(titled(plan, 'Plate up')!.from);
     expect(titled(plan, 'Rinse the TM7 bowl')!.body).toMatch(/Tip tonight's dinner into a warm dish/);
+  });
+
+  it('on a long day, plating up comes when the dinner is ready, not at the end of the day', () => {
+    const plan = planHour(input({ aim: 120, tomorrow: null }));
+    const cookEnd = Math.max(...plan.steps.filter((x) => x.kind === 'cook').map((x) => x.from + x.length));
+    expect(titled(plan, 'Plate up')!.from).toBe(cookEnd);
+    expect(plan.total).toBeLessThan(90);
+  });
+
+  it("a rinse after plating up doesn't mention tonight's dinner", () => {
+    const plan = planHour(input({ aim: 30, tomorrow: { dinner: { recipe: STEW(TM7_PREP), portions: 4 } } }));
+    const plate = titled(plan, 'Plate up')!.from;
+    const late = plan.steps.filter((x) => x.title === 'Rinse the TM7 bowl' && x.from >= plate);
+    expect(late.length).toBeGreaterThan(0);
+    for (const r of late) expect(r.body).not.toMatch(/tonight's dinner/);
   });
 
   it("what was chopped yesterday shows as a fridge box to check, not as chopping", () => {
