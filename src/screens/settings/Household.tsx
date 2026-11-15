@@ -7,6 +7,7 @@ import { repo } from '../../lib/repo';
 import type { Member, MemberKind } from '../../lib/types';
 import { button, card, copyText, input, Page, primary } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
+import type { Macro, Targets } from '../../../supabase/functions/_shared/balance.ts';
 
 export function formatPortions(n: number): string {
   return Number.isInteger(n) ? n.toFixed(1) : String(Number(n.toFixed(2)));
@@ -137,6 +138,11 @@ export default function Household() {
             </div>
             {fieldError[m.id] && <p className="text-sm font-semibold text-warn">{fieldError[m.id]}</p>}
             {nameError[m.id] && <p className="text-sm font-semibold text-warn">{nameError[m.id]}</p>}
+            <DailyTargets m={m} onSave={async (targets) => {
+              const updated = { ...m, targets };
+              setMembers(members.map((x) => (x.id === m.id ? updated : x)));
+              try { await repo.saveMember(updated); } catch { setMembers(members); setBanner(SAVE_ERROR); }
+            }} />
             <div>
               {confirmRemove === m.id ? (
                 <span className="flex flex-wrap gap-2">
@@ -206,5 +212,40 @@ export default function Household() {
         </div>
       )}
     </Page>
+  );
+}
+
+const TARGETS: [Macro, string, string][] = [
+  ['kcal', 'Calories', 'kcal'], ['protein_g', 'Protein', 'g'], ['fat_g', 'Fat', 'g'], ['sat_fat_g', 'Saturated fat', 'g'],
+  ['carbs_g', 'Carbohydrate', 'g'], ['sugars_g', 'Sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
+];
+
+/** A person's daily targets: each saved when its box is left; an empty box clears it. */
+function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promise<void> }) {
+  const [text, setText] = useState<Record<string, string>>({});
+  const value = (k: Macro) => text[k] ?? (m.targets?.[k] != null ? String(m.targets[k]) : '');
+  function commit(k: Macro) {
+    const raw = text[k];
+    if (raw === undefined) return;
+    const n = raw.trim() === '' ? null : Number(raw.replace(',', '.'));
+    if (n !== null && (!Number.isFinite(n) || n < 0)) return;
+    const next: Targets = { ...(m.targets ?? {}) };
+    if (n === null) delete next[k]; else next[k] = n;
+    if (JSON.stringify(next) !== JSON.stringify(m.targets ?? {})) void onSave(next);
+  }
+  return (
+    <details className="text-sm">
+      <summary className="cursor-pointer font-semibold text-accent">Daily targets</summary>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {TARGETS.map(([k, label, unit]) => (
+          <label key={k} className="grid gap-1">
+            <span className="text-muted">{label} ({unit})</span>
+            <input inputMode="decimal" aria-label={`${m.name} daily ${label.toLowerCase()} (${unit})`} className={input} value={value(k)}
+              onChange={(e) => setText((t) => ({ ...t, [k]: e.target.value }))} onBlur={() => commit(k)} />
+          </label>
+        ))}
+      </div>
+      <p className="m-0 mt-1 text-muted">Protein and fibre: at least. Sugars, saturated fat and salt: at most. The rest: about.</p>
+    </details>
   );
 }

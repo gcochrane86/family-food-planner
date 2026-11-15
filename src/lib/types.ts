@@ -1,4 +1,4 @@
-import type { Nutrition } from '../../supabase/functions/_shared/balance.ts';
+import type { Nutrition, Targets } from '../../supabase/functions/_shared/balance.ts';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import type { SlotVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 export type { SlotVersion };
@@ -12,6 +12,8 @@ export interface Member {
   kind: MemberKind;
   birthdate: string | null;
   portion_weight: number;
+  /** Daily targets (per-person macros, migration 0024): calories and grams; missing ones aren't compared. */
+  targets?: Targets | null;
 }
 
 /** weekday: 0 = Monday … 6 = Sunday */

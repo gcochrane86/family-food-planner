@@ -1,7 +1,7 @@
 import { MemoryRouter } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { fakeRepo, TODDLER, type FakeRepo } from '../../test/fakeRepo';
+import { fakeRepo, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
 import Household from './Household';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
@@ -86,4 +86,15 @@ test('a failed save puts the old weight back and shows an error', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save");
   expect(input).toHaveValue('0.5');
   expect(screen.getByText('Household dinner = 3.0 portions')).toBeInTheDocument();
+});
+
+test("each person's daily targets save when a box is left; an empty box clears that target", async () => {
+  render(<Household />, { wrapper: MemoryRouter });
+  const protein = await screen.findByLabelText('You daily protein (g)');
+  await userEvent.type(protein, '90');
+  await userEvent.tab();
+  expect(h.repo.saveMember).toHaveBeenLastCalledWith(expect.objectContaining({ id: YOU.id, targets: { protein_g: 90 } }));
+  await userEvent.clear(protein);
+  await userEvent.tab();
+  expect(h.repo.saveMember).toHaveBeenLastCalledWith(expect.objectContaining({ id: YOU.id, targets: {} }));
 });

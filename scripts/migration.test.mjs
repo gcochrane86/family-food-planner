@@ -736,3 +736,9 @@ test('0023: snack recipes with nutrition and keeping days; morning and afternoon
   expect(await one(OWNER, `select count(*)::int from meal_slots where slot = 'snack_am'`)).toBe(2);
   await expect(as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) select id, '2026-10-28', 'snack_lunch', 'cook' from plan_weeks limit 1`)).rejects.toThrow();
 });
+
+test("0024: each member's daily targets", async () => {
+  const { hid } = await weekRequest(OWNER);
+  const mid = await one(OWNER, `insert into members (household_id, name, kind, portion_weight, targets) values ('${hid}', 'A', 'adult', 1.25, '{"kcal": 2000, "protein_g": 90}') returning id`);
+  expect(await one(OWNER, `select targets from members where id = '${mid}'`)).toEqual({ kcal: 2000, protein_g: 90 });
+});
