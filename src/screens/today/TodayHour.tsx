@@ -60,6 +60,9 @@ export default function TodayHour() {
   const guideFor = (name: string, qty: string, note: string | null) => (cutGuide(name, qty, note) ? () => setCutting({ name, qty, note }) : undefined);
   // The step being changed for this day (Change for this day), if any.
   const [changing, setChanging] = useState<HourStep | null>(null);
+  // Change for this day and Edit recipe stay out of the way until the step's title is tapped; each step starts closed.
+  const [showChanges, setShowChanges] = useState(false);
+  useEffect(() => setShowChanges(false), [index]);
   // What tonight's prep was before "I didn't get to it", so Undo puts that back (ahead when not known).
   const [prepBefore, setPrepBefore] = useState<PrepAhead>('ahead');
   // A photo being made or saved in the background, shown as a bar along the bottom until it's done.
@@ -195,7 +198,14 @@ export default function TodayHour() {
               : 'mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10'}>
             <div className="grid content-start gap-3">
             <span className="font-mono text-3xl font-bold tabular-nums text-[#3F4A43]">{step.length} min</span>
-            <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
+            {data && stepRecipeId(step, data.dinners) ? (<>
+              <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">
+                <button type="button" aria-expanded={showChanges} onClick={() => setShowChanges((v) => !v)} className="text-left">{step.title}</button>
+              </h1>
+              {showChanges && <StepChanges step={step} dinners={data.dinners} canChange={!isPast} onChange={() => setChanging(step)} />}
+            </>) : (
+              <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">{step.title}</h1>
+            )}
             {step.kit && <span className="font-mono text-[clamp(22px,3vw,32px)] font-bold leading-tight text-[#1B211D]">{withFahrenheit(step.kit)}</span>}
             {step.kind === 'chop' && data ? (
               <div className="grid gap-4">
@@ -240,7 +250,6 @@ export default function TodayHour() {
                 ))}
               </ul>
             )}
-            {data && <StepChanges step={step} dinners={data.dinners} canChange={!isPast} onChange={() => setChanging(step)} />}
             </div>
             <div className={centred(step) ? 'grid w-full max-w-4xl justify-items-center' : ''}><StepPictures step={step} onHold={setMenu} big={centred(step)} icons={step.kind === 'chop' ? chopIcons(data) : []} /></div>
           </section>
@@ -491,9 +500,13 @@ type Dinner = { slot: MealSlot; saved: RecipeDetail };
 const dayVersion = (d: Dinner): SlotVersion | null => { const v = parseVersion(d.slot.version); return v && v.based_on === d.saved.id ? v : null; };
 
 /** Under a recipe step: change it for this day (a dinner step), or edit its recipe for good. */
+/** The recipe a step comes from, if any (generated steps such as the wipe-down have none). */
+const stepRecipeId = (step: HourStep, dinners: Record<string, Dinner>): string | undefined =>
+  (step.source ? dinners[step.source.date] : undefined)?.saved.id ?? step.photos.find((p) => p.step)?.step?.recipeId;
+
 function StepChanges({ step, dinners, canChange, onChange }: { step: HourStep; dinners: Record<string, Dinner>; canChange: boolean; onChange: () => void }) {
   const dinner = step.source ? dinners[step.source.date] : undefined;
-  const recipeId = dinner?.saved.id ?? step.photos.find((p) => p.step)?.step?.recipeId;
+  const recipeId = stepRecipeId(step, dinners);
   if (!recipeId) return null;
   return (
     <div className="flex flex-wrap gap-3 print:hidden">

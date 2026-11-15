@@ -544,6 +544,7 @@ describe('changing the hour for one day', () => {
     open();
     await user().click(await screen.findByRole('button', { name: 'Start' }));
     while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+    await user().click(screen.getByRole('button', { name: 'Rice on' }));
     await user().click(screen.getByRole('button', { name: 'Change for this day' }));
     const sheet = screen.getByRole('dialog', { name: 'Change for this day: Rice on' });
     const timer = within(sheet).getByRole('spinbutton', { name: /Timer/ });
@@ -561,7 +562,18 @@ describe('changing the hour for one day', () => {
     await user().click(await screen.findByRole('button', { name: 'Start' }));
     expect(screen.queryByRole('button', { name: 'Change for this day' })).not.toBeInTheDocument();
     while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
+    const title = screen.getByRole('button', { name: 'Rice on' });
+    expect(title).toHaveAttribute('aria-expanded', 'false');
+    await user().click(title);
+    expect(title).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('link', { name: 'Edit recipe' })).toHaveAttribute('href', '/recipes/r-honey/edit');
+    await user().click(title);
+    expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument();
+    await user().click(title);
+    await user().click(screen.getByRole('button', { name: 'Next' }));
+    await user().click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.queryByRole('link', { name: 'Edit recipe' })).not.toBeInTheDocument(); // closed again on another step
   });
 
   test("a day's changes show on the first page and can be undone", async () => {
