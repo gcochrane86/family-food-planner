@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { compareTargets, dayBalance, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
+import { compareTargets, dayBalance, mealEstimates, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
 
 const N = (o: Partial<Record<string, unknown>> = {}) => ({
   protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, ...o,
@@ -175,4 +175,20 @@ test("the markers are judged for an adult's share of each meal", () => {
   // Eggs & porridge is 28g a portion: 0.8 of it is under 25g, 1.25 of it is over.
   expect(dayBalance(D, day(), recipes, routines, { share: 0.8 }).breakfastProtein).toBe('low');
   expect(dayBalance(D, day({ breakfast: 'Overnight oats' }), recipes, routines, { share: 1.25 }).breakfastProtein).toBe('ok');
+});
+
+describe('each meal\'s estimate', () => {
+  test('breakfast, lunch, dinner and snacks, by slot', () => {
+    const m = mealEstimates(D, day({ snacks: ['hummus'] }), recipes, routines);
+    expect(m.breakfast?.protein_g).toBe(28);
+    expect(m.lunch?.protein_g).toBe(30);
+    expect(m.dinner?.protein_g).toBe(35);
+    expect(m.snack_am?.protein_g).toBe(6);
+    expect(m.snack_pm).toBeUndefined();
+  });
+
+  test('a meal without an estimate is null, a night out has no dinner estimate', () => {
+    expect(mealEstimates(D, day({ dinner: 'nothing' }), recipes, routines).dinner).toBeNull();
+    expect(mealEstimates(D, day({ dinner: null, dinnerMode: 'out' }), recipes, routines).dinner).toBeUndefined();
+  });
 });

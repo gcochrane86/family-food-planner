@@ -105,6 +105,18 @@ function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: R
   return { breakfast, lunch, dinner, snacks, out };
 }
 
+/** Each meal's estimate per serving, by slot: undefined where there's nothing to eat (or a night out), null where
+ *  there's something without an estimate. */
+export function mealEstimates(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}):
+  Partial<Record<'breakfast' | 'lunch' | 'dinner' | (typeof SNACK_SLOTS)[number], Nutrition | null>> {
+  const p = parts(date, slots, recipes, routines, opts);
+  const snack = (k: (typeof SNACK_SLOTS)[number]) => {
+    const s = slots.find((x) => x.date === date && x.slot === k);
+    return s?.recipe_id ? recipeEstimate(recipes, s.recipe_id) : undefined;
+  };
+  return { breakfast: p.breakfast, lunch: p.lunch, dinner: p.out ? undefined : p.dinner, snack_am: snack('snack_am'), snack_pm: snack('snack_pm') };
+}
+
 /** How the day measures up: breakfast protein, veg and fruit, healthy fats and fibre, each ok, low or unknown. */
 export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): DayBalance {
   const p = parts(date, slots, recipes, routines, opts);

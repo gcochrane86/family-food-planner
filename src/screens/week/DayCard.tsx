@@ -11,6 +11,7 @@ import { homeLunchChoice, leftoverLunchPortions, lunchLeftover } from '../../lib
 import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { formatPortions } from '../settings/Household';
 import { addDays, type WeekState } from './useWeek';
+import { MealNumbers } from './Balance';
 import MealPhoto from './MealPhoto';
 import { HoldCard, OptionsSheet } from './MealCard';
 import MealOptions, { type OptionGroup } from './MealOptions';
@@ -143,10 +144,13 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const nextDayName = DAY[new Date(`${date}T00:00:00Z`).getUTCDay() % 7];
 
   const hint = <span className="text-xs font-semibold text-muted">Hold for options</span>;
-  const caption = (title: string, sub?: string, withHint = true) => (
+  const meals = w.meals(date);
+  const numbers = (meal: 'breakfast' | 'lunch' | 'dinner') => <MealNumbers n={meals[meal]} share={w.adultShare} />;
+  const caption = (title: string, sub?: string, withHint = true, extra?: React.ReactNode) => (
     <span className="grid gap-0.5 px-4 py-2.5">
       <b className="font-display text-lg leading-tight">{title}</b>
       {sub && <span className="text-sm text-muted">{sub}</span>}
+      {extra}
       {withHint && hint}
     </span>
   );
@@ -161,14 +165,14 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       dinnerCard = (
         <HoldCard label={`Dinner: ${what}`} to={to} onHold={open}>
           <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
-          {caption(what, `${dinnerRecipe.title} and ${roast.sides.length} side${roast.sides.length === 1 ? '' : 's'} · tap for the plan`)}
+          {caption(what, `${dinnerRecipe.title} and ${roast.sides.length} side${roast.sides.length === 1 ? '' : 's'} · tap for the plan`, true, numbers('dinner'))}
         </HoldCard>
       );
     } else if (dinner.mode === 'cook' && dinnerRecipe) {
       dinnerCard = (
         <HoldCard label={`Dinner: ${dinnerRecipe.title}`} to={`/recipes/${dinnerRecipe.id}?day=${date}&slot=dinner`} onHold={open}>
           <MealPhoto recipe={dinnerRecipe} alt={dinnerRecipe.title} width={PHOTO_LARGE} className="aspect-[16/9]" />
-          {caption(dinnerRecipe.title, `${formatPortions(dinner.portions ?? 0)} portions${lunchExtra > 0 ? ` + ${formatPortions(lunchExtra)} for ${nextDayName}'s lunch` : ''}${dinner.guests ? ` · ${dinner.guests} guest${dinner.guests === 1 ? '' : 's'}` : ''} · ${dinnerRecipe.finish_minutes} min`)}
+          {caption(dinnerRecipe.title, `${formatPortions(dinner.portions ?? 0)} portions${lunchExtra > 0 ? ` + ${formatPortions(lunchExtra)} for ${nextDayName}'s lunch` : ''}${dinner.guests ? ` · ${dinner.guests} guest${dinner.guests === 1 ? '' : 's'}` : ''} · ${dinnerRecipe.finish_minutes} min`, true, numbers('dinner'))}
         </HoldCard>
       );
     } else {
@@ -191,7 +195,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       lunchCard = (
         <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined} onHold={() => setSheet('lunch')}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
-          {caption(name)}
+          {caption(name, undefined, true, numbers('lunch'))}
         </HoldCard>
       );
     } else {
@@ -202,7 +206,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       lunchCard = (
         <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
-          {caption(name, undefined, false)}
+          {caption(name, undefined, false, numbers('lunch'))}
         </HoldCard>
       );
     }
@@ -212,7 +216,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const breakfastCard = breakfast && (
     <HoldCard label={`Breakfast: ${breakfastName}`} to={breakfastRecipe ? `/recipes/${breakfastRecipe.id}?day=${date}&slot=breakfast` : undefined} onHold={() => setSheet('breakfast')}>
       <MealPhoto recipe={breakfastRecipe} alt={breakfastName} className="aspect-[16/9]" />
-      {caption(breakfastName)}
+      {caption(breakfastName, undefined, true, numbers('breakfast'))}
     </HoldCard>
   );
 

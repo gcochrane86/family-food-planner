@@ -1236,6 +1236,15 @@ describe('each person against their targets', () => {
     expect(within(table).getByRole('row', { name: /^Calories/ })).toHaveTextContent('1875 / 2000');
   });
 
+  test("each meal on the day sheet shows its numbers for an adult's share", async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Monday 19');
+    const dialog = screen.getByRole('dialog');
+    const lines = within(dialog).getAllByText(/^Each adult:/);
+    expect(lines).toHaveLength(3); // dinner, lunch, breakfast
+    expect(lines[0]).toHaveTextContent('Each adult: 625 kcal · 25g protein · 25g fat · 63g carbs · 13g sugars · 6g fibre');
+  });
+
   test('a tile says how many people are off target', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
     expect(within(await tile('Monday 19')).getByText(/Under protein: 1/)).toBeInTheDocument();

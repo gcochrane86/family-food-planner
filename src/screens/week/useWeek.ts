@@ -14,7 +14,7 @@ import {
 import { londonParts, nextMonday } from '../../../supabase/functions/_shared/schedule.ts';
 import { mergePlan as merge, toProposed } from '../../../supabase/functions/_shared/slotMerge.ts';
 import { useAsync } from '../settings/useAsync';
-import { compareTargets, dayBalance, parseNutrition, personDay, weekBalance, type DayBalance, type Macro, type TargetState, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
+import { compareTargets, dayBalance, mealEstimates, parseNutrition, personDay, weekBalance, type DayBalance, type Macro, type TargetState, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
 
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -172,6 +172,9 @@ export function useWeek() {
     officeDays: input?.officeDays ?? [],
     /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
     balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare }) : null),
+    /** Each meal's estimate per serving, by slot (empty until any recipe has an estimate). */
+    meals: (date: string) => (hasEstimates ? mealEstimates(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : {}),
+    adultShare,
     /** Each person's day against their own targets (empty until any recipe has an estimate). */
     people: (date: string): { id: string; name: string; totals: Partial<Record<Macro, number>>; unknown: Macro[]; states: Partial<Record<Macro, TargetState>>; targets: Partial<Record<Macro, number>> }[] =>
       (hasEstimates ? (data?.members ?? []).map((m: Member) => {

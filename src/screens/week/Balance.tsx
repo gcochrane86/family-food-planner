@@ -1,4 +1,4 @@
-import type { Macro, Mark, TargetState } from '../../../supabase/functions/_shared/balance.ts';
+import type { Macro, Mark, Nutrition, TargetState } from '../../../supabase/functions/_shared/balance.ts';
 import { addDays } from './useWeek';
 import type { WeekState } from './useWeek';
 
@@ -28,7 +28,7 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
       {snacks.map((s) => {
         const r = w.recipes.get(s.recipe_id!);
         const made = s.mode === 'cook' ? 'made today' : s.source_date ? `made ${s.source_date < w.weekStart ? 'Sunday' : weekdayOf(s.source_date)}` : '';
-        return <p key={s.slot} className="m-0 text-sm">{SNACK[s.slot as keyof typeof SNACK]}: <b>{r?.title ?? 'Snack'}</b>{made && <span className="text-muted"> · {made}</span>}</p>;
+        return <p key={s.slot} className="m-0 grid text-sm"><span>{SNACK[s.slot as keyof typeof SNACK]}: <b>{r?.title ?? 'Snack'}</b>{made && <span className="text-muted"> · {made}</span>}</span><MealNumbers n={w.meals(date)[s.slot as keyof typeof SNACK]} share={1} /></p>;
       })}
       {rows.length > 0 && (
         <ul className="m-0 grid list-none gap-1 p-0 text-sm">
@@ -113,4 +113,16 @@ export function offTargets(people: ReturnType<WeekState['people']>): string | nu
     }
   }
   return parts.length ? parts.slice(0, 3).join(' · ') : null;
+}
+
+/** Under a meal: its numbers for one person's share, e.g. "Each adult: 625 kcal · 25g protein · …". */
+export function MealNumbers({ n, share, who = 'Each adult' }: { n: Nutrition | null | undefined; share: number; who?: string }) {
+  if (n === undefined) return null;
+  if (n === null) return <span className="text-[13px] text-muted">No estimate yet</span>;
+  const g = (v: number | undefined, label: string) => (typeof v === 'number' ? `${Math.round(v * share)}g ${label}` : null);
+  const parts = [
+    typeof n.kcal === 'number' ? `${Math.round(n.kcal * share)} kcal` : null,
+    g(n.protein_g, 'protein'), g(n.fat_g, 'fat'), g(n.carbs_g, 'carbs'), g(n.sugars_g, 'sugars'), g(n.fibre_g, 'fibre'),
+  ].filter(Boolean);
+  return <span className="text-[13px] text-muted tabular-nums">{who}: {parts.join(' · ')}</span>;
 }
