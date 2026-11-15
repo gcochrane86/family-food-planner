@@ -24,7 +24,7 @@ import Kitchen from './screens/settings/Kitchen';
 import SettingsHome from './screens/settings/SettingsHome';
 import Shopping from './screens/settings/Shopping';
 import Staples from './screens/settings/Staples';
-import WeekPattern from './screens/settings/WeekPattern';
+import UsualWeek from './screens/settings/UsualWeek';
 import { isTablet, useWakeLock } from './lib/wakeLock';
 import { askToKeepStorage, keepPhotos } from './lib/photoCache';
 import { PHOTO_LARGE } from './lib/photoSizes';
@@ -85,7 +85,7 @@ export function AppRoutes() {
       <Route path="/settings">
         <Route index element={<SettingsHome />} />
         <Route path="household" element={<Household />} />
-        <Route path="week" element={<WeekPattern />} />
+        <Route path="week" element={<UsualWeek />} />
         <Route path="kitchen" element={<Kitchen />} />
         <Route path="rules" element={<HouseRules />} />
         <Route path="planning" element={<PlanningRules />} />

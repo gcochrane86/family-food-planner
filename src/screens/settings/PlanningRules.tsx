@@ -64,7 +64,7 @@ export default function PlanningRules() {
                 </li>
               ))}
             </ol>
-            <p className="m-0 text-sm text-muted">Change the weeknight time limit and new recipes per week in Planning &amp; shopping, and office days in Office days.</p>
+            <p className="m-0 text-sm text-muted">Change office days, prep days, each day's cooking time, the weeknight time limit and new recipes per week in Usual week, or for one week when you plan it.</p>
           </section>
         </>
       )}

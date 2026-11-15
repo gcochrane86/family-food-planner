@@ -65,11 +65,6 @@ export default function Shopping() {
       <form className={`${card} grid gap-5 p-4`} onSubmit={(e) => { e.preventDefault(); void save(); }}>
         <Segmented label="Plan length" value={form.default_plan_days} onChange={(v) => set('default_plan_days', v)}
           options={[{ value: 5, label: '5 days' }, { value: 7, label: '7 days' }]} />
-        <label className="grid gap-1.5 text-sm font-semibold">
-          Weekday dinner limit (minutes at dinner time)
-          <input id="dinner-limit" type="number" min={10} max={120} step={5} className={`${input} w-28`} value={form.weekday_dinner_max_min}
-            onChange={(e) => set('weekday_dinner_max_min', Number(e.target.value))} />
-        </label>
         <Segmented label="Deliveries per week" value={form.shops_per_week} onChange={setShops}
           options={[{ value: 1, label: '1' }, { value: 2, label: '2' }]} />
         {form.delivery_slots.map((slot, i) => (
@@ -96,11 +91,6 @@ export default function Shopping() {
           <input id="nectar" type="checkbox" className="h-5 w-5 accent-[var(--accent)]" checked={form.use_nectar}
             onChange={(e) => set('use_nectar', e.target.checked)} />
           Use Nectar prices
-        </label>
-        <label className="grid gap-1.5 text-sm font-semibold">
-          New recipes to try each week
-          <input id="adventure" type="number" min={0} max={7} className={`${input} w-28`} value={form.adventure}
-            onChange={(e) => set('adventure', Number(e.target.value))} />
         </label>
         {banner && <ErrorBanner message={banner} />}
         <div className="flex items-center gap-3">

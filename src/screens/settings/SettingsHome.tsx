@@ -4,12 +4,12 @@ import { card } from './ui';
 
 const SECTIONS = [
   { to: 'household', title: 'Household', text: 'People, portion sizes, invite code' },
-  { to: 'week', title: 'Office days', text: 'Packed lunches and quick dinners' },
+  { to: 'week', title: 'Usual week', text: 'Office days, prep days, cooking time, new recipes' },
   { to: 'kitchen', title: 'Kitchen', text: 'Thermomix, ovens, pans' },
   { to: 'rules', title: 'Meal specifications', text: 'Balance, flavour, from scratch, which kit does what' },
   { to: 'planning', title: 'Planner specifications', text: 'How the Friday menu is optimised' },
-  { to: 'hour', title: "Today's cooking", text: "Each day's time for cooking, night-before breakfasts, TM7 bowls" },
-  { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots, dinner time limit' },
+  { to: 'hour', title: "Today's cooking", text: 'Night-before breakfasts, TM7 bowls' },
+  { to: 'shopping', title: 'Planning & shopping', text: 'Plan length, delivery slots' },
   { to: 'shops', title: 'Fishmonger & farm shop', text: 'What each shop sells' },
   { to: 'staples', title: 'Cupboard staples', text: 'Have / low / out' },
   { to: 'basics', title: 'Weekly basics', text: 'Breakfast and lunch things bought every week' },

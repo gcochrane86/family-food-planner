@@ -152,7 +152,7 @@ export function useWeek() {
     cookidoo: (shown === 'next' ? data?.nextCookidoo : data?.thisCookidoo) ?? null,
     baskets: (shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? [],
     shopsPerWeek: (data?.settings?.shops_per_week === 1 ? 1 : 2) as 1 | 2,
-    /** A day's cooking time in minutes: the shown week's own time for it, else the day's setting (Settings → Today's cooking). */
+    /** A day's cooking time in minutes: the shown week's own time for it, else the day's setting (Settings → Usual week). */
     dayMinutes: (date: string) => dayMinutes(date, (data?.settings ?? {}) as { cooking_minutes?: unknown; hour_minutes?: unknown }, current?.week?.cooking_minutes),
     slots: current?.slots ?? [],
     /** A draft's dinners that Claude made up for this week while planning it, by date, to check before approving. */
