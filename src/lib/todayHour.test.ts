@@ -340,6 +340,26 @@ describe('prep ahead: essential and optional', () => {
     expect(plan.doneLastNight).toEqual({ title: 'Beef Stew', steps: ['Marinate the beef', 'Make the sauce'], state: 'ahead' });
   });
 
+  it("get it out: what was prepped last night comes out as the prep, not its raw ingredients", () => {
+    const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'ahead' }, tomorrow: null }));
+    const prepped = plan.getOut.find((g) => g.where === 'prepped')!;
+    const boxed = plan.chop.find((g) => g.where === 'fridge')?.items.map((i) => i.name) ?? [];
+    expect(prepped.items.map((i) => i.name)).toEqual(['Marinate the beef', 'Make the sauce', ...boxed.map((n) => `${n}, chopped`)]);
+    expect(prepped.items[0].qty).toBe('done last night');
+    const raw = plan.getOut.filter((g) => g.where !== 'prepped').flatMap((g) => g.items.map((i) => i.name));
+    for (const n of ['beef', 'beef stock', ...boxed]) expect(raw).not.toContain(n);
+    expect(raw).toContain('tomato');
+  });
+
+  it("get it out: prep that didn't happen is got out raw, as before", () => {
+    const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'missed' }, tomorrow: null }));
+    expect(plan.getOut.find((g) => g.where === 'prepped')).toBeUndefined();
+    expect(plan.getOut.flatMap((g) => g.items.map((i) => i.name))).toEqual(expect.arrayContaining(['beef', 'beef stock', 'carrot']));
+    const half = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'on_the_day' }, tomorrow: null }));
+    expect(half.getOut.find((g) => g.where === 'prepped')!.items.map((i) => i.name)).toEqual(['Marinate the beef']);
+    expect(half.getOut.flatMap((g) => g.items.map((i) => i.name))).toContain('beef stock'); // the sauce is made tonight
+  });
+
   it('a dinner with only must-do prep has no optional steps to tick', () => {
     const plan = planHour(input({ tomorrow: { dinner: { recipe: STEW(MUST), portions: 4 }, lunch: null, breakfast: null } }));
     expect(plan.forTomorrow).toEqual({ title: 'Beef Stew', optional: 0, mustDo: ['Marinate the beef'], ahead: true });

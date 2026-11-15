@@ -78,22 +78,6 @@ export default function WeekView() {
         </div>
       )}
 
-      {/* The Sunday before the week: its cooking has Monday's prep (breakfast and lunch made ahead, the dinner's prep). */}
-      {w.week && today <= addDays(w.weekStart, -1) && (() => {
-        const sunday = addDays(w.weekStart, -1);
-        const isToday = today === sunday;
-        const label = new Date(`${sunday}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
-        return (
-          <Link to={isToday ? '/today' : `/today?day=${sunday}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
-            <span>
-              <span className="block font-bold">{isToday ? "Today's cooking" : label}</span>
-              <span className="block text-sm text-muted">Prep for Monday</span>
-            </span>
-            <span aria-hidden="true" className="text-muted">›</span>
-          </Link>
-        );
-      })()}
-
       {w.week && dates.includes(today) && (
         <Link to="/today" className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
           <span>
@@ -121,6 +105,21 @@ export default function WeekView() {
 
       {w.week && (
         <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
+          {/* Monday's prep, done the Sunday before (its cooking has Monday's breakfast and lunch made ahead, and the
+              dinner's prep), until the week starts. */}
+          {today < w.weekStart && (() => {
+            const sunday = addDays(w.weekStart, -1);
+            const isToday = today === sunday;
+            const when = isToday ? 'tonight' : new Date(`${sunday}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
+            return (
+              <Link to={isToday ? '/today' : `/today?day=${sunday}`} aria-label={`Monday prep, ${when}`}
+                className={`grid min-w-0 content-start gap-2 rounded-[22px] bg-surface p-3.5 text-left no-underline shadow-sm md:min-h-[230px] md:gap-3.5 md:rounded-[26px] md:p-5 ${isToday ? 'outline outline-2 outline-accent' : ''}`}>
+                <span className="font-bold text-accent md:text-xl">Monday prep</span>
+                <span className="text-[13.5px] leading-snug md:text-lg">{isToday ? 'Tonight' : `Sunday ${sunday.slice(8).replace(/^0/, '')}`}: Monday's breakfast, lunch and dinner prep</span>
+                <span className="text-sm font-semibold text-accent">Open the prep ›</span>
+              </Link>
+            );
+          })()}
           {dates.map((d) => (
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
               isNew={w.newDinners.some((n) => n.date === d)}

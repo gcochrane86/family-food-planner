@@ -6,7 +6,8 @@ import type { RecipeIngredient } from './types';
 
 export type Kept = 'fridge' | 'freezer' | 'cupboard';
 export interface GetOutItem { name: string; qty: string; key: string; icon: string | null }
-export interface GetOutGroup { where: Kept; items: GetOutItem[] }
+/** `prepped`: what was prepped last night (a marinade, the fridge box of chopped veg), got out instead of its raw things. */
+export interface GetOutGroup { where: Kept | 'prepped'; items: GetOutItem[] }
 
 // Fresh things whose names would otherwise read as cupboard ones.
 const FRIDGE = /spring onion|green bean|runner bean|broad bean|fresh|stir.?fry sauce|pesto|curry paste|garlic paste|ginger paste|stock pot|bell pepper|red pepper|green pepper|yellow pepper|orange pepper|romano pepper|sweet pepper|^peppers?$|mayonnaise|mayo/;

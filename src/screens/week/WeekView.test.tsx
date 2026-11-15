@@ -51,25 +51,25 @@ test('a draft week shows the review banner and can be approved', async () => {
   expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
 });
 
-describe('the Sunday before: prep for Monday', () => {
-  test("before the week, a bar opens the Sunday before's cooking, which has Monday's prep", async () => {
+describe('Monday prep tile', () => {
+  test("before the week, the first tile is Monday's prep, done the Sunday before", async () => {
     render(<WeekView />, { wrapper: MemoryRouter }); // Friday 16 Oct; the week starts Monday 19
-    const bar = await screen.findByRole('link', { name: /Sunday 18 Oct.*Prep for Monday/ });
-    expect(bar).toHaveAttribute('href', '/today?day=2026-10-18');
+    const t = await screen.findByRole('link', { name: 'Monday prep, Sunday 18 Oct' });
+    expect(t).toHaveAttribute('href', '/today?day=2026-10-18');
+    expect(t.compareDocumentPosition(await tile('Mon')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  test("on the Sunday itself it is today's cooking", async () => {
+  test("on the Sunday itself it opens today's cooking", async () => {
     vi.setSystemTime(new Date('2026-10-18T15:00:00Z'));
     render(<WeekView />, { wrapper: MemoryRouter });
-    const bar = await screen.findByRole('link', { name: /Today's cooking.*Prep for Monday/ });
-    expect(bar).toHaveAttribute('href', '/today');
+    expect(await screen.findByRole('link', { name: 'Monday prep, tonight' })).toHaveAttribute('href', '/today');
   });
 
-  test('once the week has started, no bar', async () => {
+  test('once the week has started, no Monday prep tile', async () => {
     vi.setSystemTime(new Date('2026-10-19T15:00:00Z'));
     render(<WeekView />, { wrapper: MemoryRouter });
     await screen.findByRole('link', { name: /Today's cooking/ });
-    expect(screen.queryByRole('link', { name: /Prep for Monday/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Monday prep/ })).not.toBeInTheDocument();
   });
 });
 

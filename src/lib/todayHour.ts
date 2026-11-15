@@ -2,7 +2,7 @@ import { isRawProtein, keepsDays, needsChopping } from './chopAhead';
 import { formatQty, machineLabel, stepIngredients } from './recipes';
 import type { Machine, PrepAhead, RecipeDetail, RecipeIngredient, RecipeStep } from './types';
 import { chopInstruction, isCartoonPrep, prepKey } from '../../supabase/functions/_shared/prepCut.ts';
-import { getOutList, type GetOutGroup } from './getOut';
+import { getOutList, ingredientTiles, type GetOutGroup } from './getOut';
 
 /**
  * Today's cooking: the day's steps, aiming for the day's cooking time (an hour unless set). Chopping first, in one
@@ -120,7 +120,9 @@ export function planHour(input: HourInput): HourPlan {
 
   // 1. What to chop, grouped by the step it goes into; raw meat and fish last.
   const used: { i: RecipeIngredient; factor: number }[] = [];
-  const chop = chopList(input, used);
+  // Chopped in yesterday's hour and waiting in the fridge box: got out as the box, not as the raw veg.
+  const boxed: { i: RecipeIngredient; factor: number }[] = [];
+  const chop = chopList(input, used, boxed);
   const items = chop.filter((g) => g.where !== 'fridge').reduce((n, g) => n + g.items.length, 0);
 
   const slots: Slot[] = [];
@@ -227,20 +229,35 @@ export function planHour(input: HourInput): HourPlan {
   const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
   const steps = ordered.map((s) => s.step);
   const handsOn = ordered.filter((s) => s.busy).reduce((n, s) => n + (s.end - s.start), 0);
-  // 6. What to get out: all of tonight's dinner, everything chopped, and what the extras use.
-  const getOut = getOutList([
-    ...(input.tonight ? input.tonight.recipe.ingredients.map((i) => ({ i, factor: factorOf(input.tonight!) })) : []),
+  const state = tonightState(input);
+  const tPrep = input.tonight ? prepSteps(input.tonight.recipe) : [];
+  const doneSteps = state === 'on_the_day' ? tPrep.filter((s) => s.needs_night_before) : tPrep;
+  // 6. What to get out: all of tonight's dinner, everything chopped, and what the extras use. What was prepped last
+  // night comes out as that prep (the marinade, the fridge box), not as the raw things that went into it.
+  const prepDone = input.yesterdayPlanned && input.tonight && state !== 'missed' ? doneSteps : [];
+  const tonightOut = (() => {
+    if (!input.tonight) return [];
+    const r = input.tonight.recipe;
+    const inPrep = new Set(prepDone.flatMap((s) => stepIngredients(s.body, r.ingredients)));
+    const stillUsed = new Set([...finishSteps(r), ...tPrep.filter((s) => !prepDone.includes(s))].flatMap((s) => stepIngredients(s.body, r.ingredients)));
+    const fromBox = new Set(boxed.map((b) => b.i));
+    return r.ingredients.filter((i) => !fromBox.has(i) && !(inPrep.has(i) && !stillUsed.has(i))).map((i) => ({ i, factor: factorOf(input.tonight!) }));
+  })();
+  const loose = getOutList([
+    ...tonightOut,
     ...used,
     ...extras(tomorrow).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
   ], input.prepPhotos);
-  const iconsMissing = getOut.flatMap((g) => g.items).filter((i) => !i.icon).map(({ name, key }) => ({ name, key }));
+  const preppedItems = [
+    ...prepDone.map((s) => ({ name: s.title, qty: 'done last night', key: `prepped:${s.title}`, icon: null })),
+    ...ingredientTiles(boxed, input.prepPhotos ?? {}).map((t) => ({ name: `${t.name}, chopped`, qty: t.qty, key: t.key, icon: t.icon })),
+  ];
+  const getOut: GetOutGroup[] = [...(preppedItems.length ? [{ where: 'prepped' as const, items: preppedItems }] : []), ...loose];
+  const iconsMissing = getOut.flatMap((g) => g.items).filter((i) => !i.icon && !i.key.startsWith('prepped:')).map(({ name, key }) => ({ name, key }));
   const d = tomorrow?.dinner;
   const dPrep = d ? prepSteps(d.recipe) : [];
   const forTomorrow = d && dPrep.length ? { title: d.recipe.title, optional: dPrep.filter((s) => !s.needs_night_before).length,
     mustDo: dPrep.filter((s) => s.needs_night_before).map((s) => s.title), ahead: d.prepAhead !== false } : null;
-  const state = tonightState(input);
-  const tPrep = input.tonight ? prepSteps(input.tonight.recipe) : [];
-  const doneSteps = state === 'on_the_day' ? tPrep.filter((s) => s.needs_night_before) : tPrep;
   const doneLastNight = input.yesterdayPlanned && input.tonight && doneSteps.length
     ? { title: input.tonight.recipe.title, steps: doneSteps.map((s) => s.title), state } : null;
   const total = Math.max(0, ...ordered.map((s) => s.end));
@@ -371,7 +388,7 @@ function place(e: Extra, earliest: number, endAt: number, slots: Slot[], machine
 
 /** Tonight's dinner, tomorrow's prep (done tonight), breakfast and lunch: chopped now. Tomorrow's dinner: what keeps
  *  is chopped now and boxed. */
-function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number }[] = []): ChopGroup[] {
+function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number }[] = [], boxed: { i: RecipeIngredient; factor: number }[] = []): ChopGroup[] {
   const groups: ChopGroup[] = [];
   const seen = new Set<RecipeIngredient>();
   const item = (i: RecipeIngredient, factor: number) => (used.push({ i, factor }), { name: i.name, qty: formatQty(i.qty === null ? null : i.qty * factor, i.unit, i.qty_approx), note: i.note });
@@ -408,7 +425,8 @@ function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number 
     fromSteps(r, [...carriedPrep(input), ...finishSteps(r)], f, (s) => `For ${s.title}`, keep);
     rest(r, f, `For ${r.title}`, 'bowl', keep);
     fridge.forEach((i) => seen.add(i));
-    if (fridge.length) groups.unshift({ label: 'From the fridge box (chopped yesterday)', where: 'fridge', items: fridge.map((i) => item(i, f)), raw: false });
+    const fromBox = (i: RecipeIngredient) => (boxed.push({ i, factor: f }), { name: i.name, qty: formatQty(i.qty === null ? null : i.qty * f, i.unit, i.qty_approx), note: i.note });
+    if (fridge.length) groups.unshift({ label: 'From the fridge box (chopped yesterday)', where: 'fridge', items: fridge.map(fromBox), raw: false });
   }
   const t = input.tomorrow;
   const all = () => true;

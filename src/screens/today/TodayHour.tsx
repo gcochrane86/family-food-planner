@@ -409,7 +409,7 @@ function Working({ label, error, onClose }: { label: string; error?: string; onC
   );
 }
 
-const KEPT: Record<GetOutGroup['where'], string> = { fridge: 'Fridge', freezer: 'Freezer', cupboard: 'Cupboard' };
+const KEPT: Record<GetOutGroup['where'], string> = { prepped: 'Prepped last night (fridge)', fridge: 'Fridge', freezer: 'Freezer', cupboard: 'Cupboard' };
 
 /** "Get it out": a small cartoon of each thing the hour uses, with its name and amount underneath, by where it's
  *  kept. Hold a picture to remake it or use your own. */
@@ -431,7 +431,7 @@ function GetOut({ groups, got, onTick, onHold }: { groups: GetOutGroup[]; got: s
                   <li key={it.name} className="grid">
                     <button type="button" role="checkbox" aria-checked={done} aria-label={it.name} onClick={() => onTick(it.name)}
                       className={`relative grid text-left transition-opacity ${done ? 'opacity-45' : ''}`}>
-                      <Card item={it} onHold={() => onHold(it)} />
+                      <Card item={it} onHold={() => { if (!it.key.startsWith('prepped:')) onHold(it); }} />
                       {done && <span aria-hidden="true" className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-[#2D6A3E] text-lg font-bold text-white">✓</span>}
                     </button>
                   </li>
