@@ -38,5 +38,8 @@ export async function loadPlannerInput(db: Db, householdId: string, weekStart: s
     recipes: recipes.data ?? [], recentDinnerRecipeIds: (recent.data ?? []).map((r: { recipe_id: string | null }) => r.recipe_id),
     ...(frozen.error ? {} : { frozen: frozen.data ?? [] }),
   });
-  return choices ? applyChoices(input, choices) : input;
+  if (!choices) return input;
+  // Office days only count for the household's adults (as with the usual pattern).
+  const adults = new Set((members.data ?? []).filter((m: { kind: string }) => m.kind === 'adult').map((m: { id: string }) => m.id));
+  return applyChoices(input, { ...choices, office: Object.fromEntries(Object.entries(choices.office).filter(([id]) => adults.has(id))) });
 }

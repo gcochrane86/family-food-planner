@@ -34,7 +34,8 @@ export interface WeekPlan {
  *  sizes, recent dinners, whether the week already has a draft or is approved, the rules for a new recipe, and the
  *  built-in planner's proposal as a starting point. */
 export async function planContext(db: Db, hid: string, weekStart: string) {
-  const choices = await openChoices(db, hid, weekStart);
+  const made = await weekChoices(db, hid, weekStart);
+  const choices = made?.choices ?? null;
   const input = await loadPlannerInput(db, hid, weekStart, choices);
   const [settings, members, rules, recipes, recent, freezer, pantry, products, existing] = await Promise.all([
     db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
@@ -83,6 +84,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
       cookingTime: (input.dayMinutes ?? Array(7).fill(60)).slice(0, input.days).map((minutes, i) => ({ date: addDays(weekStart, i), day: DAY[i], minutes })),
       dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: choices ? choices.newRecipes : s.adventure ?? 1,
       // Plan with Claude: the week's choices (none without an open request from the app).
+      choicesMadeOn: made?.madeOn ?? null,
       nightsOff: choices?.nightsOff ?? [], prepDays: (choices?.prepDays ?? []).map((d) => DAY[d]), useUp: choices?.useUp ?? [],
       whatMakesAMeal: MEAL_SPEC, houseRules: list(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
     },
@@ -103,13 +105,21 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   };
 }
 
-/** The choices made on the app's Plan with Claude screen, from the week's open plan request, or null. */
-export async function openChoices(db: Db, hid: string, weekStart: string): Promise<PlanChoices | null> {
-  const res = await db.from('week_plan_requests').select('choices').eq('household_id', hid).eq('week_start', weekStart)
-    .in('status', ['requested', 'planning']).maybeSingle();
+/** The summary on a request the household cancelled (src/lib/types.ts CANCELLED). */
+const CANCELLED = 'Cancelled';
+
+/** The choices the week was planned with on the app's Plan with Claude screen: the newest request for the week that
+ *  carries some, whether still open or already saved (so a second save in the same chat keeps them), unless the
+ *  household cancelled it. With the day they were made; null for the usual week. */
+export async function weekChoices(db: Db, hid: string, weekStart: string): Promise<{ choices: PlanChoices; madeOn: string } | null> {
+  const res = await db.from('week_plan_requests').select('choices, summary, requested_at').eq('household_id', hid).eq('week_start', weekStart)
+    .not('choices', 'is', null).order('requested_at', { ascending: false }).limit(1);
   // No choices column before migration 0022: the usual week.
   if (res.error) return null;
-  return parseChoices(res.data?.choices, weekStart);
+  const latest = (res.data ?? [])[0] as { choices: unknown; summary: string | null; requested_at: string } | undefined;
+  if (!latest || latest.summary === CANCELLED) return null;
+  const choices = parseChoices(latest.choices, weekStart);
+  return choices ? { choices, madeOn: String(latest.requested_at).slice(0, 10) } : null;
 }
 
 const shortDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });

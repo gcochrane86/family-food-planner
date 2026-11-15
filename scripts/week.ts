@@ -10,7 +10,7 @@ import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { parseWeekFailed, parseWeekPlan } from './weekInput';
 import { loadPlannerInput } from '../supabase/functions/_shared/loadPlan';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
-import { planContext, saveWeekPlan } from '../supabase/functions/_shared/weekPlan';
+import { planContext, saveWeekPlan, weekChoices } from '../supabase/functions/_shared/weekPlan';
 
 const STALE_MS = 2 * 60 * 60 * 1000;    // planning that started over 2 hours ago has stopped (Mac asleep)
 const UNCLAIMED_MS = 12 * 60 * 60 * 1000; // a request not picked up in 12 hours (Mac off) is closed, not planned late
@@ -87,10 +87,12 @@ async function save() {
   if (r.status !== 'planning') fail(`That request is ${r.status}, not planning. Claim it first.`);
   const hid = r.household_id;
   const settings = must<{ data: { adventure?: number } } | null>(await db.from('settings').select('data').eq('household_id', hid).maybeSingle(), 'Reading settings');
-  const before = await loadPlannerInput(db, hid, r.week_start);
-  const plan = read((t) => parseWeekPlan(t, { weekStart: r.week_start, days: before.days, adventure: settings?.data?.adventure ?? 1 }), await stdin());
+  // The choices made on the app's Plan with Claude screen, if any.
+  const choices = (await weekChoices(db, hid, r.week_start))?.choices ?? null;
+  const before = await loadPlannerInput(db, hid, r.week_start, choices);
+  const plan = read((t) => parseWeekPlan(t, { weekStart: r.week_start, days: before.days, adventure: choices ? choices.newRecipes : settings?.data?.adventure ?? 1 }), await stdin());
   try {
-    const { added } = await saveWeekPlan(db, hid, r.id, r.week_start, plan);
+    const { added } = await saveWeekPlan(db, hid, r.id, r.week_start, plan, { choices });
     console.log(`Planned the week of ${r.week_start}${added ? ` with ${added} new recipe${added === 1 ? '' : 's'}` : ''}.`);
   } catch (e) {
     fail((e as Error).message);

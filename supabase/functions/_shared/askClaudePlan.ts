@@ -8,7 +8,7 @@ import { loadPlannerInput } from './loadPlan.ts';
 import { addDays } from './planner.ts';
 import { londonParts } from './schedule.ts';
 import { ownCookingMinutes } from './planChoices.ts';
-import { nightOffDinner, openChoices, parsePlan, planContext, saveWeekPlan } from './weekPlan.ts';
+import { nightOffDinner, parsePlan, planContext, saveWeekPlan, weekChoices } from './weekPlan.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -29,6 +29,7 @@ export const HOW_TO_PLAN = [
   '6. No repeats: nothing cooked in the last two weeks (recentDinners, lastCooked), nothing twice in the week.',
   '7. Use up: match fresh ingredients against packSizes so a later dinner uses what\'s left; use freezer portions and fridge items before they go off.',
   '8. New recipes: up to rules.newRecipesAllowed, only when nothing in the library does the job or the household asks; write them exactly to newRecipeRules.',
+  'When rules.choicesMadeOn is set, the household chose this week\'s office days, nights off, cooking times, prep days, weeknight limit and new recipes in the app that day: plan to them, and mention them when you show the plan.',
   'Nights off (rules.nightsOff, dates[].nightOff) have no dinner: leave them out.',
   'Longer prep days (rules.prepDays, dates[].prepDay): prefer dinners whose make-ahead parts keep until they\'re eaten, and say in the summary what to batch on each prep day. Build dinners around rules.useUp first.',
   'Every night needs a dinner unless the household says otherwise (leave an "out" night out and say so). Each dinner gets a one-line reason (up to 200 characters), e.g. "Chicken · 30 min · uses the rest of the ginger"; the app adds leftover lunches and freezer notes itself. The summary is 2–4 sentences: the shape of the week, what\'s shared between dinners, the flavour spread.',
@@ -94,7 +95,7 @@ export function makePlanner(db: Db, householdId: string, now = new Date(),
       }
       const settings = must<{ data: { adventure?: number; cooking_minutes?: unknown; hour_minutes?: unknown } } | null>(await db.from('settings').select('data').eq('household_id', householdId).maybeSingle(), 'Reading settings');
       // The choices made on the app's Plan with Claude screen, if the household started there.
-      const choices = await openChoices(db, householdId, w.start);
+      const choices = (await weekChoices(db, householdId, w.start))?.choices ?? null;
       const input = await loadInput(db, householdId, w.start, choices);
       let plan;
       try {

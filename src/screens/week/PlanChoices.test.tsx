@@ -88,3 +88,30 @@ test("when the Claude app can't be opened, the choices are kept and a link opens
   const link = screen.getByRole('link', { name: 'Open the Claude app' });
   expect(decodeURIComponent(link.getAttribute('href')!)).toMatch(/Replan the week of Mon 23 Nov/);
 });
+
+test('a time that is not one of the steps moves to the next step up', async () => {
+  h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, cooking_minutes: { tue: 75 } });
+  page();
+  const times = await group('Time to cook each evening');
+  await userEvent.click(within(times).getByRole('button', { name: /^Tuesday, 75 min/ }));
+  expect(within(times).getByRole('button', { name: /^Tuesday, 1½ hr/ })).toBeInTheDocument();
+});
+
+test('a weeknight limit set before (40 min) shows as chosen', async () => {
+  h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, weekday_dinner_max_min: 40 });
+  page();
+  expect(within(await group('Weeknight dinners take at most')).getByRole('button', { name: '40 min' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('only a Monday can be planned', async () => {
+  page('?week=2026-11-25');
+  expect(await screen.findByText(/No week to plan/)).toBeInTheDocument();
+});
+
+test('a 5-day plan offers nights off Monday to Friday only', async () => {
+  h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, default_plan_days: 5 });
+  page();
+  const off = await group('Nights off');
+  expect(within(off).queryByRole('button', { name: 'Sat' })).not.toBeInTheDocument();
+  expect(screen.getByText(/^5 dinners/)).toBeInTheDocument();
+});

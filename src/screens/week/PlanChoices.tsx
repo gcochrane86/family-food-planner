@@ -62,7 +62,7 @@ export default function PlanChoicesScreen() {
     return { settings, adults: members.filter((m) => m.kind === 'adult'), pattern, useUp };
   }, [hid]);
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(week)) return <p className="py-6">No week to plan. <Link to="/week">Back to the week</Link></p>;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(week) || new Date(`${week}T00:00:00Z`).getUTCDay() !== 1) return <p className="py-6">No week to plan. <Link to="/week">Back to the week</Link></p>;
   return (
     <section className="grid gap-3.5 py-4">
       <Link to="/week" className="justify-self-start font-semibold text-accent no-underline">‹ Week</Link>
@@ -82,6 +82,10 @@ function Form({ hid, week, replace, data }: { hid: string; week: string; replace
   const [phase, setPhase] = useState<'form' | 'saving' | 'blocked'>('form');
   const [failed, setFailed] = useState<string | null>(null);
   const dates = Array.from({ length: 7 }, (_, i) => addDays(week, i));
+  // Dinners are planned for the plan's length (Settings → Planning & shopping): 5 or 7 nights.
+  const nights = data.settings.default_plan_days === 5 ? 5 : 7;
+  // A weeknight limit set before the four choices (say 40 min) is offered too.
+  const limits = [...new Set([...LIMITS, usual.weekdayMaxMin])].sort((a, b) => a - b);
   const toggle = (list: number[], v: number) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v].sort((a, b) => a - b));
 
   const officeChanges = data.adults.flatMap((a) => [0, 1, 2, 3, 4].filter((d) => c.office[a.id]?.includes(d) !== usual.office[a.id]?.includes(d))
@@ -91,7 +95,7 @@ function Form({ hid, week, replace, data }: { hid: string; week: string; replace
     + [0, 1, 2, 3, 4, 5, 6].filter((d) => c.prepDays.includes(d) !== usual.prepDays.includes(d)).length
     + (c.weekdayMaxMin !== usual.weekdayMaxMin ? 1 : 0) + (c.newRecipes !== usual.newRecipes ? 1 : 0);
   const summary = [
-    `${7 - c.nightsOff.length} dinners`,
+    `${nights - c.nightsOff.length} dinners`,
     ...(c.newRecipes ? [`up to ${c.newRecipes} new`] : []),
     ...(c.prepDays.length ? [`prep ${c.prepDays.map((d) => SHORT[d]).join(' + ')}`] : []),
     ...(c.useUp.length ? [`using up ${c.useUp.length}`] : []),
@@ -162,7 +166,7 @@ function Form({ hid, week, replace, data }: { hid: string; week: string; replace
 
       <Section title="Nights off" hint="Out, takeaway or eating at someone's: no dinner planned or bought.">
         <div role="group" aria-label="Nights off" className="grid grid-cols-7 gap-1">
-          {SHORT.map((d, i) => {
+          {SHORT.slice(0, nights).map((d, i) => {
             const on = c.nightsOff.includes(dates[i]);
             return (
               <button key={d} type="button" aria-pressed={on} className={chip(on, 'evening')}
@@ -177,7 +181,7 @@ function Form({ hid, week, replace, data }: { hid: string; week: string; replace
           {dates.map((date, i) => {
             const m = c.cookingMinutes[date];
             const differs = m !== usual.cookingMinutes[date];
-            const next = STEPS[(STEPS.indexOf(m) + 1) % STEPS.length];
+            const next = STEPS.find((x) => x > m) ?? STEPS[0];
             return (
               <button key={date} type="button" aria-label={`${LONG[i]}, ${timeLabel(m)} to cook`}
                 className={`grid min-h-14 place-items-center rounded-xl border px-0 py-1 leading-tight ${differs ? 'border-accent bg-accent-soft' : 'border-line bg-surface'}`}
@@ -203,8 +207,8 @@ function Form({ hid, week, replace, data }: { hid: string; week: string; replace
       </Section>
 
       <Section title="Weeknight dinners take at most" hint="Monday to Friday. Weekends have no limit.">
-        <div role="group" aria-label="Weeknight dinners take at most" className="grid grid-cols-4 gap-1.5">
-          {LIMITS.map((m) => (
+        <div role="group" aria-label="Weeknight dinners take at most" className="grid auto-cols-fr grid-flow-col gap-1.5">
+          {limits.map((m) => (
             <button key={m} type="button" aria-pressed={c.weekdayMaxMin === m} className={chip(c.weekdayMaxMin === m, 'accent')}
               onClick={() => setC({ ...c, weekdayMaxMin: m })}>{m} min</button>
           ))}

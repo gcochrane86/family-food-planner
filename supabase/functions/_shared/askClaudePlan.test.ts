@@ -130,7 +130,16 @@ describe("the week's choices from the app", () => {
   const NEWR = (slug: string) => ({ slug, title: slug, kind: 'meal', protein: 'chicken', base_portions: 4,
     ingredients: [{ name: 'chicken thigh', qty: 800, unit: 'g', note: 'cut into 3cm chunks' }],
     steps: [{ phase: 'finish', title: 'Cook', body: 'Cook the **chicken thigh**.', picture: 'Chicken browning in a frying pan on the hob' }] });
-  const open = () => world({ 'week_plan_requests:one': { id: 'open-req', status: 'requested', choices } });
+  const open = () => world({ 'week_plan_requests:one': { id: 'open-req', status: 'requested' },
+    week_plan_requests: [{ choices, summary: null, status: 'requested', requested_at: '2026-11-13T19:00:00Z' }] });
+
+  test('a second save in the same chat still keeps the night off', async () => {
+    const d = deps();
+    const db = world({ week_plan_requests: [{ choices, summary: 'A good week.', status: 'done', requested_at: '2026-11-13T19:00:00Z' }] });
+    const out = await makePlanner(db, 'h1', NOW, d).save(plan([{ date: '2026-11-18', recipe: 'fish-pie' }]));
+    expect(out).toMatch(/Wed 18 Nov is a night off/);
+    expect(d.save).not.toHaveBeenCalled();
+  });
 
   test('a dinner on a night off is refused before the request is taken over', async () => {
     const d = deps();
@@ -155,5 +164,6 @@ describe("the week's choices from the app", () => {
     expect(HOW_TO_PLAN).toMatch(/rules\.nightsOff/);
     expect(HOW_TO_PLAN).toMatch(/rules\.prepDays/);
     expect(HOW_TO_PLAN).toMatch(/rules\.useUp/);
+    expect(HOW_TO_PLAN).toMatch(/rules\.choicesMadeOn/);
   });
 });

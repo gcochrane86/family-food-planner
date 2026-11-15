@@ -102,7 +102,7 @@ describe('the week’s choices (Plan with Claude)', () => {
       'settings:one': { data: { adventure: 1 } },
       members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
       member_week_pattern: [{ member_id: 'a', weekday: 1, office: true }],
-      'week_plan_requests:one': { choices },
+      week_plan_requests: [{ choices, summary: null, status: 'requested', requested_at: '2026-11-13T19:00:00Z' }],
       recipes: [{ id: 'r1', slug: 'curry', title: 'Curry', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, reheats_well: false, base_portions: 4, recipe_ingredients: [] }],
     });
     const ctx = await planContext(db as never, 'h1', '2026-11-16');
@@ -113,6 +113,28 @@ describe('the week’s choices (Plan with Claude)', () => {
     expect(ctx.rules.cookingTime[4].minutes).toBe(90);
     expect(ctx.rules).toMatchObject({ nightsOff: ['2026-11-18'], prepDays: ['Sunday'], useUp: ['Lamb mince (freezer)'], newRecipesAllowed: 2 });
     expect(ctx.builtInProposal.find((d) => d.date === '2026-11-18')?.recipe).toBeNull();
+    expect(ctx.rules.choicesMadeOn).toBe('2026-11-13');
+  });
+
+  test('after a save, the week keeps the choices it was planned with (a second save in the same chat)', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
+      week_plan_requests: [{ choices, summary: 'A good week.', status: 'done', requested_at: '2026-11-13T19:00:00Z' }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.rules.nightsOff).toEqual(['2026-11-18']);
+  });
+
+  test('a request the household cancelled leaves the usual week', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
+      week_plan_requests: [{ choices, summary: 'Cancelled', status: 'failed', requested_at: '2026-11-13T19:00:00Z' }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.rules.nightsOff).toEqual([]);
+    expect(ctx.rules.choicesMadeOn).toBeNull();
   });
 
   test('with no open request the usual week is planned, as before', async () => {
@@ -139,4 +161,11 @@ describe('the week’s choices (Plan with Claude)', () => {
     const db = tableDb({ members: [{ id: 'a', kind: 'adult', portion_weight: 1 }], member_week_pattern: [{ member_id: 'a', weekday: 1, office: true }], 'plan_weeks:one': { office_days: { a: [3] } } });
     expect((await loadPlannerInput(db, 'h1', '2026-11-16')).officeDays).toEqual([3]);
   });
+});
+
+test("loadPlannerInput with choices only counts adults' office days", async () => {
+  const { loadPlannerInput } = await import('./loadPlan');
+  const db = tableDb({ members: [{ id: 'a', kind: 'adult', portion_weight: 1 }, { id: 'kid', kind: 'child', portion_weight: 0.5 }] });
+  const choices = { office: { a: [0], kid: [2], gone: [4] }, nightsOff: [], prepDays: [], weekdayMaxMin: 30, newRecipes: 1, useUp: [], cookingMinutes: {} };
+  expect((await loadPlannerInput(db, 'h1', '2026-11-16', choices)).officeDays).toEqual([0]);
 });

@@ -100,8 +100,8 @@ export default function UsualWeek() {
           <section className={`${card} grid gap-3 p-4`}>
             <h2 className="m-0 text-lg font-bold">Weeknight dinners take at most</h2>
             <p className="m-0 text-sm text-muted">Monday to Friday. Weekends have no limit.</p>
-            <div role="group" aria-label="Weeknight dinners take at most" className="grid grid-cols-4 gap-1.5">
-              {LIMITS.map((m) => {
+            <div role="group" aria-label="Weeknight dinners take at most" className="grid auto-cols-fr grid-flow-col gap-1.5">
+              {[...new Set([...LIMITS, s.weekday_dinner_max_min])].sort((a, b) => a - b).map((m) => {
                 const on = s.weekday_dinner_max_min === m;
                 return <button key={m} type="button" aria-pressed={on} className={chip(on)} onClick={() => void save({ weekday_dinner_max_min: m })}>{m} min</button>;
               })}

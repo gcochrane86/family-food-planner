@@ -69,3 +69,9 @@ test('new recipes from Claude: a counter from 0 to 7', async () => {
   await userEvent.click(await screen.findByRole('button', { name: 'More new recipes' }));
   expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ adventure: DEFAULT_SETTINGS.adventure + 1 }));
 });
+
+test('a weeknight limit set before (40 min) shows as chosen', async () => {
+  h.repo.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, weekday_dinner_max_min: 40 });
+  page();
+  expect(within(await screen.findByRole('group', { name: 'Weeknight dinners take at most' })).getByRole('button', { name: '40 min' })).toHaveAttribute('aria-pressed', 'true');
+});
