@@ -36,13 +36,15 @@ const newOf = (v: unknown, fallback: number) => (typeof v === 'number' && Number
 /** The usual week, as choices for the week starting `weekStart`. */
 export function usualChoices(weekStart: string, settings: Settings, adults: { id: string }[],
   pattern: { member_id: string; weekday: number; office: boolean }[]): PlanChoices {
-  const minutes = weekMinutes(weekStart, settings);
+  const prepDays = weekdays(settings.prep_days, 6);
+  // A longer prep day has at least 2 hours.
+  const minutes = weekMinutes(weekStart, settings).map((m, i) => (prepDays.includes(i) ? Math.max(PREP_DAY_MINUTES, m) : m));
   return {
     office: Object.fromEntries(adults.map((a) => [a.id,
       weekdays(pattern.filter((p) => p.member_id === a.id && p.office).map((p) => p.weekday), 4)])),
     nightsOff: [],
     cookingMinutes: Object.fromEntries(weekDates(weekStart).map((d, i) => [d, minutes[i]])),
-    prepDays: weekdays(settings.prep_days, 6),
+    prepDays,
     weekdayMaxMin: limitOf(settings.weekday_dinner_max_min),
     newRecipes: newOf(settings.adventure, NEW_DEFAULT),
     useUp: [],

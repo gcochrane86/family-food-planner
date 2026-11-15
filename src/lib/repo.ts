@@ -7,6 +7,7 @@ import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion } from './types';
 import { CANCELLED } from './types';
+import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
 import { resizeImage } from './image';
 
@@ -300,13 +301,26 @@ export const repo = {
       .eq('household_id', householdId).eq('week_start', weekStart).order('requested_at', { ascending: false }).limit(1).maybeSingle());
   },
 
-  /** Asks Claude (the scheduled task on the owner's Mac) to plan a week; `replace` lets it replace the week's draft.
-   *  A request already open is returned instead. */
-  async requestWeekPlan(householdId: string, weekStart: string, note: string | null, replace = false): Promise<WeekPlanRequest> {
-    const made = await db().from('week_plan_requests').insert({ household_id: householdId, week_start: weekStart, note, replace })
-      .select('id, household_id, week_start, note, status, replace, requested_at, summary').single();
-    if (made.error?.code === '23505') return (await this.getWeekPlanRequest(householdId, weekStart))!;
+  /** Starts planning a week with Claude: the request carries the note and the choices from the Plan with Claude screen,
+   *  and `replace` lets it replace the week's draft. An earlier request still open for the week (abandoned in the Claude
+   *  app) is cancelled first, so the choices just made are the ones Claude reads. */
+  async requestWeekPlan(householdId: string, weekStart: string, note: string | null, replace = false, choices: PlanChoices | null = null): Promise<WeekPlanRequest> {
+    const cols = 'id, household_id, week_start, note, status, replace, requested_at, summary, choices';
+    const insert = () => db().from('week_plan_requests').insert({ household_id: householdId, week_start: weekStart, note, replace, ...(choices ? { choices } : {}) })
+      .select(cols).single();
+    let made = await insert();
+    if (made.error?.code === '23505') {
+      must(await db().from('week_plan_requests').update({ status: 'failed', summary: CANCELLED, finished_at: new Date().toISOString() })
+        .eq('household_id', householdId).eq('week_start', weekStart).in('status', ['requested', 'planning']));
+      made = await insert();
+    }
     return must<WeekPlanRequest>(made);
+  },
+
+  /** Plan with Claude's "Make this week's changes my usual": the settings, then each office day that changed. */
+  async saveUsualWeek(householdId: string, settings: Settings, office: { memberId: string; weekday: number; office: boolean }[]): Promise<void> {
+    await this.saveSettings(householdId, settings);
+    for (const o of office) await this.setOffice(o.memberId, o.weekday, o.office);
   },
 
   /** Cancels an open "Plan with Claude" request (the Mac's save then refuses it). */

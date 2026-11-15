@@ -106,3 +106,9 @@ describe('ownCookingMinutes', () => {
     expect(ownCookingMinutes(c, settings)).toEqual({ '2026-11-24': 90 });
   });
 });
+
+test('a usual prep day starts with at least 2 hours', () => {
+  const c = usualChoices(MON, { prep_days: [2] }, adults, []);
+  expect(c.cookingMinutes['2026-11-25']).toBe(120);
+  expect(c.cookingMinutes['2026-11-24']).toBe(60);
+});

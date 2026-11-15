@@ -25,6 +25,7 @@ import SettingsHome from './screens/settings/SettingsHome';
 import Shopping from './screens/settings/Shopping';
 import Staples from './screens/settings/Staples';
 import UsualWeek from './screens/settings/UsualWeek';
+import PlanChoicesScreen from './screens/week/PlanChoices';
 import { isTablet, useWakeLock } from './lib/wakeLock';
 import { askToKeepStorage, keepPhotos } from './lib/photoCache';
 import { PHOTO_LARGE } from './lib/photoSizes';
@@ -73,6 +74,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/week" replace />} />
       <Route path="/week" element={<WeekView />} />
+      <Route path="/plan" element={<PlanChoicesScreen />} />
       <Route path="/today" element={<TodayHour />} />
       <Route path="/recipes" element={<RecipeLibrary />} />
       <Route path="/recipes/roast" element={<RoastBuilder />} />

@@ -1,3 +1,4 @@
+import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import type { Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
@@ -83,8 +84,9 @@ export function fakeRepo() {
     proposeNow: vi.fn(async () => 'created'),
     getWeekPlanRequest: vi.fn(async (_hid: string, _weekStart: string): Promise<WeekPlanRequest | null> => null),
     cancelWeekPlan: vi.fn(async (_id: string) => {}),
-    requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null, _replace?: boolean): Promise<WeekPlanRequest> => ({
-      id: 'q1', household_id: hid, week_start: weekStart, note, status: 'requested', requested_at: new Date().toISOString(), summary: null })),
+    requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null, _replace?: boolean, choices?: PlanChoices | null): Promise<WeekPlanRequest> => ({
+      id: 'q1', household_id: hid, week_start: weekStart, note, status: 'requested', requested_at: new Date().toISOString(), summary: null, choices: choices ?? null })),
+    saveUsualWeek: vi.fn(async (_hid: string, _settings: Settings, _office: { memberId: string; weekday: number; office: boolean }[]) => {}),
     recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
     requestCookidooSync: vi.fn(async (_weekId: string) => {}),
