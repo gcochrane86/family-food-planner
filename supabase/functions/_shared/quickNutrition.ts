@@ -60,7 +60,8 @@ const EACH = ['', 'each', 'whole', 'small', 'medium', 'large', 'piece', 'pieces'
 /** The food a name means, by the longest table word in it ("greek yoghurt" → yoghurt). */
 export function quickFood(name: string): string | null {
   const n = name.trim().toLowerCase();
-  return KEYS.find((k) => n.includes(k)) ?? null;
+  // Whole words only: "pineapple" isn't an apple, "doughnuts" aren't nuts.
+  return KEYS.find((k) => new RegExp(`(^|[^a-z])${k}`).test(n)) ?? null;
 }
 
 const grams = (f: Food, qty: number, unit: string): number | null => {

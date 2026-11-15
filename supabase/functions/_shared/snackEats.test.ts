@@ -133,3 +133,9 @@ describe('snacks from recipes that can be snacks, and quick snacks', () => {
     expect(e.make_date).toBe('2026-11-18');
   });
 });
+
+test("a quick snack can't be a meal partner yet", () => {
+  const pool = new Map([['apple-almonds', { id: 'apple', slug: 'apple-almonds', keeps_days: null, toddler_ok: true, quick: true }]]);
+  expect(() => parsePartners([{ meal: 'Packed lunch', person: 'A', recipe: 'apple-almonds', qty: 1 }], { members: [{ id: 'a', name: 'A', kind: 'adult' }], snacks: pool, meals: ['Packed lunch'] }))
+    .toThrow(/quick snack/);
+});

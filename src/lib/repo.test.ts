@@ -142,3 +142,11 @@ test('a quick snack is a snack recipe with its items, no steps, and its nutritio
   expect(h.rpcs.at(-1)).toMatchObject({ fn: 'replace_recipe_contents', args: { p_recipe_id: 'r-q', p_steps: [],
     p_ingredients: [expect.objectContaining({ position: 1, name: 'apple', qty: 1 }), expect.objectContaining({ position: 2, name: 'almonds', qty: 30, unit: 'g' })] } });
 });
+
+test('a snack still saves before migration 0026 (no added_by column yet)', async () => {
+  h.results.snack_eats = [{ data: null, error: { message: 'column "added_by" of relation "snack_eats" does not exist' } },
+    { data: { id: 'e1', date: '2026-11-17', slot: 'snack_pm', member_id: 'a', recipe_id: 'r', qty: 1, make_date: '2026-11-16' }, error: null }];
+  const saved = await repo.addSnackEat('w1', { date: '2026-11-17', slot: 'snack_pm', member_id: 'a', recipe_id: 'r', qty: 1, make_date: '2026-11-16' });
+  expect(saved.id).toBe('e1');
+  expect(h.inserts.filter((x) => x.table === 'snack_eats').at(-1)!.row).not.toHaveProperty('added_by');
+});

@@ -151,6 +151,7 @@ export function parsePartners(raw: unknown, ctx: { members: Member[]; snacks: Po
     const list = ((out[meal] ??= {})[m.id] ??= []);
     if (Number(p?.qty) === 0) continue;
     const r = findSnack(ctx.snacks, p?.recipe);
+    if (r.quick) throw new Error(`${r.slug} is a quick snack, and quick snacks can't be meal partners yet. Plan it as a snack instead.`);
     if (m.kind === 'child' && !r.toddler_ok) throw new Error(`${r.slug} isn't toddler-friendly, so not for ${m.name}`);
     list.push({ recipe: r.slug, qty: quantity(p.qty, r.slug) });
   }

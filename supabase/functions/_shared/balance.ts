@@ -251,7 +251,7 @@ export function nudge(p: { kind: string; totals: Partial<Record<Macro, number>>;
   const slot = (['snack_pm', 'snack_am'] as const).find((s) => !eatsToday.some((e) => e.slot === s));
   if (!slot) return null;
   const best = snacks.filter((r) => p.kind !== 'child' || r.toddler_ok !== false)
-    .map((r) => ({ r, v: parseNutrition(r.nutrition)?.[macro] }))
+    .map((r) => ({ r, v: (parseNutrition(r.nutrition)?.[macro] as number | undefined) === undefined ? undefined : (parseNutrition(r.nutrition)![macro] as number) * snackFactor(r as never) }))
     .filter((x): x is { r: typeof x.r; v: number } => typeof x.v === 'number' && x.v > 0)
     .sort((a, b) => b.v - a.v)[0];
   if (!best) return null;

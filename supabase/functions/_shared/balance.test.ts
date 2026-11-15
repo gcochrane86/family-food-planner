@@ -239,3 +239,12 @@ test("a square of baked oats as a snack counts its share of a serving; a breakfa
   const p = personDay(D, day(), rs as never, rt, { id: 'a', kind: 'adult', portion_weight: 1 }, { eats });
   expect(p.totals.protein_g).toBe(20 + 30 + 30 + 2 * 12 * 0.5);
 });
+
+test('the nudge weighs a recipe that can be a snack by one snack, not a serving', () => {
+  const p = { kind: 'adult', totals: { protein_g: 50 }, targets: { protein_g: 90 }, states: { protein_g: 'under' as const } };
+  const pick = nudge(p, [], [
+    { id: 'oats', title: 'Baked oats', kind: 'component', snack_ok: true, base_portions: 4, snack_portions: 8, nutrition: N({ protein_g: 12 }) },
+    { id: 'egg', title: 'Boiled egg', kind: 'snack', nutrition: N({ protein_g: 10 }) },
+  ] as never);
+  expect(pick?.recipe_id).toBe('egg');
+});

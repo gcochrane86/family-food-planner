@@ -38,3 +38,9 @@ describe('quick snack nutrition', () => {
     expect(quickNutrition([])).toBeNull();
   });
 });
+
+test('food names match whole words: pineapple is not an apple, doughnuts are not nuts', () => {
+  expect(quickNutrition([{ name: 'pineapple', qty: 100, unit: 'g' }])).toBeNull();
+  expect(quickNutrition([{ name: 'doughnuts', qty: 1, unit: '' }])).toBeNull();
+  expect(quickNutrition([{ name: 'red apples', qty: 1, unit: '' }])).not.toBeNull();
+});

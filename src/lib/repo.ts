@@ -224,8 +224,10 @@ export const repo = {
   /** One person's snack on a day (a nudge's yes), made on `make_date` with the rest of the family's. */
   async addSnackEat(weekId: string, eat: Eat): Promise<Eat> {
     const { partner: _p, id: _i, ...row } = eat;
-    const saved = must<Eat>(await db().from('snack_eats').insert({ ...row, plan_week_id: weekId, added_by: 'household' })
-      .select('id, date, slot, member_id, recipe_id, qty, make_date, added_by').single());
+    let res = await db().from('snack_eats').insert({ ...row, plan_week_id: weekId, added_by: 'household' }).select('*').single();
+    // Before migration 0026 there's no added_by: save it without.
+    if (res.error && /added_by/.test(res.error.message)) res = await db().from('snack_eats').insert({ ...row, plan_week_id: weekId }).select('*').single();
+    const { plan_week_id: _w, ...saved } = must<Eat & { plan_week_id?: string }>(res);
     return { ...saved, qty: Number(saved.qty) };
   },
   async removeSnackEat(id: string): Promise<void> {
