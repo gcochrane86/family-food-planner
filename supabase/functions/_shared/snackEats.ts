@@ -16,6 +16,8 @@ export interface Eat {
   /** From a meal partner (worked out, never stored). */
   partner?: boolean;
   id?: string;
+  /** Who put it on the week: Claude's plan, or the household (kept on a replan). */
+  added_by?: 'claude' | 'household';
 }
 /** Routine name → member id → that person's partners for it. */
 export type Partners = Record<string, Record<string, { recipe: string; qty: number }[]>>;

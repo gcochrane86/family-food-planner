@@ -6,6 +6,7 @@ import { addDays } from './planner.ts';
 import { londonParts } from './schedule.ts';
 import { parseVersion } from './slotVersion.ts';
 import { partnerEats, type Eat, type Partners } from './snackEats.ts';
+import { isSnack } from './snackRules.ts';
 
 // The Deno and Node Supabase clients have different types; only the query builder is used.
 // deno-lint-ignore no-explicit-any
@@ -121,14 +122,14 @@ export function makeReader(db: Db, householdId: string): Reader {
       const weekEatRows = async (weekId: string, start: string, days: number, slots: SlotRow[]): Promise<EatRow[]> => {
         const [e, m, st, r] = await Promise.all([
           db.from('snack_eats').select('date, slot, member_id, recipe_id, qty').eq('plan_week_id', weekId),
-          hh('members', 'id, name'), hh('settings', 'data').maybeSingle(), hh('recipes', 'id, slug, title, kind, keeps_days, toddler_ok, reheats_well'),
+          hh('members', 'id, name'), hh('settings', 'data').maybeSingle(), hh('recipes', 'id, slug, title, kind, keeps_days, toddler_ok, reheats_well, snack_ok, quick'),
         ]);
         if (e.error) return []; // before migration 0025
         const names = new Map(list(rows<{ id: string; name: string }[]>(m, 'Reading members')).map((x) => [x.id, x.name]));
         const recipes = list(rows<{ id: string; slug: string; title: string; kind: string; keeps_days: number | null; toddler_ok: boolean; reheats_well: boolean }[]>(r, 'Reading recipes'));
         const titles = new Map(recipes.map((x) => [x.id, x.title]));
         const data = (one(rows<{ data: Record<string, unknown> } | null>(st, 'Reading settings'))?.data) ?? {};
-        const snacks = new Map(recipes.filter((x) => x.kind === 'snack').map((x) => [x.slug, { id: x.id, keeps_days: x.keeps_days, toddler_ok: x.toddler_ok !== false }]));
+        const snacks = new Map(recipes.filter((x) => isSnack(x)).map((x) => [x.slug, { id: x.id, keeps_days: x.keeps_days, toddler_ok: x.toddler_ok !== false }]));
         const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
         const partners = partnerEats(dates, slots, data.meal_partners as Partners | undefined, snacks, [], new Map(recipes.map((x) => [x.id, x])), {
           breakfasts: Array.isArray(data.breakfasts) ? data.breakfasts as string[] : [], homeLunches: Array.isArray(data.lunches) ? data.lunches as string[] : [],

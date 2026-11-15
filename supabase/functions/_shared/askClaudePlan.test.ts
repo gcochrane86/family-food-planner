@@ -208,3 +208,9 @@ test("a new recipe is only a snack when it's written as one", async () => {
     .save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWMEAL], snacks: [{ person: 'Adult A', recipe: 'lemon-chicken', slot: 'am', date: '2026-11-16', make_date: '2026-11-15' }] }));
   expect(out).toMatch(/No snack recipe "lemon-chicken"/);
 });
+
+test('how to plan explains snacks from any recipe, quick snacks and the household\'s own', () => {
+  expect(HOW_TO_PLAN).toMatch(/snackPortion/);
+  expect(HOW_TO_PLAN).toMatch(/quick snacks/);
+  expect(HOW_TO_PLAN).toMatch(/householdSnacks/);
+});

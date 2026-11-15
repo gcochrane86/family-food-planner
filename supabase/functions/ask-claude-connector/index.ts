@@ -156,13 +156,13 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
           reason: { type: 'string', description: 'One line shown on the day, up to 200 characters' } } } },
         new_recipes: { type: 'array', description: 'New recipes in the seed format from newRecipeRules (up to the allowance)', items: { type: 'object' } },
         cooking_minutes: { type: 'object', description: "This week's own cooking time for a day, as { \"YYYY-MM-DD\": minutes } (30–240), only for days the household says differ from rules.cookingTime", additionalProperties: { type: 'number' } },
-        snacks: { type: 'array', description: "Each person's snacks: one per person per am/pm slot a day, made as one family on one of rules.snackMakeDates, on or before the day and within its keepsDays", items: { type: 'object', required: ['person', 'date', 'slot', 'recipe', 'make_date'], properties: {
+        snacks: { type: 'array', description: "Each person's snacks: one per person per am/pm slot a day, made as one family on one of rules.snackMakeDates, on or before the day and within its keepsDays", items: { type: 'object', required: ['person', 'date', 'slot', 'recipe'], properties: {
           person: { type: 'string', description: 'A name from members' },
           date: { type: 'string', description: 'YYYY-MM-DD, the day it is eaten, in the week' },
           slot: { type: 'string', enum: ['am', 'pm'], description: 'Morning or afternoon snack' },
           recipe: { type: 'string', description: "A snack recipe's slug or title (snackRecipes), or a new snack recipe's slug" },
           qty: { type: 'number', description: 'Portions (one item each, e.g. 2 boiled eggs), default 1' },
-          make_date: { type: 'string', description: 'YYYY-MM-DD, one of rules.snackMakeDates' } } } },
+          make_date: { type: 'string', description: 'YYYY-MM-DD, one of rules.snackMakeDates (not needed for a quick snack, which is bought for the day)' } } } },
         partners: { type: 'array', description: 'New or changed meal partners, kept when the household approves the week: they then come with that breakfast or lunch for that person every time it is planned. qty 0 removes that person\'s partners for the meal', items: { type: 'object', required: ['meal', 'person', 'recipe', 'qty'], properties: {
           meal: { type: 'string', description: 'A breakfast or lunch name (e.g. Overnight oats, Packed lunch)' },
           person: { type: 'string', description: 'A name from members' },

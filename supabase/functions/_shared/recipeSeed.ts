@@ -102,6 +102,8 @@ export function recipeRow(householdId: string, r: SeedRecipe): Record<string, un
     // Snacks (migration 0023): left out, a re-seed keeps what's saved.
     ...(r.nutrition != null ? { nutrition: r.nutrition } : {}),
     ...(r.keeps_days != null ? { keeps_days: r.keeps_days } : {}),
+    // Snacks in the Recipes tab (migration 0026): a quick snack is bought, never made.
+    ...(r.quick === true ? { quick: true } : {}),
     // The main photo's description (migration 0019); left out, a re-seed keeps the one saved.
     ...(typeof r.photo === 'string' && r.photo.trim() ? { hero_hint: r.photo.trim() } : {}),
   };

@@ -261,3 +261,45 @@ test("the proposal's balance gives each person's day against their targets", asy
   expect(day.people).toEqual([expect.objectContaining({ name: 'A', targets: { protein_g: 90, sugars_g: 30 }, off: ['under protein_g', 'over sugars_g'] })]);
   expect(day.people[0].totals.protein_g).toBe(75);
 });
+
+describe('snacks from any recipe, quick snacks, and the household\'s own', () => {
+  const N = { protein_g: 8, fibre_g: 4, veg_portions: 0, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, kcal: 400 };
+  test('the context lists recipes that can be snacks and quick snacks, per snack, and the snacks the household added', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      members: [{ id: 'm-a', name: 'Adult A', kind: 'adult', portion_weight: 1.25 }],
+      recipes: [
+        { id: 'r-oats', slug: 'baked-oats', title: 'Baked oats', kind: 'component', status: 'active', snack_ok: true, snack_portions: 8, base_portions: 4, keeps_days: 3, toddler_ok: true, recipe_ingredients: [], nutrition: N },
+        { id: 'r-apple', slug: 'apple-almonds', title: 'Apple & almonds', kind: 'snack', quick: true, status: 'active', base_portions: 1, toddler_ok: false, recipe_ingredients: [], nutrition: null },
+      ],
+      'plan_weeks:one': { id: 'w1', status: 'draft' },
+      snack_eats: [{ date: '2026-11-17', slot: 'snack_pm', member_id: 'm-a', recipe_id: 'r-apple', qty: 1, added_by: 'household' }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    const oats = ctx.snackRecipes.find((r: { slug: string }) => r.slug === 'baked-oats');
+    expect(oats).toMatchObject({ snackPortion: '1 of 8 from a batch (half a serving)', quick: false });
+    expect(oats.nutrition.kcal).toBe(200);
+    expect(ctx.snackRecipes.find((r: { slug: string }) => r.slug === 'apple-almonds')).toMatchObject({ quick: true });
+    expect(ctx.nutritionMissing.recipes).toContain('apple-almonds');
+    expect(ctx.householdSnacks).toEqual([{ person: 'Adult A', date: '2026-11-17', slot: 'pm', recipe: 'apple-almonds', qty: 1 }]);
+  });
+
+  test("Claude's quick snack needs no make day, and a recipe that can be a snack is accepted", async () => {
+    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }, { id: 'r-apple', slug: 'apple-almonds', title: 'Apple & almonds', kind: 'snack', quick: true, status: 'active' },
+      { id: 'r-oats', slug: 'baked-oats', title: 'Baked oats', kind: 'component', snack_ok: true, status: 'active', keeps_days: 3 }], members: [{ id: 'm-a', name: 'Adult A', kind: 'adult' }] });
+    await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], snacks: [
+      { person: 'Adult A', date: '2026-11-18', slot: 'pm', recipe: 'apple-almonds' },
+      { person: 'Adult A', date: '2026-11-17', slot: 'am', recipe: 'baked-oats', qty: 1, make_date: '2026-11-15' },
+    ] }, WEEK), { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never, choices: { prepDays: [6] } as never });
+    expect((db.rpcs.at(-1)!.args as { p_eats: unknown[] }).p_eats).toEqual([
+      expect.objectContaining({ recipe_id: 'r-apple', make_date: '2026-11-18' }), expect.objectContaining({ recipe_id: 'r-oats', make_date: '2026-11-15' }),
+    ]);
+  });
+});
+
+test('a new quick snack needs no steps', async () => {
+  const { validateRecipeSeed } = await import('./recipeSeed');
+  expect(validateRecipeSeed({ recipes: [{ slug: 'pear-walnuts', title: 'Pear & walnuts', kind: 'snack', quick: true, keeps_days: 1, base_portions: 1, source: 'claude',
+    ingredients: [{ name: 'pear', qty: 1, unit: '' }, { name: 'walnuts', qty: 20, unit: 'g' }], steps: [], nutrition: { protein_g: 3, fibre_g: 6, veg_portions: 0, fruit_portions: 1,
+      healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false } }] })).toEqual([]);
+});

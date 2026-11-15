@@ -6,6 +6,7 @@ import { loadPlannerInput } from './loadPlan.ts';
 import { parseChoices, type PlanChoices } from './planChoices.ts';
 import { compareTargets, dayBalance, parseNutrition, personDay } from './balance.ts';
 import { snackMakeDates } from './snackPlan.ts';
+import { isSnack, snackFactor } from './snackRules.ts';
 import { parseEats, parsePartners, partnerEats, type Eat, type Partners } from './snackEats.ts';
 import { MEAL_SPEC } from './mealSpec.ts';
 import { slotRows } from './planInput.ts';
@@ -45,18 +46,19 @@ export async function snackChecker(db: Db, hid: string, weekStart: string, days:
   newRecipes: { slug?: unknown; title?: unknown; kind?: unknown; keeps_days?: unknown; toddler_ok?: unknown }[] = []) {
   const [m, r, st] = await Promise.all([
     db.from('members').select('id, name, kind').eq('household_id', hid),
-    db.from('recipes').select('id, slug, title, kind, status, keeps_days, toddler_ok').eq('household_id', hid),
+    db.from('recipes').select('id, slug, title, kind, status, keeps_days, toddler_ok, snack_ok, quick').eq('household_id', hid),
     db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
   ]);
   const members = list(m, 'Reading members') as { id: string; name: string; kind: string }[];
-  const pool = new Map<string, { id: string; slug: string; keeps_days: number | null; toddler_ok: boolean }>();
+  const pool = new Map<string, { id: string; slug: string; keeps_days: number | null; toddler_ok: boolean; quick: boolean }>();
   const snacks = [
-    ...(list(r, 'Reading recipes') as { slug: string; title: string; kind?: string; status?: string; keeps_days?: number | null; toddler_ok?: boolean }[])
-      .filter((x) => x.kind === 'snack' && x.status !== 'archived'),
-    ...newRecipes.filter((n) => n?.kind === 'snack').map((n) => ({ slug: String(n.slug ?? ''), title: String(n.title ?? n.slug ?? ''), keeps_days: typeof n.keeps_days === 'number' ? n.keeps_days : null, toddler_ok: n.toddler_ok !== false })),
+    ...(list(r, 'Reading recipes') as { slug: string; title: string; kind?: string; status?: string; keeps_days?: number | null; toddler_ok?: boolean; snack_ok?: boolean; quick?: boolean }[])
+      .filter((x) => isSnack(x)),
+    ...newRecipes.filter((n) => isSnack(n as never)).map((n) => ({ slug: String(n.slug ?? ''), title: String(n.title ?? n.slug ?? ''), keeps_days: typeof n.keeps_days === 'number' ? n.keeps_days : null,
+      toddler_ok: n.toddler_ok !== false, quick: (n as { quick?: unknown }).quick === true })),
   ];
   for (const x of snacks) {
-    const info = { id: x.slug, slug: x.slug, keeps_days: x.keeps_days ?? null, toddler_ok: x.toddler_ok !== false };
+    const info = { id: x.slug, slug: x.slug, keeps_days: x.keeps_days ?? null, toddler_ok: x.toddler_ok !== false, quick: x.quick === true };
     pool.set(x.slug.toLowerCase(), info);
     pool.set(x.title.toLowerCase(), info);
   }
@@ -83,18 +85,18 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     db.from('members').select('id, name, kind, portion_weight, targets').eq('household_id', hid),
     db.from('house_rules').select('kind, match, replacement, note').eq('household_id', hid),
     // Ingredients nested in each recipe, so a big library isn't cut off at the API's row limit.
-    db.from('recipes').select('id, slug, title, subtitle, kind, protein, finish_minutes, prep_minutes, reheats_well, freezes_well, tags, rating, status, base_portions, nutrition, keeps_days, toddler_ok, recipe_ingredients(name, qty, unit)').eq('household_id', hid).in('kind', ['meal', 'snack']),
+    db.from('recipes').select('id, slug, title, subtitle, kind, protein, finish_minutes, prep_minutes, reheats_well, freezes_well, tags, rating, status, base_portions, nutrition, keeps_days, toddler_ok, snack_ok, snack_portions, quick, recipe_ingredients(name, qty, unit)').eq('household_id', hid).in('kind', ['meal', 'snack', 'component']),
     db.from('plan_weeks').select('week_start, meal_slots(date, slot, mode, recipe_id)').eq('household_id', hid).gte('week_start', addDays(weekStart, -28)).lt('week_start', weekStart),
     db.from('prepared_items').select('name, recipe_id, portions, use_by').eq('household_id', hid).eq('location', 'freezer').gt('portions', 0),
     db.from('pantry_items').select('staple_status, qty, unit, location, ingredients(name)').eq('household_id', hid),
     db.from('products').select('item_key, product_name, pack_size, pack_unit').eq('household_id', hid),
-    db.from('plan_weeks').select('status').eq('household_id', hid).eq('week_start', weekStart).maybeSingle(),
+    db.from('plan_weeks').select('id, status').eq('household_id', hid).eq('week_start', weekStart).maybeSingle(),
   ]);
   const s = (must(settings, 'Reading settings') as { data: Record<string, unknown> } | null)?.data ?? {};
   type Ing = { name: string; qty: number | null; unit: string };
   const everything = list(recipes, 'Reading recipes') as { id: string; slug: string; kind?: string; recipe_ingredients: Ing[]; [k: string]: unknown }[];
   const all = everything.filter((x) => (x.kind ?? 'meal') === 'meal');
-  const snacks = everything.filter((x) => x.kind === 'snack' && x.status !== 'archived');
+  const snacks = everything.filter((x) => isSnack(x as never));
   const slugOf = new Map(all.map((x) => [x.id, x.slug]));
   const plannable = new Set(input.recipes.map((x) => x.id));
   const handsOnOf = new Map(input.recipes.map((x) => [x.id, { prepMinutes: x.prepMinutes ?? null, cookHandsOn: x.cookHandsOn ?? null }]));
@@ -112,7 +114,8 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     .map((x) => ({ date: x.date, recipe: x.recipeId ? slugOf.get(x.recipeId) ?? null : null, reason: x.reason }));
   // Daily balance: what the built-in proposal would give each day, so snacks can be aimed at the gaps.
   const routines = (s.routine_nutrition && typeof s.routine_nutrition === 'object' ? s.routine_nutrition : {}) as Record<string, unknown>;
-  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true, toddler_ok: x.toddler_ok !== false }]));
+  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true, toddler_ok: x.toddler_ok !== false,
+    title: x.title as string, kind: x.kind, snack_ok: x.snack_ok as boolean, base_portions: x.base_portions as number, snack_portions: x.snack_portions as number | null }]));
   const homeLunches = Array.isArray(s.lunches) && s.lunches.length ? s.lunches as string[] : ['Chicken sandwich'];
   const balanceSlots = proposed.map((x) => ({ date: x.date, slot: x.slot, mode: x.mode, recipe_id: x.recipeId, reason: x.reason, source_date: x.sourceDate }));
   const people = list(members, 'Reading members') as { id: string; name: string; kind: string; portion_weight: number | string; targets?: Record<string, number> | null }[];
@@ -139,7 +142,13 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   });
   const names = [...new Set([...(Array.isArray(s.breakfasts) ? s.breakfasts : []), ...(Array.isArray(s.lunches) ? s.lunches : []), 'Packed lunch']
     .filter((n): n is string => typeof n === 'string' && !!n.trim()))];
-  const week = must(existing, 'Reading the week') as { status: string } | null;
+  const week = must(existing, 'Reading the week') as { id?: string; status: string } | null;
+  // Snacks the household added to this week themselves: a replan keeps them, so plan around them.
+  const own = week?.id ? await db.from('snack_eats').select('date, slot, member_id, recipe_id, qty, added_by').eq('plan_week_id', week.id).eq('added_by', 'household') : { data: [], error: null };
+  const slugById = new Map(everything.map((x) => [x.id, x.slug]));
+  const householdSnacks = (own.error ? [] : (own.data ?? []) as { date: string; slot: string; member_id: string; recipe_id: string; qty: number; added_by?: string }[])
+    .filter((e) => e.added_by === 'household')
+    .map((e) => ({ person: people.find((m) => m.id === e.member_id)?.name ?? 'someone', date: e.date, slot: e.slot === 'snack_am' ? 'am' : 'pm', recipe: slugById.get(e.recipe_id) ?? e.recipe_id, qty: Number(e.qty) }));
 
   return {
     week: {
@@ -181,8 +190,12 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
       .filter((p) => p.pack_size).map((p) => ({ item: p.item_key.split('|')[0], pack: `${p.pack_size}${p.pack_unit}`, product: p.product_name })),
     builtInProposal: proposal,
     builtInBalance,
-    snackRecipes: snacks.map(({ id: _id, recipe_ingredients: ings, kind: _k, ...x }) => ({
-      slug: x.slug, title: x.title, keepsDays: x.keeps_days ?? null, toddlerOk: x.toddler_ok !== false, nutrition: parseNutrition(x.nutrition),
+    // Every snack: snack recipes, recipes that can be snacks (one snack is their share of a batch) and quick snacks
+    // (bought, never made: no make_date). Nutrition is per snack.
+    householdSnacks,
+    snackRecipes: snacks.map(({ id: _id, recipe_ingredients: ings, ...x }) => ({
+      slug: x.slug, title: x.title, keepsDays: x.keeps_days ?? null, toddlerOk: x.toddler_ok !== false, quick: x.quick === true,
+      snackPortion: snackPortion(x as never), nutrition: perSnack(parseNutrition(x.nutrition), snackFactor(x as never)),
       ingredients: (ings ?? []).map((i) => [i.qty, i.unit, i.name].filter((v) => v !== null && v !== '').join(' ')),
     })),
     // Estimates still to make (save_nutrition): plannable dinners, and breakfasts and lunches that are names.
@@ -331,4 +344,16 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
     }
     throw new Error(msg);
   }
+}
+
+/** How one snack of a recipe that can be a snack relates to its batch, in words; null for snack recipes. */
+function snackPortion(r: { kind?: string; snack_ok?: boolean; snack_portions?: number | null; base_portions?: number }): string | null {
+  if (r.kind === 'snack' || !r.snack_ok || !r.snack_portions) return null;
+  const f = snackFactor(r as never);
+  const share = f === 0.5 ? 'half a serving' : f === 1 ? 'a serving' : `${Math.round(f * 100) / 100} of a serving`;
+  return `1 of ${r.snack_portions} from a batch (${share})`;
+}
+function perSnack(n: ReturnType<typeof parseNutrition>, f: number) {
+  if (!n || f === 1) return n;
+  return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, typeof v === 'number' ? Math.round(v * f * 10) / 10 : v]));
 }
