@@ -602,3 +602,10 @@ test('tapping a thing to chop opens how to cut it, full screen, and can make its
   while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.queryByRole('button', { name: 'How to cut basmati rice' })).not.toBeInTheDocument();
 });
+
+test("the Sunday before a week, with nothing planned that day, is Monday's prep", async () => {
+  vi.setSystemTime(new Date('2026-10-18T12:00:00Z'));
+  open();
+  expect(await screen.findByText(/No dinner to cook tonight/)).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Prep for tomorrow' })).toHaveTextContent("Prep for tomorrow's Almond-Crusted Honey Chilli Chicken");
+});

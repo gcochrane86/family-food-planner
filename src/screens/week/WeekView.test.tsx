@@ -51,6 +51,28 @@ test('a draft week shows the review banner and can be approved', async () => {
   expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
 });
 
+describe('the Sunday before: prep for Monday', () => {
+  test("before the week, a bar opens the Sunday before's cooking, which has Monday's prep", async () => {
+    render(<WeekView />, { wrapper: MemoryRouter }); // Friday 16 Oct; the week starts Monday 19
+    const bar = await screen.findByRole('link', { name: /Sunday 18 Oct.*Prep for Monday/ });
+    expect(bar).toHaveAttribute('href', '/today?day=2026-10-18');
+  });
+
+  test("on the Sunday itself it is today's cooking", async () => {
+    vi.setSystemTime(new Date('2026-10-18T15:00:00Z'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const bar = await screen.findByRole('link', { name: /Today's cooking.*Prep for Monday/ });
+    expect(bar).toHaveAttribute('href', '/today');
+  });
+
+  test('once the week has started, no bar', async () => {
+    vi.setSystemTime(new Date('2026-10-19T15:00:00Z'));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await screen.findByRole('link', { name: /Today's cooking/ });
+    expect(screen.queryByRole('link', { name: /Prep for Monday/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('new recipes to check', () => {
   test("a draft week lists the recipes Claude made up for it, and marks their days", async () => {
     h.repo.listRecipes.mockResolvedValue([{ ...HONEY, source: 'claude', planned_for: '2026-10-19' }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);

@@ -78,6 +78,22 @@ export default function WeekView() {
         </div>
       )}
 
+      {/* The Sunday before the week: its cooking has Monday's prep (breakfast and lunch made ahead, the dinner's prep). */}
+      {w.week && today <= addDays(w.weekStart, -1) && (() => {
+        const sunday = addDays(w.weekStart, -1);
+        const isToday = today === sunday;
+        const label = new Date(`${sunday}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '');
+        return (
+          <Link to={isToday ? '/today' : `/today?day=${sunday}`} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
+            <span>
+              <span className="block font-bold">{isToday ? "Today's cooking" : label}</span>
+              <span className="block text-sm text-muted">Prep for Monday</span>
+            </span>
+            <span aria-hidden="true" className="text-muted">›</span>
+          </Link>
+        );
+      })()}
+
       {w.week && dates.includes(today) && (
         <Link to="/today" className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
           <span>
