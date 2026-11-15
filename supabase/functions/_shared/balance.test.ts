@@ -170,3 +170,9 @@ describe('each person’s day', () => {
     expect(compareTargets({ kcal: 2000 }, {}, [])).toEqual({});
   });
 });
+
+test("the markers are judged for an adult's share of each meal", () => {
+  // Eggs & porridge is 28g a portion: 0.8 of it is under 25g, 1.25 of it is over.
+  expect(dayBalance(D, day(), recipes, routines, { share: 0.8 }).breakfastProtein).toBe('low');
+  expect(dayBalance(D, day({ breakfast: 'Overnight oats' }), recipes, routines, { share: 1.25 }).breakfastProtein).toBe('ok');
+});

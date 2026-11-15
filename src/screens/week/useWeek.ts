@@ -57,6 +57,8 @@ export function useWeek() {
   const weekStart = shown === 'next' ? starts.nextWeek : starts.thisWeek;
   const recipes = useMemo(() => new Map((data?.recipes ?? []).map((r) => [r.id, r])), [data]);
   const routines = (data?.settings?.routine_nutrition ?? {}) as Record<string, unknown>;
+  // The markers are judged for an adult's share of each meal (Settings → Household).
+  const adultShare = Number((data?.members ?? []).find((m: Member) => m.kind === 'adult')?.portion_weight) || 1.25;
   const hasEstimates = useMemo(() => (data?.recipes ?? []).some((r) => parseNutrition(r.nutrition)), [data]);
   const mealOptions = useMemo(() => ({
     breakfast: data?.settings?.breakfasts?.length ? data.settings.breakfasts : DEFAULT_BREAKFASTS,
@@ -169,7 +171,7 @@ export function useWeek() {
       : [],
     officeDays: input?.officeDays ?? [],
     /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
-    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
+    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare }) : null),
     /** Each person's day against their own targets (empty until any recipe has an estimate). */
     people: (date: string): { id: string; name: string; totals: Partial<Record<Macro, number>>; unknown: Macro[]; states: Partial<Record<Macro, TargetState>>; targets: Partial<Record<Macro, number>> }[] =>
       (hasEstimates ? (data?.members ?? []).map((m: Member) => {
@@ -177,7 +179,7 @@ export function useWeek() {
         return { id: m.id, name: m.name, ...p, targets: m.targets ?? {}, states: compareTargets(p.totals, m.targets, p.unknown) };
       }) : []),
     /** The week's oily fish, beans or lentils, and red meat (null until any recipe has an estimate). */
-    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
+    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare }) : null),
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     /** Trades two days' dinners (recipe, portions, guests, batch and roast plans), and keeps both where you put them. */

@@ -98,3 +98,17 @@ test("each person's daily targets save when a box is left; an empty box clears t
   await userEvent.tab();
   expect(h.repo.saveMember).toHaveBeenLastCalledWith(expect.objectContaining({ id: YOU.id, targets: {} }));
 });
+
+test("a target that can't be saved goes back to what was saved, and a typo says so", async () => {
+  h.repo.saveMember.mockRejectedValueOnce(new Error('offline'));
+  render(<Household />, { wrapper: MemoryRouter });
+  const protein = await screen.findByLabelText('You daily protein (g)');
+  await userEvent.type(protein, '90');
+  await userEvent.tab();
+  expect(await screen.findByRole('alert')).toBeInTheDocument();
+  expect(protein).toHaveValue('');
+  const fat = screen.getByLabelText('You daily fat (g)');
+  await userEvent.type(fat, 'abc');
+  await userEvent.tab();
+  expect(screen.getByText('Enter a number of 0 or more, or leave it empty.')).toBeInTheDocument();
+});

@@ -81,7 +81,7 @@ export function snackRows(makes: SnackMake[], recipes: Map<string, { id: string;
 
 const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat, and (0 or more) kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g';
 
-/** Saves Claude's estimates per adult portion: recipes by slug or title, and breakfasts or lunches that are names
+/** Saves Claude's estimates per serving: recipes by slug or title, and breakfasts or lunches that are names
  *  (into settings.routine_nutrition). All or nothing. */
 export async function saveNutrition(db: Db, hid: string, a: { recipes?: unknown; routines?: unknown }): Promise<string> {
   const recipeItems = Array.isArray(a?.recipes) ? a.recipes as { recipe?: unknown; nutrition?: unknown }[] : [];

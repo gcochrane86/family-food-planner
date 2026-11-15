@@ -41,7 +41,7 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
         </ul>
       )}
       <PeopleTable date={date} w={w} />
-      {rows.length > 0 && <p className="m-0 text-[12px] text-muted">Estimates for spotting patterns, from the ingredients.</p>}
+      {rows.length > 0 && <p className="m-0 text-[12px] text-muted">Estimates from the ingredients, for spotting patterns. The markers are for an adult's share.</p>}
     </section>
   );
 }
@@ -92,7 +92,7 @@ function PeopleTable({ date, w }: { date: string; w: WeekState }) {
                 const t = p.targets[k];
                 const state = p.states[k];
                 const shown = v === undefined ? '–' : `${p.unknown.includes(k) ? '≥' : ''}${round(k, v)}${typeof t === 'number' ? ` / ${t}` : ''}${unit}`;
-                return <td key={p.id} className={`py-1 text-right tabular-nums ${state ? STATE[state] : ''}`}>{shown}</td>;
+                return <td key={p.id} className={`whitespace-nowrap py-1 pl-2 text-right tabular-nums ${state ? STATE[state] : ''}`}>{shown}</td>;
               })}
             </tr>
           ))}

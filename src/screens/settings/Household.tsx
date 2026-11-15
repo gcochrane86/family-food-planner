@@ -47,7 +47,8 @@ export default function Household() {
   }
 
   const members = data?.members ?? [];
-  const setMembers = (next: Member[]) => setData((d) => (d ? { ...d, members: next } : d));
+  const setMembers = (next: Member[] | ((list: Member[]) => Member[])) =>
+    setData((d) => (d ? { ...d, members: typeof next === 'function' ? next(d.members) : next } : d));
   const shown = (m: Member) => text[m.id] ?? String(m.portion_weight);
 
   async function commitWeight(m: Member) {
@@ -139,9 +140,14 @@ export default function Household() {
             {fieldError[m.id] && <p className="text-sm font-semibold text-warn">{fieldError[m.id]}</p>}
             {nameError[m.id] && <p className="text-sm font-semibold text-warn">{nameError[m.id]}</p>}
             <DailyTargets m={m} onSave={async (targets) => {
-              const updated = { ...m, targets };
-              setMembers(members.map((x) => (x.id === m.id ? updated : x)));
-              try { await repo.saveMember(updated); } catch { setMembers(members); setBanner(SAVE_ERROR); }
+              const before = m.targets ?? null;
+              setBanner(null);
+              setMembers((list) => list.map((x) => (x.id === m.id ? { ...x, targets } : x)));
+              try { await repo.saveMember({ ...m, targets }); return true; } catch {
+                setMembers((list) => list.map((x) => (x.id === m.id ? { ...x, targets: before } : x)));
+                setBanner(SAVE_ERROR);
+                return false;
+              }
             }} />
             <div>
               {confirmRemove === m.id ? (
@@ -221,17 +227,21 @@ const TARGETS: [Macro, string, string][] = [
 ];
 
 /** A person's daily targets: each saved when its box is left; an empty box clears it. */
-function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promise<void> }) {
+function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promise<boolean> }) {
   const [text, setText] = useState<Record<string, string>>({});
+  const [problem, setProblem] = useState<string | null>(null);
   const value = (k: Macro) => text[k] ?? (m.targets?.[k] != null ? String(m.targets[k]) : '');
   function commit(k: Macro) {
     const raw = text[k];
     if (raw === undefined) return;
     const n = raw.trim() === '' ? null : Number(raw.replace(',', '.'));
-    if (n !== null && (!Number.isFinite(n) || n < 0)) return;
+    if (n !== null && (!Number.isFinite(n) || n < 0)) { setProblem('Enter a number of 0 or more, or leave it empty.'); return; }
+    setProblem(null);
     const next: Targets = { ...(m.targets ?? {}) };
     if (n === null) delete next[k]; else next[k] = n;
-    if (JSON.stringify(next) !== JSON.stringify(m.targets ?? {})) void onSave(next);
+    if (JSON.stringify(next) === JSON.stringify(m.targets ?? {})) return;
+    // Saved or not, the box then shows what's saved.
+    void onSave(next).then(() => setText((t) => { const { [k]: _, ...rest } = t; return rest; }));
   }
   return (
     <details className="text-sm">
@@ -245,6 +255,7 @@ function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promis
           </label>
         ))}
       </div>
+      {problem && <p className="m-0 mt-1 font-semibold text-warn">{problem}</p>}
       <p className="m-0 mt-1 text-muted">Protein and fibre: at least. Sugars, saturated fat and salt: at most. The rest: about.</p>
     </details>
   );

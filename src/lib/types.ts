@@ -61,7 +61,7 @@ export interface Settings {
   tm7_bowls?: 1 | 2;
   /** Usual week: longer prep days, weekdays 0 = Monday … 6 = Sunday. */
   prep_days?: number[];
-  /** Daily balance: estimates per adult portion for breakfasts and lunches that are names, not recipes. */
+  /** Daily balance: estimates per serving for breakfasts and lunches that are names, not recipes. */
   routine_nutrition?: Record<string, Nutrition>;
 }
 
@@ -153,7 +153,7 @@ export interface Recipe {
   title: string;
   subtitle: string | null;
   kind: 'meal' | 'component' | 'snack';
-  /** Per adult portion (migration 0023; balance.ts Nutrition). */
+  /** Per serving: the recipe divided by the number it serves (migration 0023; balance.ts Nutrition). */
   nutrition?: Nutrition | null;
   /** A snack's keeping time in days, from the day it's made. */
   keeps_days?: number | null;

@@ -167,7 +167,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
     handler: (args: Record<string, unknown>) => safely(() => plan.save(args ?? {}), 'save the week'),
   });
   mcp.tool('save_nutrition', {
-    description: "Changes recipes (the household approves each call in Claude): saves nutrition estimates per adult portion, worked out from the ingredients, for recipes (by slug or title) and for breakfasts and lunches that are names (get_plan_context nutritionMissing). Each estimate: protein_g, fibre_g, veg_portions and fruit_portions (80g portions), true/false for healthy_fat (olive oil, oily fish, nuts or seeds, avocado), oily_fish, legumes, red_meat, processed_meat, and kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g. All or nothing.",
+    description: "Changes recipes (the household approves each call in Claude): saves nutrition estimates per serving (the recipe divided by the number it serves; an adult eats 1.25 servings, the toddler 0.5), worked out from the ingredients, for recipes (by slug or title) and for breakfasts and lunches that are names (get_plan_context nutritionMissing). Each estimate: protein_g, fibre_g, veg_portions and fruit_portions (80g portions), true/false for healthy_fat (olive oil, oily fish, nuts or seeds, avocado), oily_fish, legumes, red_meat, processed_meat, and kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g. All or nothing.",
     inputSchema: {
       type: 'object',
       properties: {

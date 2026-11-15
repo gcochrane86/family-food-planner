@@ -75,12 +75,12 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     .map((x) => ({ date: x.date, recipe: x.recipeId ? slugOf.get(x.recipeId) ?? null : null, reason: x.reason }));
   // Daily balance: what the built-in proposal would give each day, so snacks can be aimed at the gaps.
   const routines = (s.routine_nutrition && typeof s.routine_nutrition === 'object' ? s.routine_nutrition : {}) as Record<string, unknown>;
-  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true }]));
+  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true, toddler_ok: x.toddler_ok !== false }]));
   const homeLunches = Array.isArray(s.lunches) && s.lunches.length ? s.lunches as string[] : ['Chicken sandwich'];
   const balanceSlots = proposed.map((x) => ({ date: x.date, slot: x.slot, mode: x.mode, recipe_id: x.recipeId, reason: x.reason, source_date: x.sourceDate }));
   const people = list(members, 'Reading members') as { name: string; kind: string; portion_weight: number | string; targets?: Record<string, number> | null }[];
   const builtInBalance = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i)).map((date) => {
-    const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches });
+    const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches, share: Number(people.find((m) => m.kind === 'adult')?.portion_weight) || 1.25 });
     return {
       date, low: b.low, unknown: (['breakfastProtein', 'vegFruit', 'healthyFat', 'fibre'] as const).filter((k) => b[k] === 'unknown'),
       // Each person's day (meals by their portion share) against their own targets.

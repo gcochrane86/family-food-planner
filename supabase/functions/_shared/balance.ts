@@ -1,5 +1,5 @@
 // The daily balance (docs/superpowers/specs/2026-11-15-balance-snacks-design.md): how each planned day measures up to
-// a Mediterranean pattern with protein-first breakfasts, from estimates per adult portion. Estimates spot patterns;
+// a Mediterranean pattern with protein-first breakfasts, from estimates per serving (each person eats their portion share). Estimates spot patterns;
 // they're never shown as precise figures. Pure: shared by the app and the connector.
 
 export interface Nutrition {
@@ -42,7 +42,7 @@ export interface BalanceSlot {
 }
 type Recipes = Map<string, { nutrition?: unknown; reheats_well?: boolean; toddler_ok?: boolean }>;
 /** The household's home lunches, first one the default (settings.lunches, or the app's list). */
-export interface BalanceOptions { homeLunches?: string[] }
+export interface BalanceOptions { homeLunches?: string[]; /** The adult portion share the markers are judged for (1 when not given). */ share?: number }
 
 export const BREAKFAST_PROTEIN_G = 25;
 export const VEG_FRUIT_PORTIONS = 5;
@@ -108,11 +108,12 @@ function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: R
 /** How the day measures up: breakfast protein, veg and fruit, healthy fats and fibre, each ok, low or unknown. */
 export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): DayBalance {
   const p = parts(date, slots, recipes, routines, opts);
-  const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
+  const share = opts.share ?? 1;
+  const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g * share >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
   const all = [p.breakfast, p.lunch, p.dinner, ...p.snacks];
   const known = !p.out && [p.breakfast, p.lunch, p.dinner, ...p.snacks].every((x) => x !== null);
   const eaten = all.filter((x): x is Nutrition => !!x);
-  const sum = (k: (typeof NUMBERS)[number]) => Math.round(eaten.reduce((t, n) => t + n[k], 0) * 10) / 10;
+  const sum = (k: (typeof NUMBERS)[number]) => Math.round(eaten.reduce((t, n) => t + n[k], 0) * share * 10) / 10;
   const totals: Partial<Nutrition> = {
     protein_g: sum('protein_g'), fibre_g: sum('fibre_g'), veg_portions: sum('veg_portions'), fruit_portions: sum('fruit_portions'),
     healthy_fat: eaten.some((n) => n.healthy_fat),
