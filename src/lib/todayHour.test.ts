@@ -344,8 +344,9 @@ describe('prep ahead: essential and optional', () => {
     const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'ahead' }, tomorrow: null }));
     const prepped = plan.getOut.find((g) => g.where === 'prepped')!;
     const boxed = plan.chop.find((g) => g.where === 'fridge')?.items.map((i) => i.name) ?? [];
-    expect(prepped.items.map((i) => i.name)).toEqual(['Marinate the beef', 'Make the sauce', ...boxed.map((n) => `${n}, chopped`)]);
-    expect(prepped.items[0].qty).toBe('done last night');
+    // One tile for the dinner's prep, named after what it made, with the dinner's photo.
+    expect(prepped.items[0]).toMatchObject({ name: 'Sauce for Beef Stew', qty: 'made last night' });
+    expect(prepped.items).toHaveLength(1 + boxed.length);
     const raw = plan.getOut.filter((g) => g.where !== 'prepped').flatMap((g) => g.items.map((i) => i.name));
     for (const n of ['beef', 'beef stock', ...boxed]) expect(raw).not.toContain(n);
     expect(raw).toContain('tomato');
@@ -356,8 +357,28 @@ describe('prep ahead: essential and optional', () => {
     expect(plan.getOut.find((g) => g.where === 'prepped')).toBeUndefined();
     expect(plan.getOut.flatMap((g) => g.items.map((i) => i.name))).toEqual(expect.arrayContaining(['beef', 'beef stock', 'carrot']));
     const half = planHour(input({ yesterdayPlanned: true, tonight: { recipe: STEW2, portions: 4, prepAhead: 'on_the_day' }, tomorrow: null }));
-    expect(half.getOut.find((g) => g.where === 'prepped')!.items.map((i) => i.name)).toEqual(['Marinate the beef']);
+    expect(half.getOut.find((g) => g.where === 'prepped')!.items.map((i) => i.name)).toEqual(['Prep for Beef Stew']);
     expect(half.getOut.flatMap((g) => g.items.map((i) => i.name))).toContain('beef stock'); // the sauce is made tonight
+  });
+
+  it("what went into last night's prep isn't chopped or got out again; what was cut ahead says how", () => {
+    const BOLOG = { ...recipe('bolog', 'Spaghetti Bolognese', [
+      ing(1, 'onions or leeks', 200, 'g', 'peeled, quartered'), ing(2, 'vegetable trimmings', 200, 'g', 'cut into 3cm chunks'),
+      ing(3, 'canned tomatoes', 400, 'g', null), ing(4, 'spaghetti', 320, 'g', null), ing(5, 'Parmesan', null, '', 'grated'),
+    ], [
+      step('prep_8pm', 1, null, 'Chop and sauté', 'Chop the **onion** and **vegetable trimmings**, then sauté.', 'tm7', '5 min · 120°C', 5),
+      step('prep_8pm', 2, null, 'Blend the sauce', 'Add the **tomatoes**, simmer and blend. Refrigerate.', 'tm7', '20 min · 100°C', 20),
+      step('finish', 1, 0, 'Pasta', 'Bring the **sauce** back to the boil and add the **spaghetti**.', 'tm7', '12 min · 100°C', 12),
+      step('finish', 2, 12, 'Serve', 'Serve with **Parmesan**.', null, null, 1),
+    ]), hero_image_path: 'h1/hero/bolog.jpg' };
+    const plan = planHour(input({ yesterdayPlanned: true, tonight: { recipe: BOLOG, portions: 4, prepAhead: 'ahead' }, tomorrow: null }));
+    const prepped = plan.getOut.find((g) => g.where === 'prepped')!.items;
+    expect(prepped[0]).toMatchObject({ name: 'Sauce for Spaghetti Bolognese', icon: 'h1/hero/bolog.jpg' });
+    const all = plan.getOut.flatMap((g) => g.items.map((i) => i.name));
+    for (const n of ['onions or leeks', 'onions or leeks, chopped', 'vegetable trimmings', 'vegetable trimming, chopped', 'canned tomato', 'canned tomatoes']) expect(all).not.toContain(n);
+    expect(plan.chop.flatMap((g) => g.items.map((i) => i.name))).not.toContain('onions or leeks');
+    expect(all).toContain('spaghetti');
+    expect(prepped.slice(1).map((i) => i.name)).toEqual(['parmesan, grated']);
   });
 
   it('a dinner with only must-do prep has no optional steps to tick', () => {

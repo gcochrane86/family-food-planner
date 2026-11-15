@@ -234,7 +234,7 @@ export function planHour(input: HourInput): HourPlan {
   const doneSteps = state === 'on_the_day' ? tPrep.filter((s) => s.needs_night_before) : tPrep;
   // 6. What to get out: all of tonight's dinner, everything chopped, and what the extras use. What was prepped last
   // night comes out as that prep (the marinade, the fridge box), not as the raw things that went into it.
-  const prepDone = input.yesterdayPlanned && input.tonight && state !== 'missed' ? doneSteps : [];
+  const prepDone = donePrep(input);
   const tonightOut = (() => {
     if (!input.tonight) return [];
     const r = input.tonight.recipe;
@@ -249,8 +249,8 @@ export function planHour(input: HourInput): HourPlan {
     ...extras(tomorrow).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
   ], input.prepPhotos);
   const preppedItems = [
-    ...prepDone.map((s) => ({ name: s.title, qty: 'done last night', key: `prepped:${s.title}`, icon: null })),
-    ...ingredientTiles(boxed, input.prepPhotos ?? {}).map((t) => ({ name: `${t.name}, chopped`, qty: t.qty, key: t.key, icon: t.icon })),
+    ...(prepDone.length && input.tonight ? [{ name: preppedName(input.tonight.recipe, prepDone), qty: 'made last night', key: `prepped:${input.tonight.recipe.id}`, icon: input.tonight.recipe.hero_image_path ?? null }] : []),
+    ...ingredientTiles(boxed, input.prepPhotos ?? {}).map((t) => ({ name: `${t.name}, ${prepKey(t.name, t.note).cut}`, qty: t.qty, key: t.key, icon: t.icon })),
   ];
   const getOut: GetOutGroup[] = [...(preppedItems.length ? [{ where: 'prepped' as const, items: preppedItems }] : []), ...loose];
   const iconsMissing = getOut.flatMap((g) => g.items).filter((i) => !i.icon && !i.key.startsWith('prepped:')).map(({ name, key }) => ({ name, key }));
@@ -296,6 +296,22 @@ const tomorrowPrep = (d: NonNullable<NonNullable<HourInput['tomorrow']>['dinner'
 /** What tonight's prep state is: no hour yesterday means nothing was done. */
 const tonightState = (input: HourInput): PrepAhead => (input.yesterdayPlanned ? input.tonight?.prepAhead ?? 'ahead' : 'missed');
 /** Tonight's prep that wasn't done yesterday, so it's done tonight before the cook. */
+/** Tonight's prep that yesterday's hour did: all of it, only the must-do part (the rest is done tonight), or none. */
+function donePrep(input: HourInput): RecipeStep[] {
+  if (!input.yesterdayPlanned || !input.tonight) return [];
+  const prep = prepSteps(input.tonight.recipe);
+  const state = tonightState(input);
+  return state === 'ahead' ? prep : state === 'on_the_day' ? prep.filter((s) => s.needs_night_before) : [];
+}
+
+/** What last night's prep made, to get out of the fridge: "Sauce for Spaghetti Bolognese" when its last step makes a
+ *  sauce (or a marinade, a dressing...), else "Prep for Beef Stew". */
+function preppedName(r: RecipeDetail, done: RecipeStep[]): string {
+  const made = done.map((s) => s.title.toLowerCase().match(/\bthe (\w+)$/)?.[1]).reverse().find((w) => w && MADE_THINGS.has(w));
+  return made ? `${made.charAt(0).toUpperCase()}${made.slice(1)} for ${r.title}` : `Prep for ${r.title}`;
+}
+const MADE_THINGS = new Set(['sauce', 'glaze', 'dressing', 'marinade', 'paste', 'mixture', 'batter', 'filling', 'topping', 'stock', 'gravy', 'curry', 'soup', 'stew', 'ragu', 'chilli', 'dough']);
+
 function carriedPrep(input: HourInput): RecipeStep[] {
   if (!input.tonight) return [];
   const state = tonightState(input);
@@ -415,6 +431,8 @@ function chopList(input: HourInput, used: { i: RecipeIngredient; factor: number 
   if (input.tonight) {
     const r = input.tonight.recipe;
     const f = factorOf(input.tonight);
+    // What went into last night's prep is in what it made (the sauce): nothing of it to chop or get out tonight.
+    for (const s of donePrep(input)) for (const i of stepIngredients(s.body, r.ingredients)) seen.add(i);
     // Chopped in yesterday's hour, if there was one: anything that keeps a day or more. Listed to check, not dropped.
     const fridge: RecipeIngredient[] = [];
     const keep = (i: RecipeIngredient) => {
