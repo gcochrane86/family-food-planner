@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { CANCELLED } from '../../lib/types';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
-import type { BasketRun, BatchPlan, MealSlot, PlanWeek, PreparedItem, PrepAhead, Recipe } from '../../lib/types';
+import type { BasketRun, BatchPlan, MealSlot, Member, PlanWeek, PreparedItem, PrepAhead, Recipe } from '../../lib/types';
 import { availablePortions, parseBatch } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
@@ -14,7 +14,7 @@ import {
 import { londonParts, nextMonday } from '../../../supabase/functions/_shared/schedule.ts';
 import { mergePlan as merge, toProposed } from '../../../supabase/functions/_shared/slotMerge.ts';
 import { useAsync } from '../settings/useAsync';
-import { dayBalance, parseNutrition, weekBalance, type DayBalance, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
+import { compareTargets, dayBalance, parseNutrition, personDay, weekBalance, type DayBalance, type Macro, type TargetState, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
 
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -170,6 +170,12 @@ export function useWeek() {
     officeDays: input?.officeDays ?? [],
     /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
     balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
+    /** Each person's day against their own targets (empty until any recipe has an estimate). */
+    people: (date: string): { id: string; name: string; totals: Partial<Record<Macro, number>>; unknown: Macro[]; states: Partial<Record<Macro, TargetState>>; targets: Partial<Record<Macro, number>> }[] =>
+      (hasEstimates ? (data?.members ?? []).map((m: Member) => {
+        const p = personDay(date, current?.slots ?? [], recipes, routines, m, { homeLunches: mealOptions.lunch });
+        return { id: m.id, name: m.name, ...p, targets: m.targets ?? {}, states: compareTargets(p.totals, m.targets, p.unknown) };
+      }) : []),
     /** The week's oily fish, beans or lentils, and red meat (null until any recipe has an estimate). */
     weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),

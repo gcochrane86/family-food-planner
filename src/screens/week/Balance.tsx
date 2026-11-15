@@ -1,4 +1,4 @@
-import type { Mark } from '../../../supabase/functions/_shared/balance.ts';
+import type { Macro, Mark, TargetState } from '../../../supabase/functions/_shared/balance.ts';
 import { addDays } from './useWeek';
 import type { WeekState } from './useWeek';
 
@@ -40,7 +40,8 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
           ))}
         </ul>
       )}
-      {rows.length > 0 && <p className="m-0 text-[12px] text-muted">Estimates for spotting patterns, per adult portion.</p>}
+      <PeopleTable date={date} w={w} />
+      {rows.length > 0 && <p className="m-0 text-[12px] text-muted">Estimates for spotting patterns, from the ingredients.</p>}
     </section>
   );
 }
@@ -62,4 +63,54 @@ export function WeekBalanceStrip({ w, days }: { w: WeekState; days: number }) {
       ))}
     </section>
   );
+}
+
+const ROWS: [Macro, string, string][] = [
+  ['kcal', 'Calories', ''], ['protein_g', 'Protein', 'g'], ['fat_g', 'Fat', 'g'], ['sat_fat_g', 'Saturated fat', 'g'],
+  ['carbs_g', 'Carbs', 'g'], ['sugars_g', 'Sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
+];
+const STATE: Record<TargetState, string> = { under: 'text-warn', over: 'text-warn', ok: 'text-accent', unknown: 'text-muted' };
+const round = (k: Macro, v: number) => (k === 'salt_g' ? Math.round(v * 10) / 10 : Math.round(v));
+
+/** Each person's day: their totals, against their own targets where they've set them. */
+function PeopleTable({ date, w }: { date: string; w: WeekState }) {
+  const people = w.people(date);
+  if (!people.length) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table aria-label="Each person" className="w-full border-collapse text-[13px]">
+        <thead>
+          <tr><th className="py-1 text-left font-semibold text-muted"><span className="sr-only">Number</span></th>
+            {people.map((p) => <th key={p.id} scope="col" className="py-1 text-right font-semibold">{p.name}</th>)}</tr>
+        </thead>
+        <tbody>
+          {ROWS.map(([k, label, unit]) => (
+            <tr key={k} className="border-t border-line">
+              <th scope="row" className="py-1 text-left font-normal">{label}</th>
+              {people.map((p) => {
+                const v = p.totals[k];
+                const t = p.targets[k];
+                const state = p.states[k];
+                const shown = v === undefined ? '–' : `${p.unknown.includes(k) ? '≥' : ''}${round(k, v)}${typeof t === 'number' ? ` / ${t}` : ''}${unit}`;
+                return <td key={p.id} className={`py-1 text-right tabular-nums ${state ? STATE[state] : ''}`}>{shown}</td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const WORD: Partial<Record<Macro, string>> = { kcal: 'calories', protein_g: 'protein', fat_g: 'fat', sat_fat_g: 'saturated fat', carbs_g: 'carbs', sugars_g: 'sugars', fibre_g: 'fibre', salt_g: 'salt' };
+/** For a day's tile: how many people are under or over each target, e.g. "Under protein: 2 · Over sugars: 1". */
+export function offTargets(people: ReturnType<WeekState['people']>): string | null {
+  const parts: string[] = [];
+  for (const [k] of ROWS) {
+    for (const s of ['under', 'over'] as const) {
+      const n = people.filter((p) => p.states[k] === s).length;
+      if (n) parts.push(`${s === 'under' ? 'Under' : 'Over'} ${WORD[k]}: ${n}`);
+    }
+  }
+  return parts.length ? parts.slice(0, 3).join(' · ') : null;
 }

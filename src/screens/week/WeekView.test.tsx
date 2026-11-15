@@ -1200,8 +1200,9 @@ describe('daily balance', () => {
     await openDay('Monday 19');
     const balance = within(screen.getByRole('dialog')).getByRole('region', { name: 'Balance' });
     expect(within(balance).getByText(/Morning snack:/)).toHaveTextContent(TACOS.title);
-    expect(within(balance).getByText('Breakfast protein').closest('li')).toHaveTextContent('OK');
-    expect(within(balance).getByText('Fibre').closest('li')).toHaveTextContent('Low');
+    const markers = within(balance).getByRole('list');
+    expect(within(markers).getByText('Breakfast protein').closest('li')).toHaveTextContent('OK');
+    expect(within(markers).getByText('Fibre').closest('li')).toHaveTextContent('Low');
   });
 
   test("the week strip counts oily fish, beans or lentils, and red meat", async () => {
@@ -1211,5 +1212,32 @@ describe('daily balance', () => {
     expect(strip).toHaveTextContent('Oily fish 0 of 2');
     expect(strip).toHaveTextContent('Beans or lentils 0 of 3 days');
     expect(strip).toHaveTextContent('Red meat 0 (2 at most)');
+  });
+});
+
+describe('each person against their targets', () => {
+  const N = { protein_g: 20, fibre_g: 5, veg_portions: 1, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false,
+    kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1 };
+  beforeEach(() => {
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY].map((r) => ({ ...r, nutrition: N })));
+    h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
+      routine_nutrition: new Proxy({}, { get: () => N }) });
+    h.repo.listMembers.mockResolvedValue([{ ...YOU, targets: { kcal: 2000, protein_g: 90, sugars_g: 30 } }, { ...PARTNER, targets: {} }, TODDLER]);
+  });
+
+  test("the day sheet has a column for each person, with their totals against their targets", async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Monday 19');
+    const table = within(screen.getByRole('dialog')).getByRole('table', { name: 'Each person' });
+    expect(within(table).getByRole('columnheader', { name: 'You' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Toddler' })).toBeInTheDocument();
+    const protein = within(table).getByRole('row', { name: /^Protein/ });
+    expect(protein).toHaveTextContent('75 / 90g'); // 3 meals × 20g × 1.25
+    expect(within(table).getByRole('row', { name: /^Calories/ })).toHaveTextContent('1875 / 2000');
+  });
+
+  test('a tile says how many people are off target', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    expect(within(await tile('Monday 19')).getByText(/Under protein: 1/)).toBeInTheDocument();
   });
 });
