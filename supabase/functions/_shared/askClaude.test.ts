@@ -277,3 +277,17 @@ test("get_recipe keeps the **bold** ingredient markers and approximate amounts, 
   await makeReader(db, 'h1').recipe('r1');
   expect(db.selects.recipe_ingredients[0]).toContain('qty_approx');
 });
+
+test("formatWeek lists each person's snacks and meal partners", () => {
+  const text = formatWeek('2026-11-16', {
+    week: { week_start: '2026-11-16', days: 7, status: 'draft', summary: null },
+    slots: [slot({ date: '2026-11-16', slot: 'breakfast', mode: 'routine', routine_choice: 'Overnight oats' })],
+    eats: [
+      { date: '2026-11-16', slot: 'breakfast', person: 'A', title: 'Boiled egg', qty: 2 },
+      { date: '2026-11-16', slot: 'breakfast', person: 'B', title: 'Boiled egg', qty: 1 },
+      { date: '2026-11-16', slot: 'snack_pm', person: 'A', title: 'Protein balls', qty: 2 },
+    ],
+  });
+  expect(text).toContain('With breakfast: A 2 × Boiled egg, B 1 × Boiled egg');
+  expect(text).toContain('Afternoon snack: A 2 × Protein balls');
+});

@@ -5,6 +5,7 @@ import { minutesInWords, weekdayMinutes, WEEKDAYS } from './cookingTime.ts';
 import { addDays } from './planner.ts';
 import { londonParts } from './schedule.ts';
 import { parseVersion } from './slotVersion.ts';
+import { partnerEats, type Eat, type Partners } from './snackEats.ts';
 
 // The Deno and Node Supabase clients have different types; only the query builder is used.
 // deno-lint-ignore no-explicit-any
@@ -57,7 +58,9 @@ export interface SlotRow {
   date: string; slot: 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm'; mode: string; recipe_id: string | null; recipe_title: string | null;
   portions: number | null; reason: string | null; source_date: string | null; routine_choice: string | null; version?: unknown;
 }
-export interface WeekData { week: { week_start: string; days: number; status: string; summary: string | null } | null; slots: SlotRow[] }
+/** Each person's snacks and meal partners, by name and recipe title. */
+export interface EatRow { date: string; slot: 'breakfast' | 'lunch' | 'snack_am' | 'snack_pm'; person: string; title: string; qty: number }
+export interface WeekData { week: { week_start: string; days: number; status: string; summary: string | null } | null; slots: SlotRow[]; eats?: EatRow[] }
 export interface RecipeRow {
   id: string; title: string; subtitle: string | null; kind: string; status: string; protein: string | null;
   finish_minutes: number; prep_minutes: number; hands_off_minutes: number; reheats_well: boolean; base_portions: number;
@@ -114,6 +117,24 @@ export function makeReader(db: Db, householdId: string): Reader {
       };
     },
     async week(weekStart) {
+      // Each person's snacks (stored) and meal partners (worked out from the breakfasts and lunches), in words.
+      const weekEatRows = async (weekId: string, start: string, days: number, slots: SlotRow[]): Promise<EatRow[]> => {
+        const [e, m, st, r] = await Promise.all([
+          db.from('snack_eats').select('date, slot, member_id, recipe_id, qty').eq('plan_week_id', weekId),
+          hh('members', 'id, name'), hh('settings', 'data').maybeSingle(), hh('recipes', 'id, slug, title, kind, keeps_days, toddler_ok, reheats_well'),
+        ]);
+        if (e.error) return []; // before migration 0025
+        const names = new Map(list(rows<{ id: string; name: string }[]>(m, 'Reading members')).map((x) => [x.id, x.name]));
+        const recipes = list(rows<{ id: string; slug: string; title: string; kind: string; keeps_days: number | null; toddler_ok: boolean; reheats_well: boolean }[]>(r, 'Reading recipes'));
+        const titles = new Map(recipes.map((x) => [x.id, x.title]));
+        const data = (one(rows<{ data: Record<string, unknown> } | null>(st, 'Reading settings'))?.data) ?? {};
+        const snacks = new Map(recipes.filter((x) => x.kind === 'snack').map((x) => [x.slug, { id: x.id, keeps_days: x.keeps_days, toddler_ok: x.toddler_ok !== false }]));
+        const dates = Array.from({ length: days }, (_, i) => addDays(start, i));
+        const partners = partnerEats(dates, slots, data.meal_partners as Partners | undefined, snacks, [], new Map(recipes.map((x) => [x.id, x])), {
+          breakfasts: Array.isArray(data.breakfasts) ? data.breakfasts as string[] : [], homeLunches: Array.isArray(data.lunches) ? data.lunches as string[] : [],
+        });
+        return [...partners, ...((e.data ?? []) as Eat[])].map((x) => ({ date: x.date, slot: x.slot, person: names.get(x.member_id) ?? 'Someone', title: titles.get(x.recipe_id) ?? 'a snack', qty: Number(x.qty) }));
+      };
       const w = one(rows<WeekData['week'] & { id: string } | null>(
         await hh('plan_weeks', 'id, week_start, days, status, summary').eq('week_start', weekStart).maybeSingle(), 'Reading the week'));
       if (!w?.id) return { week: null, slots: [] };
@@ -122,7 +143,8 @@ export function makeReader(db: Db, householdId: string): Reader {
         .select('date, slot, mode, recipe_id, portions, reason, source_date, routine_choice, version, recipes!meal_slots_recipe_id_fkey(title)')
         .eq('plan_week_id', w.id).order('date'), 'Reading the days'));
       const { id: _id, ...week } = w;
-      return { week, slots: s.map(({ recipes, ...x }) => ({ ...x, recipe_title: (Array.isArray(recipes) ? recipes[0]?.title : (recipes as { title?: string } | null)?.title) ?? null })) };
+      const slots = s.map(({ recipes, ...x }) => ({ ...x, recipe_title: (Array.isArray(recipes) ? recipes[0]?.title : (recipes as { title?: string } | null)?.title) ?? null }));
+      return { week, slots, eats: await weekEatRows(w.id, w.week_start, w.days, slots) };
     },
     async recipes() {
       const today = londonParts(new Date()).date;
@@ -187,6 +209,12 @@ export function formatWeek(weekStart: string, data: WeekData): string {
   for (const d of dates) {
     out.push('', dayDate(d));
     for (const s of data.slots.filter((x) => x.date === d).sort((a, b) => order[a.slot] - order[b.slot])) out.push(`- ${slotLine(s)}`);
+    for (const k of ['breakfast', 'lunch', 'snack_am', 'snack_pm'] as const) {
+      const eats = (data.eats ?? []).filter((e) => e.date === d && e.slot === k);
+      if (!eats.length) continue;
+      const label = k === 'breakfast' || k === 'lunch' ? `With ${k}` : SLOT[k];
+      out.push(`- ${label}: ${eats.map((e) => `${e.person} ${Number(e.qty)} × ${e.title}`).join(', ')}`);
+    }
   }
   return out.join('\n');
 }

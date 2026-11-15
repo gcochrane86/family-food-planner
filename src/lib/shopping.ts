@@ -30,7 +30,7 @@ export const tickKey = (item: Pick<ShopItem, 'key' | 'qty'>) =>
 
 type WeekData = { week: PlanWeek | null; slots: MealSlot[] };
 /** Which week the shopping list is for: next week once approved, otherwise this week if approved. */
-export function pickShoppingWeek(next: WeekData, current: WeekData): WeekData | null {
+export function pickShoppingWeek<A extends WeekData, B extends WeekData>(next: A, current: B): A | B | null {
   if (next.week?.status === 'approved') return next;
   if (current.week?.status === 'approved') return current;
   return null;
@@ -83,8 +83,8 @@ export function buildShoppingList(
   };
 
   for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
-    // Snack makes: bought for the day they're made, scaled to every day they cover.
-    if ((slot.slot === 'snack_am' || slot.slot === 'snack_pm') && slot.mode === 'cook' && slot.recipe_id) {
+    // Snack makes (everyone's snacks and meal partners, added up): bought for the day they're made.
+    if ((slot.slot === 'snack' || slot.slot === 'snack_am' || slot.slot === 'snack_pm') && slot.mode === 'cook' && slot.recipe_id) {
       const r = recipes.get(slot.recipe_id);
       if (!r) continue;
       add(r, (slot.portions ?? r.base_portions) / r.base_portions, `${SHORT[weekdayIndex(slot.date)]} snack: ${r.title}`, slot);

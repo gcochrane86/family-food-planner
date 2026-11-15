@@ -1,3 +1,4 @@
+import { weekMakes } from '../../lib/weekEats';
 import { londonParts } from '../../../supabase/functions/_shared/schedule.ts';
 import { applyVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { useAuth } from '../../auth/AuthProvider';
@@ -112,8 +113,8 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       next = { dinner, lunch, breakfast, roast };
     }
 
-    // Snacks made today (daily balance), scaled to every day they cover.
-    const snackMakes = slots.filter((s) => s.date === today && (s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id);
+    // Everyone's snacks and meal partners, made as the family's makes (a Sunday make belongs to the week after it).
+    const snackMakes = loaded.flatMap((w) => weekMakes(w, settings, recipes)).filter((s) => s.date === today);
     const snacks = (await Promise.all(snackMakes.map(async (s) => {
       const r = await forSlot(s);
       return r ? { title: r.title, recipe: r, factor: (s.portions ?? r.base_portions) / r.base_portions } : null;

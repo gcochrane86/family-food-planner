@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { formatQty } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
+import { weekMakes } from '../../lib/weekEats';
 import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../../lib/shopping';
 import { packsNeeded } from '../../lib/packs';
 import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
@@ -23,25 +24,24 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
   const hid = householdId!;
   const { data, error, loading, reload } = useAsync(async () => {
     const starts = weekStarts();
-    const [next, current, staples, settings, basics, products] = await Promise.all([
-      repo.getWeek(hid, wanted ?? starts.nextWeek), wanted ? Promise.resolve({ week: null, slots: [] }) : repo.getWeek(hid, starts.thisWeek),
-      repo.listStaples(hid), repo.getSettings(hid), repo.listBasics(hid), repo.listProducts(hid),
+    const [next, current, staples, settings, basics, products, library] = await Promise.all([
+      repo.getWeek(hid, wanted ?? starts.nextWeek), wanted ? Promise.resolve({ week: null, slots: [], eats: [] }) : repo.getWeek(hid, starts.thisWeek),
+      repo.listStaples(hid), repo.getSettings(hid), repo.listBasics(hid), repo.listProducts(hid), repo.listRecipes(hid),
     ]);
     // The sheet after Approve week asks for the week it has just approved.
     const chosen = wanted ? (next.week ? next : null) : pickShoppingWeek(next, current);
     const draft = !chosen && (next.week ?? current.week) ? true : false;
     if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
-    const ids = [...new Set(chosen.slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+    // Everyone's snacks and meal partners, as the family's makes.
+    const makes = (slots: MealSlot[]) => weekMakes({ week: chosen.week, slots, eats: chosen.eats }, settings, library);
+    const ids = [...new Set([...chosen.slots, ...makes(chosen.slots)].filter((s) => (s.slot === 'dinner' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
     // A roast also needs its sides, which are recipes of their own (found by slug).
     const sideSlugs = new Set(chosen.slots.flatMap((s) => { const r = parseRoastChoice(s.roast); return r ? roastPartSlugs(r) : []; }));
-    if (sideSlugs.size) {
-      const all = await repo.listRecipes(hid);
-      for (const r of all) if (sideSlugs.has(r.slug) && !ids.includes(r.id)) ids.push(r.id);
-    }
+    for (const r of library) if (sideSlugs.has(r.slug) && !ids.includes(r.id)) ids.push(r.id);
     const details = (await Promise.all(ids.map((id) => repo.getRecipe(id)))).filter((r): r is RecipeDetail => !!r);
     const recipes = new Map(details.map((r) => [r.id, r]));
     const build = (slots: MealSlot[], shops: OtherShop[] = settings.other_shops ?? []) =>
-      buildShoppingList(slots, recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start });
+      buildShoppingList([...slots, ...makes(slots)], recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start });
     const [tickRows, runs, freezer] = await Promise.all([repo.getTicks(chosen.week!.id), repo.getRuns(chosen.week!.id), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
     const ticks = new Map(tickRows.map((t) => [`${t.delivery}:${t.item_key}`, t.ticked]));
     return { chosen, draft, list: build(chosen.slots), build, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };

@@ -633,10 +633,11 @@ test("Monday counts the Monday prep (the Sunday before) as done, though Sunday i
   expect(within(done).getByRole('button', { name: "I didn't get to it" })).toBeInTheDocument();
 });
 
-test("a snack made today is one of the day's steps", async () => {
+test("a snack made today (each person's, added up) is one of the day's steps", async () => {
+  const eat = { date: '2026-10-20', slot: 'snack_am', member_id: 'm1', recipe_id: 'r-doner', qty: 3, make_date: '2026-10-19' };
   h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19'
-    ? { week: NEXT_WEEK.week, slots: [...NEXT_WEEK.slots.map((s) => notDone({ ...s })), { ...NEXT_WEEK.slots.find((s) => s.slot === 'dinner')!, slot: 'snack_am', recipe_id: 'r-doner', mode: 'cook', portions: 6, date: '2026-10-19' } as MealSlot] }
-    : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
+    ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => notDone({ ...s })), eats: [eat, { ...eat, member_id: 'm2' }] }
+    : { week: null, slots: [], eats: [] }) as unknown as { week: PlanWeek | null; slots: MealSlot[] });
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   const titles: string[] = [];

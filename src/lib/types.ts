@@ -1,6 +1,8 @@
 import type { Nutrition, Targets } from '../../supabase/functions/_shared/balance.ts';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import type { SlotVersion } from '../../supabase/functions/_shared/slotVersion.ts';
+import type { Eat, Partners } from '../../supabase/functions/_shared/snackEats.ts';
+export type { Eat, Partners };
 export type { SlotVersion };
 
 export type MemberKind = 'adult' | 'child';
@@ -63,6 +65,8 @@ export interface Settings {
   prep_days?: number[];
   /** Daily balance: estimates per serving for breakfasts and lunches that are names, not recipes. */
   routine_nutrition?: Record<string, Nutrition>;
+  /** Each person's meal partners (overnight oats → 2 boiled eggs): routine name → member id → items. */
+  meal_partners?: Partners;
 }
 
 export interface DayRule { weekday: number; protein: Protein; note: string | null }
@@ -197,7 +201,7 @@ export interface RecipeDetail extends Recipe {
 
 // Planning (Phase 3) ------------------------------------------------------------
 
-export type SlotKind = 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm';
+export type SlotKind = 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm' | 'snack';
 export type SlotMode = 'cook' | 'reheat' | 'leftovers' | 'out' | 'routine' | 'packed';
 
 export interface PlanWeek {
@@ -215,6 +219,8 @@ export interface PlanWeek {
   /** Plan with Claude: the week's own office days by adult and its longer prep days (migration 0022). */
   office_days?: Record<string, number[]> | null;
   prep_days?: number[] | null;
+  /** Meal partners Claude proposed with this draft, kept on approval (migration 0025). */
+  new_partners?: Partners | null;
 }
 
 /** The summary on a request the household cancelled (not shown as a failure). */

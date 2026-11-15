@@ -257,7 +257,7 @@ describe('other shops', () => {
 
 test("a snack make's ingredients are on the list for the day it's made", async () => {
   const w = approved();
-  w.slots.push({ ...w.slots.find((s: MealSlot) => s.slot === 'dinner'), date: '2026-10-21', slot: 'snack_am', recipe_id: 'r-doner', mode: 'cook', portions: 6 });
+  w.eats = [{ date: '2026-10-22', slot: 'snack_pm', member_id: 'm1', recipe_id: 'r-doner', qty: 6, make_date: '2026-10-21' }];
   h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? w : { week: null, slots: [] }));
   render(<ShopList />, { wrapper: MemoryRouter });
   const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });

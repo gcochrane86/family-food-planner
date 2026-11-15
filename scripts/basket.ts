@@ -14,7 +14,8 @@ import { packsNeeded } from '../src/lib/packs';
 import { validateSettings } from '../src/lib/household';
 import { parseFinish, parseProduct, parseSpar } from './basketInput';
 import { parseRoastChoice, roastPartSlugs } from '../src/lib/roastModel';
-import type { MealSlot, PlanWeek, Product, RecipeDetail, Staple, WeeklyBasic } from '../src/lib/types';
+import type { Eat, MealSlot, PlanWeek, Product, Recipe, RecipeDetail, Settings, Staple, WeeklyBasic } from '../src/lib/types';
+import { weekMakes } from '../src/lib/weekEats';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
 
@@ -48,8 +49,14 @@ async function list() {
     ?? fail(`No "Ready for Sainsbury's" request for the ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} delivery of the week of ${week.week_start}. Tap the button on the Shop tab first.`);
   if (run.status !== 'requested' && run.status !== 'filling') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
 
-  const slots = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
-  const ids = [...new Set(slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+  const menu = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
+  // Everyone's snacks and meal partners, as the family's makes.
+  const eats = must<Eat[]>(await db.from('snack_eats').select('date, slot, member_id, recipe_id, qty, make_date').eq('plan_week_id', week.id), 'Reading snacks')
+    .map((e) => ({ ...e, qty: Number(e.qty) }));
+  const prefs = must<{ data: Settings } | null>(await db.from('settings').select('data').eq('household_id', householdId).maybeSingle(), 'Reading settings')?.data ?? null;
+  const library = must<Recipe[]>((await db.from('recipes').select('id, slug, kind, keeps_days, toddler_ok, reheats_well').eq('household_id', householdId)) as never, 'Reading recipes');
+  const slots = [...menu, ...weekMakes({ week, slots: menu, eats }, prefs, library)];
+  const ids = [...new Set(slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
   // A roast's sides are recipes of their own, found by slug.
   const sideSlugs = [...new Set(slots.flatMap((s) => { const r = parseRoastChoice(s.roast); return r ? roastPartSlugs(r) : []; }))];
   if (sideSlugs.length) {

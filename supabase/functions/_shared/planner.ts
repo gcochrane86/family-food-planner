@@ -2,7 +2,7 @@
 // so both follow the same rules. Pure functions, no imports: runs in the browser, Deno and Vitest.
 
 export type Protein = 'chicken' | 'fish' | 'red_meat' | 'veggie' | 'egg' | 'other';
-export type SlotKind = 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm';
+export type SlotKind = 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm' | 'snack';
 export type SlotMode = 'cook' | 'reheat' | 'leftovers' | 'out' | 'routine' | 'packed';
 
 export interface PlannerRecipe {

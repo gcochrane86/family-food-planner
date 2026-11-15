@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat } from './types';
 import { CANCELLED } from './types';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
@@ -198,11 +198,25 @@ export const repo = {
     };
   },
 
-  async getWeek(householdId: string, weekStart: string): Promise<{ week: PlanWeek | null; slots: MealSlot[] }> {
+  async getWeek(householdId: string, weekStart: string): Promise<{ week: PlanWeek | null; slots: MealSlot[]; eats: Eat[] }> {
     const week = must<PlanWeek | null>(await db().from('plan_weeks').select('*').eq('household_id', householdId).eq('week_start', weekStart).maybeSingle());
-    if (!week) return { week: null, slots: [] };
-    const slots = must<MealSlot[]>(await db().from('meal_slots').select('*').eq('plan_week_id', week.id).order('date'));
-    return { week, slots: slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })) };
+    if (!week) return { week: null, slots: [], eats: [] };
+    const [slots, eats] = await Promise.all([
+      db().from('meal_slots').select('*').eq('plan_week_id', week.id).order('date'),
+      // Each person's snacks (none before migration 0025).
+      db().from('snack_eats').select('id, date, slot, member_id, recipe_id, qty, make_date').eq('plan_week_id', week.id),
+    ]);
+    return {
+      week, slots: must<MealSlot[]>(slots).map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })),
+      eats: eats.error ? [] : ((eats.data ?? []) as Eat[]).map((e) => ({ ...e, qty: Number(e.qty) })),
+    };
+  },
+
+  /** One person's snack on a day (a nudge's yes), made on `make_date` with the rest of the family's. */
+  async addSnackEat(weekId: string, eat: Eat): Promise<Eat> {
+    const { partner: _p, id: _i, ...row } = eat;
+    const saved = must<Eat>(await db().from('snack_eats').insert({ ...row, plan_week_id: weekId }).select('id, date, slot, member_id, recipe_id, qty, make_date').single());
+    return { ...saved, qty: Number(saved.qty) };
   },
 
   /** Saves changed slots (matched on week, date and slot). Which My Week entry Claude made is only ever written by

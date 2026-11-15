@@ -297,3 +297,11 @@ test("a snack made the Sunday before the week isn't bought from a shop that goes
     { shops: [fishmonger], weekStart: '2026-10-19' });
   expect(list.sun.find((i) => i.name === 'chickpeas')).toBeTruthy();
 });
+
+test("each person's snacks and partners are bought once, as the family's make", () => {
+  const egg = { ...recipe('boiled-egg', 1, [['eggs', 1, '']]), kind: 'snack' as const };
+  const make = { ...dinner('2026-10-18', 'boiled-egg', 9), slot: 'snack' as const };
+  const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), make], new Map([...recipes, ['boiled-egg', egg]]), [], 2);
+  expect(list.sun.find((i) => i.name === 'eggs')?.qty).toBe(9);
+  expect(list.tue.find((i) => i.name === 'eggs')).toBeUndefined();
+});
