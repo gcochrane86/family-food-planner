@@ -327,15 +327,6 @@ export const repo = {
     return rows.map((r) => r.recipe_id).filter((x): x is string => !!x);
   },
 
-  /** Of these recipes, the ones in no earlier week's plan: new to the household (Claude added them, or never cooked). */
-  async neverPlannedBefore(householdId: string, weekStart: string, ids: string[]): Promise<string[]> {
-    if (!ids.length) return [];
-    const rows = must<{ recipe_id: string | null }[]>(await db().from('meal_slots').select('recipe_id, plan_weeks!inner(household_id, week_start)')
-      .in('recipe_id', ids).eq('plan_weeks.household_id', householdId).lt('plan_weeks.week_start', weekStart));
-    const seen = new Set(rows.map((r) => r.recipe_id));
-    return [...new Set(ids)].filter((id) => !seen.has(id));
-  },
-
   /** Asks the generate-hero Edge Function for a new photo (about $0.034 each). Returns the new image path. */
   async generateHero(recipeId: string): Promise<string> {
     const { data, error } = await getSupabase().functions.invoke('generate-hero', { body: { recipeId } });

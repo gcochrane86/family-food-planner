@@ -155,7 +155,7 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
   try {
     // New recipes first, so the planner can use them.
     for (const n of plan.newRecipes) {
-      const row = await db.from('recipes').insert(recipeRow(hid, n)).select('id').single();
+      const row = await db.from('recipes').insert({ ...recipeRow(hid, n), planned_for: weekStart }).select('id').single();
       if (row.error || !row.data?.id) throw new Error(`Adding ${n.title}: ${row.error?.message ?? 'no id came back'}`);
       added.push(row.data.id);
       bySlug.set(n.slug, row.data.id);

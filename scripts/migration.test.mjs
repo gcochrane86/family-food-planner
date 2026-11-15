@@ -698,3 +698,9 @@ test("0020: save_claude_week keeps the week's own cooking times, on a new week a
   expect(await one(OWNER, `select cooking_minutes from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
   expect(await fails(OWNER, `select save_claude_week('${req2}', 7, '[]', 'S', null)`)).toMatch(/permission denied/);
 });
+
+test('0021: a recipe can say which week Claude added it for while planning', async () => {
+  const { hid } = await weekRequest(OWNER);
+  const id = await one(OWNER, `insert into recipes (household_id, slug, title, kind, status, source, base_portions, planned_for) values ('${hid}', 'made-up', 'Made up', 'meal', 'active', 'claude', 4, '2026-10-26') returning id`);
+  expect(await one(OWNER, `select planned_for::text from recipes where id = '${id}'`)).toBe('2026-10-26');
+});

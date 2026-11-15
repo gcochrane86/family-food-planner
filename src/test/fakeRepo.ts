@@ -86,7 +86,6 @@ export function fakeRepo() {
     requestWeekPlan: vi.fn(async (hid: string, weekStart: string, note: string | null, _replace?: boolean): Promise<WeekPlanRequest> => ({
       id: 'q1', household_id: hid, week_start: weekStart, note, status: 'requested', requested_at: new Date().toISOString(), summary: null })),
     recentDinnerIds: vi.fn(async (): Promise<string[]> => []),
-    neverPlannedBefore: vi.fn(async (_hid: string, _weekStart: string, _ids: string[]): Promise<string[]> => []),
     generateHero: vi.fn(async (recipeId: string) => `h1/hero/${recipeId}-1.jpg`),
     requestCookidooSync: vi.fn(async (_weekId: string) => {}),
     getCookidooRun: vi.fn(async (_weekId: string): Promise<CookidooRun | null> => null),

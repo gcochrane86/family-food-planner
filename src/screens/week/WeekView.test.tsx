@@ -52,27 +52,27 @@ test('a draft week shows the review banner and can be approved', async () => {
 });
 
 describe('new recipes to check', () => {
-  test("a draft week lists the dinners that have never been planned before, and marks their days", async () => {
-    h.repo.neverPlannedBefore.mockImplementation(async (_h: string, ws: string, ids: string[]) => (ws === '2026-10-19' ? ids.filter((id) => id === 'r-honey') : []));
+  test("a draft week lists the recipes Claude made up for it, and marks their days", async () => {
+    h.repo.listRecipes.mockResolvedValue([{ ...HONEY, source: 'claude', planned_for: '2026-10-19' }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
     render(<WeekView />, { wrapper: MemoryRouter });
     const box = await screen.findByRole('region', { name: 'New recipes to check' });
-    expect(within(box).getByText(/check them before you approve/i)).toBeInTheDocument();
+    expect(within(box).getByText(/Claude made these up for this week/i)).toBeInTheDocument();
     const link = within(box).getByRole('link', { name: /Almond-Crusted Honey Chilli Chicken/ });
     expect(link).toHaveAttribute('href', '/recipes/r-honey');
     expect(within(box).getByText(/Monday/)).toBeInTheDocument();
     expect(within(await tile('Mon')).getByText('New')).toBeInTheDocument();
     expect(within(await tile('Tue')).queryByText('New')).not.toBeInTheDocument();
-    expect(h.repo.neverPlannedBefore).toHaveBeenCalledWith('h1', '2026-10-19', expect.arrayContaining(['r-honey']));
   });
 
-  test('nothing new, or an approved week: no box and no marks', async () => {
+  test("recipes from your library, or made up for another week, aren't flagged; nor is an approved week", async () => {
+    h.repo.listRecipes.mockResolvedValue([{ ...HONEY, source: 'claude', planned_for: '2026-10-12' }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
     render(<WeekView />, { wrapper: MemoryRouter });
     await screen.findByText("Next week's menu is ready");
     expect(screen.queryByRole('region', { name: 'New recipes to check' })).not.toBeInTheDocument();
-    h.repo.neverPlannedBefore.mockResolvedValue(['r-honey']);
+    cleanup();
+    h.repo.listRecipes.mockResolvedValue([{ ...HONEY, source: 'claude', planned_for: '2026-10-19' }, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY]);
     h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === NEXT_WEEK.week.week_start
       ? { ...JSON.parse(JSON.stringify(NEXT_WEEK)), week: { ...NEXT_WEEK.week, status: 'approved' } } : { week: null, slots: [] }));
-    cleanup();
     render(<WeekView />, { wrapper: MemoryRouter });
     await screen.findByText('✓ Approved');
     expect(screen.queryByRole('region', { name: 'New recipes to check' })).not.toBeInTheDocument();

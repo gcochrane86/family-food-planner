@@ -91,7 +91,7 @@ export default function WeekView() {
       {w.newDinners.length > 0 && (
         <section aria-label="New recipes to check" className="grid gap-2 rounded-2xl border-2 border-yolk bg-surface p-4">
           <h2 className="m-0 text-base font-bold">New recipes to check</h2>
-          <p className="m-0 text-sm text-muted">These haven't been in a week before: check them before you approve.</p>
+          <p className="m-0 text-sm text-muted">Claude made these up for this week, to use up leftovers or add variety. Check them before you approve.</p>
           <ul className="m-0 grid list-none gap-1.5 p-0">
             {w.newDinners.map(({ date, recipe }) => (
               <li key={date}>

@@ -53,7 +53,7 @@ describe('saveWeekPlan', () => {
     const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }], 'recipes:single': { id: 'r-new' } });
     const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16'), dinner('2026-11-17', 'lemon-chicken')], new_recipes: [NEW] }, WEEK);
     expect(await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, deps)).toEqual({ added: 1 });
-    expect(db.writes().find((w) => w.table === 'recipes' && w.method === 'insert')?.payload).toMatchObject({ household_id: 'h1', slug: 'lemon-chicken', source: 'claude' });
+    expect(db.writes().find((w) => w.table === 'recipes' && w.method === 'insert')?.payload).toMatchObject({ household_id: 'h1', slug: 'lemon-chicken', source: 'claude', planned_for: '2026-11-16' });
     expect(db.rpcs.map((r) => r.fn)).toEqual(['replace_recipe_contents', 'save_claude_week']);
     expect(db.rpcs[1].args).toMatchObject({ p_request: 'req1', p_days: 7, p_summary: 'A week.' });
   });

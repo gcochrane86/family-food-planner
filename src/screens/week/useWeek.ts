@@ -45,15 +45,10 @@ export function useWeek() {
     const baskets = (w: typeof thisWeek) => (w.week && w.week.status !== 'draft' ? repo.getRuns(w.week.id).catch(() => [] as BasketRun[]) : Promise.resolve([] as BasketRun[]));
     // "Plan with Claude" requests (none if they can't be read, so the week still shows).
     const asked = (ws: string) => repo.getWeekPlanRequest(hid, ws).catch(() => null);
-    // A draft's dinners that no earlier week has had, to check before approving (none if it can't be read).
-    const fresh = (w: typeof thisWeek, ws: string) => {
-      const ids = w.slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!);
-      return w.week?.status === 'draft' && ids.length ? repo.neverPlannedBefore(hid, ws, ids).catch(() => [] as string[]) : Promise.resolve([] as string[]);
-    };
-    const [thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest, thisNew, nextNew] = await Promise.all([
+    const [thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest] = await Promise.all([
       run(thisWeek), run(nextWeek), repo.listPrepared(hid).catch(() => [] as PreparedItem[]), baskets(thisWeek), baskets(nextWeek),
-      asked(starts.thisWeek), asked(starts.nextWeek), fresh(thisWeek, starts.thisWeek), fresh(nextWeek, starts.nextWeek)]);
-    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest, thisNew, nextNew };
+      asked(starts.thisWeek), asked(starts.nextWeek)]);
+    return { thisWeek, nextWeek, recipes, members, pattern, settings, recent, thisCookidoo, nextCookidoo, freezer, thisBaskets, nextBaskets, thisRequest, nextRequest };
   }, [hid, starts], { onReturn: true });
 
   const shown: 'this' | 'next' = which ?? (data?.nextWeek.week || !data?.thisWeek.week ? 'next' : 'this');
@@ -160,11 +155,11 @@ export function useWeek() {
     /** A day's cooking time in minutes: the shown week's own time for it, else the day's setting (Settings → Today's cooking). */
     dayMinutes: (date: string) => dayMinutes(date, (data?.settings ?? {}) as { cooking_minutes?: unknown; hour_minutes?: unknown }, current?.week?.cooking_minutes),
     slots: current?.slots ?? [],
-    /** A draft's dinners new to the household (never in an earlier week), by date, to check before approving. */
+    /** A draft's dinners that Claude made up for this week while planning it, by date, to check before approving. */
     newDinners: current?.week?.status === 'draft'
       ? (current.slots ?? []).flatMap((s) => {
-        const r = s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id && (shown === 'next' ? data?.nextNew : data?.thisNew)?.includes(s.recipe_id) ? recipes.get(s.recipe_id) : undefined;
-        return r ? [{ date: s.date, recipe: r }] : [];
+        const r = s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id ? recipes.get(s.recipe_id) : undefined;
+        return r && r.planned_for === current.week!.week_start ? [{ date: s.date, recipe: r }] : [];
       })
       : [],
     officeDays: input?.officeDays ?? [],

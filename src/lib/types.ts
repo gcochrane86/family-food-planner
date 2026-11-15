@@ -170,6 +170,8 @@ export interface Recipe {
   cookidoo_portions?: number | null;
   /** The web page a 'web' recipe was converted from. */
   source_url?: string | null;
+  /** The week (its Monday) Claude made this recipe up for while planning it; null for every other recipe. */
+  planned_for?: string | null;
   /** The make-ahead part that freezes well, if any (src/lib/batch.ts). */
   batch?: RecipeBatch | null;
   /** A roast part's description (src/lib/roastModel.ts), for the roast builder. */
