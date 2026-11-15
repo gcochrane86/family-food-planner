@@ -334,16 +334,19 @@ export function useWeek() {
         setSaveError("Couldn't ask Cookidoo to try again. Check your connection and try again.");
       }
     },
-    async approve() {
-      if (!current?.week) return;
+    /** Approves the week (Cookidoo follows); true when it saved. */
+    async approve(): Promise<boolean> {
+      if (!current?.week) return false;
       setSaveError(null);
       try {
         await repo.approveWeek(current.week.id);
         setCurrent(latest.current, { ...current.week, status: 'approved', approved_at: current.week.approved_at ?? new Date().toISOString() });
         const key = shown === 'next' ? 'nextCookidoo' : 'thisCookidoo';
         setData((d) => d && { ...d, [key]: { id: '', plan_week_id: current.week!.id, status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null } });
+        return true;
       } catch {
         setSaveError("Couldn't approve the week. Check your connection and try again.");
+        return false;
       }
     },
     /** Looks again at an open request (quietly); once Claude has finished, the new week loads. */

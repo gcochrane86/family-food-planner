@@ -48,7 +48,45 @@ test('a draft week shows the review banner and can be approved', async () => {
   expect(await screen.findByText("Next week's menu is ready")).toBeInTheDocument();
   await user().click(screen.getByRole('button', { name: 'Approve week' }));
   expect(h.repo.approveWeek).toHaveBeenCalledWith('w-next');
+  await user().click(await screen.findByRole('button', { name: 'Not now' }));
   expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
+});
+
+describe('approving opens your shopping', () => {
+  const approve = async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('button', { name: 'Approve week' }));
+    return screen.findByRole('dialog', { name: 'Your shopping' });
+  };
+
+  test('the sheet shows each delivery’s list, and Not now closes it', async () => {
+    const sheet = await approve();
+    expect(await within(sheet).findByRole('region', { name: 'Sunday delivery' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('region', { name: 'Tuesday delivery' })).toBeInTheDocument();
+    expect(within(sheet).queryByRole('button', { name: "Ready for Sainsbury's" })).not.toBeInTheDocument();
+    await user().click(within(sheet).getByRole('button', { name: 'Not now' }));
+    expect(screen.queryByRole('dialog', { name: 'Your shopping' })).not.toBeInTheDocument();
+    expect(h.repo.requestRun).not.toHaveBeenCalled();
+  });
+
+  test("Send to Sainsbury's asks for both deliveries at once", async () => {
+    const sheet = await approve();
+    await user().click(await within(sheet).findByRole('button', { name: "Send to Sainsbury's" }));
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', false);
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'tue', false);
+    expect(await within(sheet).findByText(/Claude fills both trolleys within 15 minutes/)).toBeInTheDocument();
+    await user().click(within(sheet).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Your shopping' })).not.toBeInTheDocument();
+  });
+
+  test('a dinner from the freezer has to be checked before sending', async () => {
+    const week = await h.repo.getWeek('h1', '2026-10-19');
+    const slots = week.slots.map((sl: MealSlot) => (sl.slot === 'dinner' && sl.date === '2026-10-20' ? { ...sl, batch: 'frozen' as const } : sl));
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? { ...week, slots } : { week: null, slots: [] }));
+    const sheet = await approve();
+    expect(await within(sheet).findByRole('region', { name: 'Check the freezer first' })).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: "Send to Sainsbury's" })).toBeDisabled();
+  });
 });
 
 describe('Monday prep tile', () => {
