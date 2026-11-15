@@ -148,3 +148,9 @@ test('change tools only ever write slots and staples', async () => {
     if (w.table === 'meal_slots' && w.method === 'update') expect(w.filters).toContainEqual(['plan_week_id', 'w1']);
   }
 });
+
+test('swap_meal never puts a snack on a dinner', async () => {
+  const db = world({ recipes: [recipe('pie', 'Fish Pie'), recipe('hummus', 'Beetroot Hummus', { kind: 'snack', protein: null })] });
+  expect(await makeChanger(db, 'h1', NOW).swapMeal({ date: '2026-11-17', recipe: 'beetroot hummus' })).toMatch(/Beetroot Hummus is a snack, not a dinner/);
+  expect(db.writes()).toHaveLength(0);
+});

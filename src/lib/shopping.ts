@@ -54,6 +54,9 @@ export function buildShoppingList(
   const basicNames = new Set(basics.map((b) => words(b.name).join(' ')));
   const have = staples.filter((s) => s.status === 'have' && !basicNames.has(words(s.name).join(' ')));
   const items = new Map<string, ShopItem>();
+  // The week's first day: a snack made the Sunday before it comes with the first (Sunday) delivery.
+  const firstDay = slots.filter((s) => s.slot === 'breakfast' || s.slot === 'lunch' || s.slot === 'dinner').map((s) => s.date).sort()[0] ?? '';
+  const beforeWeek = new Set(slots.filter((s) => firstDay && s.date < firstDay).map((s) => s.date));
 
   const add = (recipe: RecipeDetail, factor: number, meal: string, slot: MealSlot) => {
     const batch = parseBatch(recipe.batch);
@@ -64,7 +67,8 @@ export function buildShoppingList(
       if (inBatch && (slot.batch === 'frozen' || slot.batch === 'frozen_ok')) continue;
       const times = inBatch && slot.batch === 'make' ? batch!.makes : 1;
       // A shop with a day (the fishmonger on Thursday) takes that day's dinners' things.
-      const dayShop = shops.find((s) => s.day !== null && s.day === weekdayIndex(slot.date) && shopBuys(s, ing.name));
+      // (Not for a snack made the Sunday before the week: that Sunday isn't the shop's day in this week.)
+      const dayShop = beforeWeek.has(slot.date) ? undefined : shops.find((s) => s.day !== null && s.day === weekdayIndex(slot.date) && shopBuys(s, ing.name));
       const key = `${dayShop ? `${dayShop.name}:` : ''}${words(ing.name).join(' ')}|${ing.unit}`;
       const qty = ing.qty === null ? null : ing.qty * factor * times;
       const existing = items.get(key);
@@ -78,15 +82,11 @@ export function buildShoppingList(
     }
   };
 
-  // The week's first day: a snack made the Sunday before it comes with the first (Sunday) delivery.
-  const firstDay = slots.filter((s) => s.slot === 'breakfast' || s.slot === 'lunch' || s.slot === 'dinner').map((s) => s.date).sort()[0] ?? '';
-  const beforeWeek = new Set<string>();
   for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
     // Snack makes: bought for the day they're made, scaled to every day they cover.
     if ((slot.slot === 'snack_am' || slot.slot === 'snack_pm') && slot.mode === 'cook' && slot.recipe_id) {
       const r = recipes.get(slot.recipe_id);
       if (!r) continue;
-      if (firstDay && slot.date < firstDay) beforeWeek.add(slot.date);
       add(r, (slot.portions ?? r.base_portions) / r.base_portions, `${SHORT[weekdayIndex(slot.date)]} snack: ${r.title}`, slot);
       continue;
     }

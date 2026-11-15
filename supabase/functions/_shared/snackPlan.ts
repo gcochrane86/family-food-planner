@@ -17,13 +17,14 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
  *  Sunday when it's planned), or with no prep days, any evening from the Sunday before. */
 export function snackMakeDates(weekStart: string, days: number, prepDays: number[]): string[] {
   const before = addDays(weekStart, -1);
-  if (!prepDays.length) return [before, ...Array.from({ length: days }, (_, i) => addDays(weekStart, i))];
+  const any = [before, ...Array.from({ length: days }, (_, i) => addDays(weekStart, i))];
   const out = new Set<string>();
   for (const d of prepDays) {
     if (d === 6) out.add(before);
     if (d < days) out.add(addDays(weekStart, d));
   }
-  return [...out].sort();
+  // No prep day falls in the plan (a Saturday on a 5-day plan): any evening will do.
+  return out.size ? [...out].sort() : any;
 }
 
 /** Claude's snack makes, checked: a make day it may use, covered days in the week from the make day on, and no
@@ -46,6 +47,7 @@ export function parseSnacks(raw: unknown, week: { weekStart: string; days: numbe
       if (!dates.includes(d)) throw new Error(`${recipe}: ${d} isn't in the week`);
       if (d < makeDate) throw new Error(`${recipe}: ${d} is before it's made (${makeDate})`);
     }
+    if (dates.includes(makeDate) && !covers.includes(makeDate)) throw new Error(`${recipe} is made on ${makeDate}, so it covers that day too: add it to "covers"`);
     for (const d of new Set([makeDate, ...covers])) {
       const key = `${slot}|${d}`;
       if (taken.has(key)) throw new Error(`The ${NAME[slot]} on ${d} is covered twice`);

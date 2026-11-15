@@ -169,9 +169,9 @@ export function useWeek() {
       : [],
     officeDays: input?.officeDays ?? [],
     /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
-    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines) : null),
+    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
     /** The week's oily fish, beans or lentils, and red meat (null until any recipe has an estimate). */
-    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines) : null),
+    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : null),
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     /** Trades two days' dinners (recipe, portions, guests, batch and roast plans), and keeps both where you put them. */

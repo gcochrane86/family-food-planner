@@ -79,6 +79,7 @@ export function makeChanger(db: Db, householdId: string, now = new Date()) {
         if ('text' in picked) return picked.text;
         const r = recipes.find((x) => x.id === picked.id)!;
         if (r.kind === 'component') return `${r.title} is part of a meal, not a dinner on its own.`;
+        if (r.kind === 'snack') return `${r.title} is a snack, not a dinner. Snacks are planned with the week (save_week_plan snacks).`;
         plan = applySwap(slots.map(toProposed), date, picked.id, await loadPlannerInput(db, householdId, weekStart));
         after = r.title;
       }

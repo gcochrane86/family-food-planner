@@ -75,10 +75,11 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     .map((x) => ({ date: x.date, recipe: x.recipeId ? slugOf.get(x.recipeId) ?? null : null, reason: x.reason }));
   // Daily balance: what the built-in proposal would give each day, so snacks can be aimed at the gaps.
   const routines = (s.routine_nutrition && typeof s.routine_nutrition === 'object' ? s.routine_nutrition : {}) as Record<string, unknown>;
-  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition }]));
+  const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true }]));
+  const homeLunches = Array.isArray(s.lunches) && s.lunches.length ? s.lunches as string[] : ['Chicken sandwich'];
   const balanceSlots = proposed.map((x) => ({ date: x.date, slot: x.slot, mode: x.mode, recipe_id: x.recipeId, reason: x.reason, source_date: x.sourceDate }));
   const builtInBalance = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i)).map((date) => {
-    const b = dayBalance(date, balanceSlots, estimates, routines);
+    const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches });
     return { date, low: b.low, unknown: (['breakfastProtein', 'vegFruit', 'healthyFat', 'fibre'] as const).filter((k) => b[k] === 'unknown') };
   });
   const names = [...new Set([...(Array.isArray(s.breakfasts) ? s.breakfasts : []), ...(Array.isArray(s.lunches) ? s.lunches : []), 'Packed lunch']
@@ -128,7 +129,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     })),
     // Estimates still to make (save_nutrition): plannable dinners, and breakfasts and lunches that are names.
     nutritionMissing: {
-      recipes: all.filter((x) => plannable.has(x.id) && !parseNutrition(x.nutrition)).map((x) => x.slug),
+      recipes: [...all.filter((x) => plannable.has(x.id)), ...snacks].filter((x) => !parseNutrition(x.nutrition)).map((x) => x.slug),
       routines: names.filter((n) => !parseNutrition(routines[n])),
     },
   };

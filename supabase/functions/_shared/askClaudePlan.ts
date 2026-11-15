@@ -118,7 +118,7 @@ export function makePlanner(db: Db, householdId: string, now = new Date(),
       const snackPool = recipes.filter((r) => r.kind === 'snack' && r.status !== 'archived');
       const snackSlug = (wanted: string) => {
         const t = wanted.toLowerCase();
-        if (newSlugs.has(t)) return t;
+        if (fresh.some((n) => String(n?.slug ?? '').toLowerCase() === t && (n as { kind?: unknown }).kind === 'snack')) return t;
         return (snackPool.find((r) => r.slug === t) ?? snackPool.find((r) => r.title.toLowerCase() === t))?.slug ?? null;
       };
       const unknownSnack = plan.snacks.find((sn) => !snackSlug(sn.recipe));

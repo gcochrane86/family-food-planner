@@ -74,3 +74,13 @@ describe('saveNutrition', () => {
     expect(db.writes()).toEqual([]);
   });
 });
+
+describe('review fixes', () => {
+  test('a make day in the week must be one of the days it covers', () => {
+    expect(() => parseSnacks([{ recipe: 'x', slot: 'am', make_date: '2026-11-25', covers: ['2026-11-26'] }], { weekStart: W, days: 7, makeDates: ['2026-11-25'] }))
+      .toThrow(/made on 2026-11-25, so it covers that day too/);
+  });
+  test('when no prep day falls in the plan, any evening will do', () => {
+    expect(snackMakeDates(W, 5, [5])).toEqual(snackMakeDates(W, 5, []));
+  });
+});

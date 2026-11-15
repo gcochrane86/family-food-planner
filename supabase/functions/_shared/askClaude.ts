@@ -164,7 +164,7 @@ export function makeReader(db: Db, householdId: string): Reader {
 
 // ---------- Formatters ----------
 
-const SLOT = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' } as const;
+const SLOT = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack_am: 'Morning snack', snack_pm: 'Afternoon snack' } as const;
 
 function slotLine(s: SlotRow): string {
   const label = SLOT[s.slot] ?? s.slot;
@@ -182,7 +182,7 @@ export function formatWeek(weekStart: string, data: WeekData): string {
   if (!data.week) return `No plan for the week of ${dayDate(weekStart)} yet.`;
   const out = [`Week of ${dayDate(weekStart)} (${data.week.status}, ${data.week.days} days)`];
   if (data.week.summary) out.push(data.week.summary);
-  const order = { breakfast: 0, lunch: 1, dinner: 2 };
+  const order = { breakfast: 0, snack_am: 1, lunch: 2, snack_pm: 3, dinner: 4 };
   const dates = [...new Set(data.slots.map((s) => s.date))].sort();
   for (const d of dates) {
     out.push('', dayDate(d));

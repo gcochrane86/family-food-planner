@@ -49,7 +49,7 @@ async function list() {
   if (run.status !== 'requested' && run.status !== 'filling') fail(`The ${delivery === 'sun' ? 'Sunday' : 'Tuesday'} basket for the week of ${week.week_start} is already marked ${run.status}. Tap "Fill again" on the Shop tab to request it again.`);
 
   const slots = must<MealSlot[]>(await db.from('meal_slots').select('*').eq('plan_week_id', week.id), 'Reading the menu');
-  const ids = [...new Set(slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+  const ids = [...new Set(slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
   // A roast's sides are recipes of their own, found by slug.
   const sideSlugs = [...new Set(slots.flatMap((s) => { const r = parseRoastChoice(s.roast); return r ? roastPartSlugs(r) : []; }))];
   if (sideSlugs.length) {

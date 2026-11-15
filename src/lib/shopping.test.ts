@@ -289,3 +289,11 @@ describe('snack makes', () => {
     expect(list.tue.find((i) => i.name === 'chickpeas')).toBeUndefined();
   });
 });
+
+test("a snack made the Sunday before the week isn't bought from a shop that goes on the week's Sunday", () => {
+  const hummus = { ...recipe('hummus', 6, [['chickpeas', 400, 'g']]), kind: 'snack' as const };
+  const fishmonger = { name: 'Fishmonger', buys: ['chickpeas'], day: 6, sometimes: false, weeks: [] };
+  const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), { ...dinner('2026-10-18', 'hummus', 6), slot: 'snack_am' }], new Map([...recipes, ['hummus', hummus]]), [], 2, [],
+    { shops: [fishmonger], weekStart: '2026-10-19' });
+  expect(list.sun.find((i) => i.name === 'chickpeas')).toBeTruthy();
+});

@@ -33,7 +33,9 @@ export interface BalanceSlot {
   date: string; slot: string; mode: string; recipe_id: string | null;
   routine_choice?: string | null; reason?: string | null; source_date?: string | null;
 }
-type Recipes = Map<string, { nutrition?: unknown }>;
+type Recipes = Map<string, { nutrition?: unknown; reheats_well?: boolean }>;
+/** The household's home lunches, first one the default (settings.lunches, or the app's list). */
+export interface BalanceOptions { homeLunches?: string[] }
 
 export const BREAKFAST_PROTEIN_G = 25;
 export const VEG_FRUIT_PORTIONS = 5;
@@ -65,7 +67,7 @@ function routineEstimate(routines: Record<string, unknown>, name: string | null 
 }
 
 /** The day's parts: undefined where there's nothing to count, null where there's something without an estimate. */
-function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>) {
+function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}) {
   const on = (slot: string) => slots.find((s) => s.date === date && s.slot === slot);
   const b = on('breakfast');
   const breakfast = !b ? undefined : b.recipe_id ? recipeEstimate(recipes, b.recipe_id) : routineEstimate(routines, b.routine_choice ?? b.reason);
@@ -76,6 +78,12 @@ function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: R
   else if (l.source_date || l.routine_choice === 'Leftovers') {
     const from = slots.find((s) => s.date === (l.source_date ?? addDays(date, -1)) && s.slot === 'dinner');
     lunch = recipeEstimate(recipes, from?.recipe_id);
+  } else if (l.mode === 'routine' && !l.routine_choice) {
+    // Not picked yet: as the app shows it, last night's dinner if it reheats well, otherwise the first home lunch.
+    const from = slots.find((s) => s.date === addDays(date, -1) && s.slot === 'dinner' && s.mode === 'cook');
+    lunch = from?.recipe_id && recipes.get(from.recipe_id)?.reheats_well
+      ? recipeEstimate(recipes, from.recipe_id)
+      : routineEstimate(routines, opts.homeLunches?.[0] ?? l.reason);
   } else lunch = routineEstimate(routines, l.routine_choice ?? l.reason);
   const d = on('dinner');
   const out = !d || d.mode === 'out' || !d.recipe_id;
@@ -85,8 +93,8 @@ function parts(date: string, slots: BalanceSlot[], recipes: Recipes, routines: R
 }
 
 /** How the day measures up: breakfast protein, veg and fruit, healthy fats and fibre, each ok, low or unknown. */
-export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>): DayBalance {
-  const p = parts(date, slots, recipes, routines);
+export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): DayBalance {
+  const p = parts(date, slots, recipes, routines, opts);
   const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
   const all = [p.breakfast, p.lunch, p.dinner, ...p.snacks];
   const known = !p.out && [p.breakfast, p.lunch, p.dinner, ...p.snacks].every((x) => x !== null);
@@ -108,12 +116,12 @@ export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes,
 
 /** The week: oily fish dinners (2 or more), days with beans or lentils (3 or more), red meat (2 or fewer) and
  *  processed meat (1 or fewer) dinners. */
-export function weekBalance(dates: string[], slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>): WeekBalance {
+export function weekBalance(dates: string[], slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): WeekBalance {
   const dinners = dates.map((d) => slots.find((s) => s.date === d && s.slot === 'dinner' && s.mode !== 'out'))
     .map((s) => recipeEstimate(recipes, s?.recipe_id)).filter((n): n is Nutrition => !!n);
   const count = (k: 'oily_fish' | 'red_meat' | 'processed_meat') => dinners.filter((n) => n[k]).length;
   const legumes = dates.filter((d) => {
-    const p = parts(d, slots, recipes, routines);
+    const p = parts(d, slots, recipes, routines, opts);
     return [p.breakfast, p.lunch, p.dinner, ...p.snacks].some((n) => n?.legumes);
   }).length;
   const atLeast = (n: number, min: number): Mark => (n >= min ? 'ok' : 'low');

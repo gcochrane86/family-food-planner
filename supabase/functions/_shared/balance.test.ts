@@ -103,3 +103,20 @@ describe('parseNutrition', () => {
     expect(parseNutrition(N({ fibre_g: -1 }))).toBeNull();
   });
 });
+
+describe('home lunches the planner left as a default', () => {
+  const r2 = new Map<string, { nutrition?: unknown; reheats_well?: boolean }>([
+    ['stew', { nutrition: N({ fibre_g: 12 }), reheats_well: true }],
+    ['salad', { nutrition: N({ fibre_g: 3 }), reheats_well: false }],
+  ]);
+  const home = (dinnerBefore: string) => [
+    { date: '2026-11-16', slot: 'dinner', mode: 'cook', recipe_id: dinnerBefore },
+    { date: D, slot: 'lunch', mode: 'routine', recipe_id: null, routine_choice: null, reason: 'Chicken sandwich on sourdough' },
+  ];
+  test("after a dinner that reheats well, it's that dinner's leftovers", () => {
+    expect(dayBalance(D, home('stew'), r2, {}, { homeLunches: ['Chicken sandwich'] }).totals.fibre_g).toBe(12);
+  });
+  test("otherwise it's the first home lunch on the list", () => {
+    expect(dayBalance(D, home('salad'), r2, { 'Chicken sandwich': N({ fibre_g: 4 }) }, { homeLunches: ['Chicken sandwich'] }).totals.fibre_g).toBe(4);
+  });
+});

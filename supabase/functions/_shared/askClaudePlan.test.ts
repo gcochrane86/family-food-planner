@@ -197,3 +197,11 @@ describe('snacks', () => {
     expect(HOW_TO_PLAN).toMatch(/snackMakeDates/);
   });
 });
+
+test("a new recipe is only a snack when it's written as one", async () => {
+  const NEWMEAL = { slug: 'lemon-chicken', title: 'Lemon Chicken', kind: 'meal', protein: 'chicken', base_portions: 4,
+    ingredients: [{ name: 'chicken thigh', qty: 800, unit: 'g' }], steps: [{ phase: 'finish', title: 'Cook', body: 'Cook the **chicken thigh**.' }] };
+  const out = await makePlanner(world({ 'settings:one': { data: { adventure: 1, prep_days: [6] } } }), 'h1', NOW, deps())
+    .save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWMEAL], snacks: [{ recipe: 'lemon-chicken', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16'] }] }));
+  expect(out).toMatch(/No snack recipe called "lemon-chicken"/);
+});

@@ -215,3 +215,10 @@ describe('snacks and nutrition (daily balance)', () => {
     expect(db.rpcs).toEqual([]);
   });
 });
+
+test('snack recipes without an estimate are listed too', async () => {
+  const { planContext } = await import('./weekPlan');
+  const db = tableDb({ members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
+    recipes: [{ id: 's1', slug: 'hummus', title: 'Hummus', kind: 'snack', status: 'active', keeps_days: 4, recipe_ingredients: [], nutrition: null }] });
+  expect((await planContext(db as never, 'h1', '2026-11-16')).nutritionMissing.recipes).toEqual(['hummus']);
+});

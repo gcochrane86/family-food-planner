@@ -16,9 +16,8 @@ healthy fats. They want to see:
    worked out by Claude from its ingredients:
    - grams of protein and of fibre;
    - veg portions and fruit portions (80g each);
-   - grams of carbohydrate;
-   - flags: healthy fat (olive oil, oily fish, nuts or seeds, avocado), oily fish, beans or lentils, whole grain,
-     red meat, processed meat.
+   - flags: healthy fat (olive oil, oily fish, nuts or seeds, avocado), oily fish, beans or lentils, red meat,
+     processed meat. (Carbohydrate and whole grain were left out at build time: no marker uses them.)
 
    Breakfasts and home lunches that are names only, with no recipe, get the same estimate in settings. These are
    estimates for spotting patterns, never shown as precise figures.
