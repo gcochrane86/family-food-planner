@@ -1263,6 +1263,21 @@ describe('each person against their targets', () => {
     expect(h.repo.addSnackEat).toHaveBeenCalledWith(NEXT_WEEK.week.id, expect.objectContaining({ date: '2026-10-19', slot: 'snack_pm', member_id: YOU.id, recipe_id: 'r-egg', qty: 1 }));
   });
 
+  test('the suggestion can be put away, and a quick double tap adds the snack once', async () => {
+    const egg = { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' as const, keeps_days: 5, toddler_ok: true, nutrition: { ...N, protein_g: 6, kcal: 75 } };
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY].map((r) => ({ ...r, nutrition: N })).concat([egg]));
+    h.repo.addSnackEat.mockImplementation(() => new Promise(() => {}));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Monday 19');
+    const nudge = within(screen.getByRole('dialog')).getByRole('region', { name: 'Suggestion' });
+    const yes = within(nudge).getByRole('button', { name: 'Yes, add it' });
+    await user().click(yes);
+    await user().click(yes);
+    expect(h.repo.addSnackEat).toHaveBeenCalledTimes(1);
+    await user().click(within(nudge).getByRole('button', { name: 'Not now' }));
+    expect(screen.queryByRole('region', { name: 'Suggestion' })).not.toBeInTheDocument();
+  });
+
   test('a draft lists the meal partners Claude proposed with it', async () => {
     const week = await h.repo.getWeek('h1', '2026-10-19');
     h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' }]);

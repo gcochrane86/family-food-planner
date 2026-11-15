@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Macro, Mark, Nutrition, TargetState } from '../../../supabase/functions/_shared/balance.ts';
 import type { WeekState } from './useWeek';
 
@@ -14,7 +15,9 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
   // Each person's snacks that day, with when they're made.
   const snacks = w.eatsOn(date).filter((e) => e.slot === 'snack_am' || e.slot === 'snack_pm');
   const byPerson = [...new Set(snacks.map((e) => e.member_id))];
-  const fix = w.nudge(date);
+  const [away, setAway] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const fix = away ? null : w.nudge(date);
   if (!b && !snacks.length && !fix) return null;
   const rows: [string, Mark | undefined, string][] = b ? [
     ['Breakfast protein', b.breakfastProtein, 'about 25g or more'],
@@ -28,8 +31,11 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
       {fix && (
         <div role="region" aria-label="Suggestion" className="grid gap-2 rounded-xl bg-accent-soft px-3 py-2.5 text-sm">
           <p className="m-0">{fix.name} is {fix.gap}{UNIT[fix.macro]} under {WORD[fix.macro]}: add {fix.title} as {fix.slot === 'snack_am' ? 'a morning' : 'an afternoon'} snack?</p>
-          <button type="button" className="justify-self-start rounded-xl bg-accent px-3.5 py-2 font-semibold text-accent-ink"
-            onClick={() => void w.addSnack(date, fix.memberId, fix.recipe_id, fix.slot)}>Yes, add it</button>
+          <span className="flex flex-wrap gap-2">
+            <button type="button" disabled={adding} className="rounded-xl bg-accent px-3.5 py-2 font-semibold text-accent-ink disabled:opacity-60"
+              onClick={() => { setAdding(true); void w.addSnack(date, fix.memberId, fix.recipe_id, fix.slot).finally(() => setAdding(false)); }}>Yes, add it</button>
+            <button type="button" className="rounded-xl border border-line bg-surface px-3.5 py-2 font-semibold" onClick={() => setAway(true)}>Not now</button>
+          </span>
         </div>
       )}
       {byPerson.map((id) => (

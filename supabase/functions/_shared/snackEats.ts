@@ -93,7 +93,7 @@ type Member = { id: string; name: string; kind: string };
 type Pool = Map<string, SnackInfo & { slug: string }>;
 const findPerson = (members: Member[], name: unknown) => {
   const m = members.find((x) => x.name.toLowerCase() === String(name ?? '').trim().toLowerCase());
-  if (!m) throw new Error(`No one called "${name}". Use a name from people.`);
+  if (!m) throw new Error(`No one called "${name}". Use a name from members.`);
   return m;
 };
 const findSnack = (pool: Pool, name: unknown) => {

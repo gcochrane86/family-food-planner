@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { weekEats, weekMakes } from './weekEats';
+import { mergeMakes, weekEats, weekMakes } from './weekEats';
 import type { MealSlot, PlanWeek, Recipe, Settings } from './types';
 
 const week = { id: 'w', week_start: '2026-11-16', days: 7, prep_days: [6] } as PlanWeek;
@@ -35,4 +35,9 @@ describe('review fixes', () => {
   test("a person who's no longer in the household has no partners", () => {
     expect(weekEats({ week, slots }, settings, recipes, ['b']).map((e) => e.member_id)).toEqual(['b', 'b']);
   });
+});
+
+test("a recipe made on a day for two weeks is one make in Today's cooking", () => {
+  const slot = (portions: number, wk: string) => ({ plan_week_id: wk, date: '2026-11-15', slot: 'snack', mode: 'cook', recipe_id: 'egg', portions } as MealSlot);
+  expect(mergeMakes([slot(4, 'a'), slot(5, 'b'), { ...slot(2, 'b'), recipe_id: 'balls' }]).map((m) => [m.recipe_id, m.portions])).toEqual([['egg', 9], ['balls', 2]]);
 });

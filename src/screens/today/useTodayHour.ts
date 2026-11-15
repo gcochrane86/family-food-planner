@@ -1,4 +1,4 @@
-import { weekMakes } from '../../lib/weekEats';
+import { mergeMakes, weekMakes } from '../../lib/weekEats';
 import { londonParts } from '../../../supabase/functions/_shared/schedule.ts';
 import { applyVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { useAuth } from '../../auth/AuthProvider';
@@ -114,7 +114,7 @@ export function useTodayHour(day?: string | null, now = new Date()) {
     }
 
     // Everyone's snacks and meal partners, made as the family's makes (a Sunday make belongs to the week after it).
-    const snackMakes = loaded.flatMap((w) => weekMakes(w, settings, recipes)).filter((s) => s.date === today);
+    const snackMakes = mergeMakes(loaded.flatMap((w) => weekMakes(w, settings, recipes)).filter((s) => s.date === today));
     const snacks = (await Promise.all(snackMakes.map(async (s) => {
       const r = await forSlot(s);
       return r ? { title: r.title, recipe: r, factor: (s.portions ?? r.base_portions) / r.base_portions } : null;

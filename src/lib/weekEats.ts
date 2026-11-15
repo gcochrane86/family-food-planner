@@ -40,3 +40,14 @@ export function weekMakes(w: Week, settings: Settings | null | undefined, recipe
   if (!w.week) return [];
   return makeSlots(weekEats(w, settings, recipes)).map((m) => ({ ...m, plan_week_id: w.week!.id, guests: 0, locked: false }) as unknown as MealSlot);
 }
+
+/** Makes of the same recipe on the same day (one for each week they feed) as one make, portions added up. */
+export function mergeMakes(makes: MealSlot[]): MealSlot[] {
+  const by = new Map<string, MealSlot>();
+  for (const m of makes) {
+    const key = `${m.date}|${m.recipe_id}`;
+    const seen = by.get(key);
+    by.set(key, seen ? { ...seen, portions: (seen.portions ?? 0) + (m.portions ?? 0) } : { ...m });
+  }
+  return [...by.values()];
+}

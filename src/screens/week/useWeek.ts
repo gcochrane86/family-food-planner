@@ -197,7 +197,8 @@ export function useWeek() {
     weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare, eats }) : null),
     /** One fix for the first person whose day is under a target they've set, or null. */
     nudge(date: string): { memberId: string; name: string; macro: Macro; gap: number; recipe_id: string; title: string; slot: 'snack_am' | 'snack_pm' } | null {
-      if (!hasEstimates || !current?.week) return null;
+      // Only for today and the days ahead.
+      if (!hasEstimates || !current?.week || date < starts.london.date) return null;
       const snacks = (data?.recipes ?? []).filter((r) => r.kind === 'snack' && r.status !== 'archived');
       for (const m of members) {
         const p = personDay(date, current.slots, recipes, routines, m, { homeLunches: mealOptions.lunch, eats });

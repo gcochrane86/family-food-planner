@@ -18,6 +18,8 @@ import { contentRows, recipeRow, type SeedRecipe, validateRecipeSeed } from './r
 type Db = any;
 type Res<T> = { data: T | null; error: { message: string; code?: string } | null };
 
+/** The app's breakfasts when the household hasn't saved its own (src/lib/mealPhotos.ts). */
+const DEFAULT_BREAKFASTS = ['Overnight oats', 'Baked oats', 'Eggs & porridge'];
 const DAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const must = <T>(res: Res<T>, what: string): T => {
   if (res.error) throw new Error(`${what}: ${res.error.message}`);
@@ -59,7 +61,7 @@ export async function snackChecker(db: Db, hid: string, weekStart: string, days:
     pool.set(x.title.toLowerCase(), info);
   }
   const data = (must(st, 'Reading settings') as { data: Record<string, unknown> } | null)?.data ?? {};
-  const meals = [...new Set([...(Array.isArray(data.breakfasts) ? data.breakfasts : []), ...(Array.isArray(data.lunches) ? data.lunches : []), 'Packed lunch']
+  const meals = [...new Set([...(Array.isArray(data.breakfasts) && data.breakfasts.length ? data.breakfasts : DEFAULT_BREAKFASTS), ...(Array.isArray(data.lunches) ? data.lunches : []), 'Packed lunch']
     .filter((n): n is string => typeof n === 'string' && !!n.trim()))];
   const dates = Array.from({ length: days }, (_, i) => addDays(weekStart, i));
   const makeDates = snackMakeDates(weekStart, days, prepDays);
@@ -119,7 +121,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const snackBySlug = new Map(snacks.map((x) => [x.slug, { id: x.id, keeps_days: (x.keeps_days as number | null) ?? null, toddler_ok: x.toddler_ok !== false }]));
   const weekDates = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i));
   const prepDays = choices?.prepDays ?? (Array.isArray(s.prep_days) ? s.prep_days as number[] : []);
-  const breakfasts = Array.isArray(s.breakfasts) ? s.breakfasts as string[] : [];
+  const breakfasts = Array.isArray(s.breakfasts) && s.breakfasts.length ? s.breakfasts as string[] : DEFAULT_BREAKFASTS;
   const proposalEats = partnerEats(weekDates, balanceSlots, mealPartners, snackBySlug, snackMakeDates(weekStart, input.days, prepDays), estimates, { breakfasts, homeLunches });
   const firstAdult = people.find((m) => m.kind === 'adult');
   const builtInBalance = weekDates.map((date) => {
