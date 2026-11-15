@@ -11,6 +11,9 @@ import WeekTile from './WeekTile';
 import { addDays, useWeek } from './useWeek';
 import { isDay } from '../../lib/dayVersion';
 
+/** "Monday". */
+const weekdayLong = (date: string) => new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
+
 export default function WeekView() {
   const w = useWeek();
   const plan = usePlanRequest(w);
@@ -85,10 +88,26 @@ export default function WeekView() {
         </Link>
       )}
 
+      {w.newDinners.length > 0 && (
+        <section aria-label="New recipes to check" className="grid gap-2 rounded-2xl border-2 border-yolk bg-surface p-4">
+          <h2 className="m-0 text-base font-bold">New recipes to check</h2>
+          <p className="m-0 text-sm text-muted">These haven't been in a week before: check them before you approve.</p>
+          <ul className="m-0 grid list-none gap-1.5 p-0">
+            {w.newDinners.map(({ date, recipe }) => (
+              <li key={date}>
+                <span className="font-semibold">{weekdayLong(date)}: </span>
+                <Link to={`/recipes/${recipe.id}`} className="font-semibold text-accent underline">{recipe.title}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {w.week && (
         <div className="grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-4">
           {dates.map((d) => (
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
+              isNew={w.newDinners.some((n) => n.date === d)}
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
           <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14}
