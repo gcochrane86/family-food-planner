@@ -1,0 +1,105 @@
+import { describe, expect, test } from 'vitest';
+import { dayBalance, parseNutrition, routineName, weekBalance } from './balance.ts';
+
+const N = (o: Partial<Record<string, unknown>> = {}) => ({
+  protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, ...o,
+});
+const D = '2026-11-17';
+const recipes = new Map<string, { nutrition?: unknown }>([
+  ['salmon', { nutrition: N({ protein_g: 35, fibre_g: 9, veg_portions: 2, healthy_fat: true, oily_fish: true }) }],
+  ['curry', { nutrition: N({ fibre_g: 12, veg_portions: 2, legumes: true }) }],
+  ['beef', { nutrition: N({ red_meat: true, fibre_g: 4, veg_portions: 1 }) }],
+  ['hummus', { nutrition: N({ protein_g: 6, fibre_g: 8, veg_portions: 1, healthy_fat: true, legumes: true }) }],
+  ['nothing', {}],
+]);
+const routines = {
+  'Eggs & porridge': N({ protein_g: 28, fibre_g: 6, fruit_portions: 1 }),
+  'Overnight oats': N({ protein_g: 20, fibre_g: 7, fruit_portions: 1 }),
+  'Packed lunch': N({ protein_g: 30, fibre_g: 8, veg_portions: 2, healthy_fat: true }),
+};
+const day = (o: { breakfast?: string; lunch?: string; dinner?: string | null; dinnerMode?: string; snacks?: string[] } = {}) => [
+  { date: D, slot: 'breakfast', mode: 'routine', recipe_id: null, routine_choice: o.breakfast ?? 'Eggs & porridge' },
+  { date: D, slot: 'lunch', mode: 'packed', recipe_id: null, reason: o.lunch ?? 'Packed lunch' },
+  { date: D, slot: 'dinner', mode: o.dinnerMode ?? 'cook', recipe_id: o.dinner === undefined ? 'salmon' : o.dinner },
+  ...(o.snacks ?? []).map((id, i) => ({ date: D, slot: i ? 'snack_pm' : 'snack_am', mode: 'cook', recipe_id: id })),
+];
+
+describe('dayBalance', () => {
+  test('a balanced day is all ok', () => {
+    const b = dayBalance(D, day({ snacks: ['hummus'] }), recipes, routines);
+    expect(b).toMatchObject({ breakfastProtein: 'ok', vegFruit: 'ok', healthyFat: 'ok', fibre: 'ok', low: [] });
+    expect(b.totals.fibre_g).toBe(31);
+  });
+
+  test('a lower-protein breakfast is low', () => {
+    expect(dayBalance(D, day({ breakfast: 'Overnight oats' }), recipes, routines).breakfastProtein).toBe('low');
+  });
+
+  test("a routine name's suffix is left off to find its estimate", () => {
+    expect(routineName('Overnight oats (made Sunday)')).toBe('Overnight oats');
+    expect(dayBalance(D, day({ breakfast: 'Overnight oats (made Sunday)' }), recipes, routines).breakfastProtein).toBe('low');
+  });
+
+  test('a dinner out leaves the day-total markers unknown, never low (a healthy fat already eaten still counts)', () => {
+    const b = dayBalance(D, day({ dinner: null, dinnerMode: 'out' }), recipes, routines);
+    expect(b).toMatchObject({ breakfastProtein: 'ok', vegFruit: 'unknown', healthyFat: 'ok', fibre: 'unknown', low: [] });
+    const noFat = dayBalance(D, day({ dinner: null, dinnerMode: 'out' }), recipes, { ...routines, 'Packed lunch': N() });
+    expect(noFat.healthyFat).toBe('unknown');
+  });
+
+  test('a breakfast with no estimate leaves breakfast protein unknown', () => {
+    expect(dayBalance(D, day({ breakfast: 'Toast' }), recipes, routines).breakfastProtein).toBe('unknown');
+  });
+
+  test('a dinner with no estimate leaves the totals unknown', () => {
+    expect(dayBalance(D, day({ dinner: 'nothing' }), recipes, routines).fibre).toBe('unknown');
+  });
+
+  test('five portions, but mostly fruit, is low', () => {
+    const fruity = { ...routines, 'Fruit bowl': N({ protein_g: 25, fruit_portions: 4, veg_portions: 0 }) };
+    const b = dayBalance(D, day({ breakfast: 'Fruit bowl', dinner: 'beef' }), recipes, { ...fruity, 'Packed lunch': N({ veg_portions: 0 }) });
+    expect(b.vegFruit).toBe('low');
+    expect(b.low).toContain('veg & fruit');
+  });
+
+  test("a snack's fibre lifts the day", () => {
+    expect(dayBalance(D, day(), recipes, routines).fibre).toBe('low');
+    expect(dayBalance(D, day({ snacks: ['hummus'] }), recipes, routines).fibre).toBe('ok');
+  });
+
+  test("leftovers at lunch are the day before's dinner", () => {
+    const slots = [
+      { date: '2026-11-16', slot: 'dinner', mode: 'cook', recipe_id: 'curry' },
+      { date: D, slot: 'breakfast', mode: 'routine', recipe_id: null, routine_choice: 'Eggs & porridge' },
+      { date: D, slot: 'lunch', mode: 'routine', recipe_id: null, routine_choice: 'Leftovers' },
+      { date: D, slot: 'dinner', mode: 'cook', recipe_id: 'salmon' },
+    ];
+    expect(dayBalance(D, slots, recipes, routines).totals.fibre_g).toBe(6 + 12 + 9);
+  });
+});
+
+describe('weekBalance', () => {
+  const dates = ['2026-11-16', '2026-11-17', '2026-11-18'];
+  const slots = [
+    { date: dates[0], slot: 'dinner', mode: 'cook', recipe_id: 'salmon' },
+    { date: dates[1], slot: 'dinner', mode: 'cook', recipe_id: 'curry' },
+    { date: dates[1], slot: 'snack_am', mode: 'cook', recipe_id: 'hummus' },
+    { date: dates[2], slot: 'snack_am', mode: 'leftovers', recipe_id: 'hummus', source_date: dates[1] },
+    { date: dates[2], slot: 'dinner', mode: 'cook', recipe_id: 'beef' },
+  ];
+  test('counts oily fish and red meat dinners, and days with beans or lentils', () => {
+    expect(weekBalance(dates, slots, recipes, routines)).toEqual({
+      oilyFish: { count: 1, mark: 'low' }, legumes: { count: 2, mark: 'low' },
+      redMeat: { count: 1, mark: 'ok' }, processed: { count: 0, mark: 'ok' },
+    });
+  });
+});
+
+describe('parseNutrition', () => {
+  test('keeps a whole estimate, rejects junk', () => {
+    expect(parseNutrition(N())).toEqual(N());
+    expect(parseNutrition({ protein_g: 'lots' })).toBeNull();
+    expect(parseNutrition(null)).toBeNull();
+    expect(parseNutrition(N({ fibre_g: -1 }))).toBeNull();
+  });
+});
