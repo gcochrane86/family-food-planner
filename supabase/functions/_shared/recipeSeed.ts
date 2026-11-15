@@ -6,7 +6,8 @@
 export type SeedRecipe = Record<string, any>;
 const PHASES = ['prep_8pm', 'finish', 'reheat'];
 const MACHINES = ['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle'];
-const KINDS = ['meal', 'component'];
+const KINDS = ['meal', 'component', 'snack'];
+const NUTRITION_KEYS = { numbers: ['protein_g', 'fibre_g', 'veg_portions', 'fruit_portions'], flags: ['healthy_fat', 'oily_fish', 'legumes', 'red_meat', 'processed_meat'] };
 const ROLES = ['sauce', 'protein', 'veg', 'carb', 'bread'];
 const SOURCES = ['hellofresh', 'own_doc', 'claude', 'cookidoo', 'web'];
 const PROTEINS = ['chicken', 'fish', 'red_meat', 'veggie', 'egg', 'other'];
@@ -26,7 +27,13 @@ export function validateRecipeSeed(file: any): string[] {
     else if (seen.has(r.slug)) problems.push(`${at}.slug "${r.slug}" is used twice`);
     else seen.add(r.slug);
     if (!isText(r?.title)) problems.push(`${at}.title missing`);
-    if (!KINDS.includes(r?.kind)) problems.push(`${at}.kind must be meal or component`);
+    if (!KINDS.includes(r?.kind)) problems.push(`${at}.kind must be meal, component or snack`);
+    if (r?.kind === 'snack' && (!Number.isInteger(r?.keeps_days) || r.keeps_days < 1 || r.keeps_days > 7)) problems.push(`${at}.keeps_days must be 1 to 7 days for a snack`);
+    if (r?.nutrition != null && !(typeof r.nutrition === 'object'
+      && NUTRITION_KEYS.numbers.every((k) => isNum(r.nutrition[k]) && r.nutrition[k] >= 0)
+      && NUTRITION_KEYS.flags.every((k) => typeof r.nutrition[k] === 'boolean'))) {
+      problems.push(`${at}.nutrition must have protein_g, fibre_g, veg_portions and fruit_portions (0 or more) and the five yes/no flags`);
+    }
     if (r?.component_role != null && !ROLES.includes(r.component_role)) problems.push(`${at}.component_role must be one of ${ROLES.join(', ')}`);
     if ((r?.kind === 'meal' || r?.protein != null) && !PROTEINS.includes(r?.protein)) problems.push(`${at}.protein must be one of ${PROTEINS.join(', ')}`);
     if (!SOURCES.includes(r?.source)) problems.push(`${at}.source must be one of ${SOURCES.join(', ')}`);
@@ -91,6 +98,9 @@ export function recipeRow(householdId: string, r: SeedRecipe): Record<string, un
     tags: r.tags ?? [], equipment: r.equipment ?? [], reheat: r.reheat ?? null, status: r.status ?? 'active',
     batch: r.batch ?? null,
     roast: r.roast ?? null,
+    // Snacks (migration 0023): left out, a re-seed keeps what's saved.
+    ...(r.nutrition != null ? { nutrition: r.nutrition } : {}),
+    ...(r.keeps_days != null ? { keeps_days: r.keeps_days } : {}),
     // The main photo's description (migration 0019); left out, a re-seed keeps the one saved.
     ...(typeof r.photo === 'string' && r.photo.trim() ? { hero_hint: r.photo.trim() } : {}),
   };

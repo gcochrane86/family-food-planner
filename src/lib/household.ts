@@ -1,3 +1,4 @@
+import { parseNutrition } from '../../supabase/functions/_shared/balance.ts';
 import { MAX_MINUTES, MIN_MINUTES, WEEKDAYS } from '../../supabase/functions/_shared/cookingTime.ts';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
 import type { DeliverySlot, Member, Settings, StapleStatus, DayRule, OtherShop } from './types';
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tm7_machines: 1,
   tm7_bowls: 1,
   prep_days: [],
+  routine_nutrition: {},
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -134,6 +136,10 @@ export function validateSettings(raw: unknown): Settings {
     prep_days: Array.isArray(r.prep_days)
       ? [...new Set(r.prep_days.filter((x): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 6))].sort((a, b) => a - b)
       : [],
+    // Daily balance: estimates for breakfasts and lunches that are names, not recipes.
+    routine_nutrition: r.routine_nutrition && typeof r.routine_nutrition === 'object' && !Array.isArray(r.routine_nutrition)
+      ? Object.fromEntries(Object.entries(r.routine_nutrition as Record<string, unknown>).flatMap(([k, v]) => { const n = parseNutrition(v); return n && k.trim() ? [[k.trim(), n]] : []; }))
+      : {},
     private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
 }

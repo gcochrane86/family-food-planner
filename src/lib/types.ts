@@ -1,3 +1,4 @@
+import type { Nutrition } from '../../supabase/functions/_shared/balance.ts';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import type { SlotVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 export type { SlotVersion };
@@ -58,6 +59,8 @@ export interface Settings {
   tm7_bowls?: 1 | 2;
   /** Usual week: longer prep days, weekdays 0 = Monday … 6 = Sunday. */
   prep_days?: number[];
+  /** Daily balance: estimates per adult portion for breakfasts and lunches that are names, not recipes. */
+  routine_nutrition?: Record<string, Nutrition>;
 }
 
 export interface DayRule { weekday: number; protein: Protein; note: string | null }
@@ -147,7 +150,11 @@ export interface Recipe {
   slug: string;
   title: string;
   subtitle: string | null;
-  kind: 'meal' | 'component';
+  kind: 'meal' | 'component' | 'snack';
+  /** Per adult portion (migration 0023; balance.ts Nutrition). */
+  nutrition?: Nutrition | null;
+  /** A snack's keeping time in days, from the day it's made. */
+  keeps_days?: number | null;
   component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;
   source: 'hellofresh' | 'own_doc' | 'claude' | 'cookidoo' | 'web';
   protein: Protein | null;
@@ -188,7 +195,7 @@ export interface RecipeDetail extends Recipe {
 
 // Planning (Phase 3) ------------------------------------------------------------
 
-export type SlotKind = 'breakfast' | 'lunch' | 'dinner';
+export type SlotKind = 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm';
 export type SlotMode = 'cook' | 'reheat' | 'leftovers' | 'out' | 'routine' | 'packed';
 
 export interface PlanWeek {

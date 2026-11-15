@@ -57,6 +57,7 @@ describe('validateSettings', () => {
       tm7_machines: 1,
       tm7_bowls: 1,
       prep_days: [],
+      routine_nutrition: {},
     });
   });
   test("Today's hour: a real start time, 30–120 minutes, 1 or 2 TM7s and bowls", () => {
@@ -112,4 +113,10 @@ test('private rules are kept when settings are saved, tidied, and default to non
 test('validateSettings keeps prep days as unique weekdays 0–6, none by default', () => {
   expect(validateSettings({ prep_days: [6, 6, 9, 'x', 0] }).prep_days).toEqual([0, 6]);
   expect(validateSettings({}).prep_days).toEqual([]);
+});
+
+test('validateSettings keeps whole routine estimates only', () => {
+  const good = { protein_g: 28, fibre_g: 6, veg_portions: 0, fruit_portions: 1, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
+  expect(validateSettings({ routine_nutrition: { 'Eggs & porridge': good, Toast: { protein_g: 'x' } } }).routine_nutrition).toEqual({ 'Eggs & porridge': good });
+  expect(validateSettings({}).routine_nutrition).toEqual({});
 });

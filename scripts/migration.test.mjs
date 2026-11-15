@@ -721,3 +721,18 @@ test("0022: a plan request carries the week's choices; save_claude_week saves th
   expect(await one(OWNER, `select prep_days from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
   expect(await fails(OWNER, `select save_claude_week('${req2}', 7, '[]', 'S', null, null, null)`)).toMatch(/permission denied/);
 });
+
+test('0023: snack recipes with nutrition and keeping days; morning and afternoon snack slots', async () => {
+  const { hid, req } = await weekRequest(OWNER);
+  const sid = await one(OWNER, `insert into recipes (household_id, slug, title, kind, status, source, base_portions, keeps_days, nutrition) values ('${hid}', 'hummus', 'Hummus', 'snack', 'active', 'claude', 4, 4, '{"protein_g": 6}') returning id`);
+  expect(await one(OWNER, `select keeps_days from recipes where id = '${sid}'`)).toBe(4);
+  await expect(as(OWNER, `update recipes set keeps_days = 9 where id = '${sid}'`)).rejects.toThrow();
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  const slots = JSON.stringify([
+    { date: '2026-10-26', slot: 'snack_am', recipe_id: sid, mode: 'cook', portions: 6 },
+    { date: '2026-10-27', slot: 'snack_am', recipe_id: sid, mode: 'leftovers', source_date: '2026-10-26' },
+  ]);
+  await svc(`select save_claude_week('${req}', 7, '${slots}', 'S')`);
+  expect(await one(OWNER, `select count(*)::int from meal_slots where slot = 'snack_am'`)).toBe(2);
+  await expect(as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode) select id, '2026-10-28', 'snack_lunch', 'cook' from plan_weeks limit 1`)).rejects.toThrow();
+});

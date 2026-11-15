@@ -54,7 +54,7 @@ const join = (...parts: (string | null | undefined | false)[]) => parts.filter(B
 // ---------- Rows ----------
 
 export interface SlotRow {
-  date: string; slot: 'breakfast' | 'lunch' | 'dinner'; mode: string; recipe_id: string | null; recipe_title: string | null;
+  date: string; slot: 'breakfast' | 'lunch' | 'dinner' | 'snack_am' | 'snack_pm'; mode: string; recipe_id: string | null; recipe_title: string | null;
   portions: number | null; reason: string | null; source_date: string | null; routine_choice: string | null; version?: unknown;
 }
 export interface WeekData { week: { week_start: string; days: number; status: string; summary: string | null } | null; slots: SlotRow[] }

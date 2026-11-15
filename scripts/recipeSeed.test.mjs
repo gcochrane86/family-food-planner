@@ -180,3 +180,16 @@ test("a recipe's picture description goes to hero_hint and comes back out as pho
   s.recipes[0].photo = 'x'.repeat(601);
   expect(validateRecipeSeed(s)).toContain('recipes[0].photo must be text up to 600 characters');
 });
+
+test('a snack needs no protein, but needs how many days it keeps; nutrition is checked when given', () => {
+  const f = clone();
+  const snack = { ...f.recipes[0], slug: 'hummus', kind: 'snack', protein: null, keeps_days: 4,
+    nutrition: { protein_g: 6, fibre_g: 6, veg_portions: 1, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: true, red_meat: false, processed_meat: false } };
+  expect(validateRecipeSeed({ recipes: [snack] })).toEqual([]);
+  expect(validateRecipeSeed({ recipes: [{ ...snack, keeps_days: undefined }] })).toEqual(['recipes[0].keeps_days must be 1 to 7 days for a snack']);
+  expect(validateRecipeSeed({ recipes: [{ ...snack, keeps_days: 9 }] })).toEqual(['recipes[0].keeps_days must be 1 to 7 days for a snack']);
+  expect(validateRecipeSeed({ recipes: [{ ...snack, nutrition: { protein_g: 'lots' } }] })).toEqual(['recipes[0].nutrition must have protein_g, fibre_g, veg_portions and fruit_portions (0 or more) and the five yes/no flags']);
+  const row = recipeRow('h1', snack);
+  expect(row).toMatchObject({ kind: 'snack', keeps_days: 4, nutrition: snack.nutrition });
+  expect(recipeRow('h1', f.recipes[0])).not.toHaveProperty('nutrition');
+});
