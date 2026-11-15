@@ -183,6 +183,8 @@ export function useWeek() {
       { homeLunches: mealOptions.lunch, share: adultShare, eats: eats.filter((e) => e.member_id === firstAdult?.id) }) : null),
     /** Each person's snacks and meal partners on a day. */
     eatsOn: (date: string) => eats.filter((e) => e.date === date),
+    /** The household's people. */
+    members,
     memberName: (id: string) => members.find((m) => m.id === id)?.name ?? 'Someone',
     /** Meal partners Claude proposed with this draft (kept when it's approved). */
     newPartners: current?.week?.status === 'draft' ? current.week.new_partners ?? null : null,

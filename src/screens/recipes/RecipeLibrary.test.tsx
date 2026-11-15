@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -105,4 +105,37 @@ test('recipe cards show just the photo, title and times', async () => {
   const card = await screen.findByRole('link', { name: /Miso Glazed Aubergine Tacos/ });
   expect(card).not.toHaveTextContent(/Your recipe|written by Claude|HelloFresh|From your Cookidoo|From the web|draft|Toddler OK/i);
   expect(card).toHaveTextContent(/min dinner/);
+});
+
+test('Snacks lists snack recipes, recipes that can be snacks and quick snacks', async () => {
+  const base = (await h.repo.listRecipes())[0];
+  h.repo.listRecipes.mockResolvedValue([
+    { ...base, id: 'r-meal', title: 'Fish pie', kind: 'meal' },
+    { ...base, id: 'r-oats', title: 'Baked oats', kind: 'component', snack_ok: true },
+    { ...base, id: 'r-hummus', title: 'Beetroot hummus', kind: 'snack' },
+    { ...base, id: 'r-apple', title: 'Apple & almonds', kind: 'snack', quick: true },
+  ]);
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Fish pie/ });
+  await userEvent.click(screen.getByRole('button', { name: 'Snacks' }));
+  expect(screen.queryByRole('link', { name: /Fish pie/ })).not.toBeInTheDocument();
+  for (const t of [/Baked oats/, /Beetroot hummus/, /Apple & almonds/]) expect(screen.getByRole('link', { name: t })).toBeInTheDocument();
+});
+
+test('a quick snack is a name, one portion of items and whether the toddler can have it', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await userEvent.click(await screen.findByRole('button', { name: 'Quick snack' }));
+  const form = screen.getByRole('form', { name: 'Add a quick snack' });
+  await userEvent.type(within(form).getByLabelText('Name'), 'Apple & almonds');
+  await userEvent.type(within(form).getByLabelText('Item 1'), 'apple');
+  await userEvent.type(within(form).getByLabelText('Item 1 amount'), '1');
+  await userEvent.click(within(form).getByRole('button', { name: 'Add an item' }));
+  await userEvent.type(within(form).getByLabelText('Item 2'), 'almonds');
+  await userEvent.type(within(form).getByLabelText('Item 2 amount'), '30');
+  await userEvent.type(within(form).getByLabelText('Item 2 unit'), 'g');
+  await userEvent.click(within(form).getByRole('checkbox', { name: 'OK for the toddler' }));
+  await userEvent.click(within(form).getByRole('button', { name: 'Save quick snack' }));
+  expect(h.repo.addQuickSnack).toHaveBeenCalledWith('h1', { title: 'Apple & almonds', toddler_ok: false,
+    items: [{ name: 'apple', qty: 1, unit: '' }, { name: 'almonds', qty: 30, unit: 'g' }] });
+  expect(await screen.findByRole('link', { name: /Apple & almonds/ })).toBeInTheDocument();
 });

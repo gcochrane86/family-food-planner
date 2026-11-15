@@ -347,3 +347,16 @@ test('opened from the recipe list, the card shows the saved recipe', async () =>
   expect(await screen.findByText('chicken breast or thigh')).toBeInTheDocument();
   expect(screen.queryByText(/Tonight's version/)).not.toBeInTheDocument();
 });
+
+test('a recipe can also be a snack: how many a batch makes, how long it keeps, and OK for the toddler', async () => {
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('switch', { name: 'Can be a snack' }));
+  const form = screen.getByRole('group', { name: 'As a snack' });
+  await userEvent.clear(within(form).getByLabelText('Snacks from one batch'));
+  await userEvent.type(within(form).getByLabelText('Snacks from one batch'), '8');
+  await userEvent.clear(within(form).getByLabelText('Keeps for (days)'));
+  await userEvent.type(within(form).getByLabelText('Keeps for (days)'), '3');
+  await userEvent.click(within(form).getByRole('button', { name: 'Save snack details' }));
+  expect(h.repo.setSnackOptions).toHaveBeenCalledWith('r-honey', { snack_ok: true, snack_portions: 8, keeps_days: 3, toddler_ok: HONEY.toddler_ok });
+  expect(screen.getByRole('switch', { name: 'Can be a snack' })).toHaveAttribute('aria-checked', 'true');
+});

@@ -1278,6 +1278,69 @@ describe('each person against their targets', () => {
     expect(screen.queryByRole('region', { name: 'Suggestion' })).not.toBeInTheDocument();
   });
 
+  describe('adding and removing snacks yourself', () => {
+    const egg = { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' as const, keeps_days: 5, toddler_ok: true };
+    const tray = { ...DONER, kind: 'component' as const, snack_ok: true, snack_portions: 8, keeps_days: 3, toddler_ok: false };
+    beforeEach(() => { h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, egg, tray].map((r) => (r.id === DONER.id ? tray : r))); });
+
+    test('for several people at once, morning or afternoon, how many', async () => {
+      render(<WeekView />, { wrapper: MemoryRouter });
+      await openDay('Monday 19');
+      await user().click(within(screen.getByRole('dialog')).getByRole('button', { name: '+ Add a snack' }));
+      const form = screen.getByRole('form', { name: 'Add a snack' });
+      await user().click(within(form).getByRole('checkbox', { name: 'You' }));
+      await user().click(within(form).getByRole('checkbox', { name: 'Partner' }));
+      await user().click(within(form).getByRole('radio', { name: 'Afternoon' }));
+      await user().selectOptions(within(form).getByLabelText('Snack'), 'r-egg');
+      await user().clear(within(form).getByLabelText('How many each'));
+      await user().type(within(form).getByLabelText('How many each'), '2');
+      await user().click(within(form).getByRole('button', { name: 'Add' }));
+      expect(h.repo.addSnackEat).toHaveBeenCalledTimes(2);
+      expect(h.repo.addSnackEat).toHaveBeenCalledWith(NEXT_WEEK.week.id, expect.objectContaining({ date: '2026-10-19', slot: 'snack_pm', member_id: PARTNER.id, recipe_id: 'r-egg', qty: 2 }));
+    });
+
+    test("a snack that isn't for the toddler is refused for them", async () => {
+      render(<WeekView />, { wrapper: MemoryRouter });
+      await openDay('Monday 19');
+      await user().click(within(screen.getByRole('dialog')).getByRole('button', { name: '+ Add a snack' }));
+      const form = screen.getByRole('form', { name: 'Add a snack' });
+      await user().click(within(form).getByRole('checkbox', { name: 'Toddler' }));
+      await user().selectOptions(within(form).getByLabelText('Snack'), DONER.id);
+      await user().click(within(form).getByRole('button', { name: 'Add' }));
+      expect(within(form).getByRole('alert')).toHaveTextContent(/isn't marked OK for Toddler/);
+      expect(h.repo.addSnackEat).not.toHaveBeenCalled();
+    });
+
+    test('a snack on the day can be removed, and your own say so', async () => {
+      const week = await h.repo.getWeek('h1', '2026-10-19');
+      h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
+        ? { ...week, eats: [{ id: 'e1', date: '2026-10-19', slot: 'snack_pm', member_id: YOU.id, recipe_id: 'r-egg', qty: 1, make_date: '2026-10-18', added_by: 'household' }] }
+        : { week: null, slots: [] }));
+      render(<WeekView />, { wrapper: MemoryRouter });
+      await openDay('Monday 19');
+      const balance = within(screen.getByRole('dialog')).getByRole('region', { name: 'Balance' });
+      expect(within(balance).getByText(/^You:/)).toHaveTextContent('afternoon 1 × Boiled egg (made Sunday, added by you)');
+      await user().click(within(balance).getByRole('button', { name: "Remove You's afternoon Boiled egg" }));
+      expect(h.repo.removeSnackEat).toHaveBeenCalledWith('e1');
+      expect(within(balance).queryByText(/^You:/)).not.toBeInTheDocument();
+    });
+
+    test("after that delivery's basket is filled, the snack's things go on the Spar list", async () => {
+      h.repo.getRuns.mockResolvedValue([{ id: 'b1', plan_week_id: NEXT_WEEK.week.id, delivery: 'sun', status: 'done', summary: null, empty_first: false }] as never);
+      const week = await h.repo.getWeek('h1', '2026-10-19');
+      h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? { ...week, week: { ...week.week!, status: 'approved' as const } } : { week: null, slots: [] }));
+      render(<WeekView />, { wrapper: MemoryRouter });
+      await openDay('Monday 19');
+      await user().click(within(screen.getByRole('dialog')).getByRole('button', { name: '+ Add a snack' }));
+      const form = screen.getByRole('form', { name: 'Add a snack' });
+      await user().click(within(form).getByRole('checkbox', { name: 'You' }));
+      await user().selectOptions(within(form).getByLabelText('Snack'), DONER.id);
+      await user().click(within(form).getByRole('button', { name: 'Add' }));
+      await vi.waitFor(() => expect(h.repo.addQuick).toHaveBeenCalled());
+      expect(h.repo.addQuick).toHaveBeenCalledWith('h1', expect.any(String), "For Monday's snack");
+    });
+  });
+
   test('a draft lists the meal partners Claude proposed with it', async () => {
     const week = await h.repo.getWeek('h1', '2026-10-19');
     h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' }]);

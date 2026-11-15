@@ -18,7 +18,8 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
   const [away, setAway] = useState(false);
   const [adding, setAdding] = useState(false);
   const fix = away ? null : w.nudge(date);
-  if (!b && !snacks.length && !fix) return null;
+  const [adding2, setAdding2] = useState(false);
+  if (!b && !snacks.length && !fix && !w.week) return null;
   const rows: [string, Mark | undefined, string][] = b ? [
     ['Breakfast protein', b.breakfastProtein, 'about 25g or more'],
     ['Veg & fruit', b.vegFruit, '5 or more portions, at least half veg'],
@@ -39,12 +40,21 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
         </div>
       )}
       {byPerson.map((id) => (
-        <p key={id} className="m-0 text-sm">{w.memberName(id)}: {snacks.filter((e) => e.member_id === id).sort((x, y) => x.slot.localeCompare(y.slot)).map((e) => {
+        <p key={id} className="m-0 text-sm">{w.memberName(id)}: {snacks.filter((e) => e.member_id === id).sort((x, y) => x.slot.localeCompare(y.slot)).map((e, i) => {
           const r = w.recipes.get(e.recipe_id);
-          const made = e.make_date === date ? 'made today' : `made ${e.make_date < w.weekStart ? 'Sunday' : weekdayOf(e.make_date)}`;
-          return `${e.slot === 'snack_am' ? 'morning' : 'afternoon'} ${e.qty} × ${r?.title ?? 'snack'} (${made})`;
-        }).join(' · ')}</p>
+          const when = e.slot === 'snack_am' ? 'morning' : 'afternoon';
+          const made = r?.quick ? 'bought' : e.make_date === date ? 'made today' : `made ${e.make_date < w.weekStart ? 'Sunday' : weekdayOf(e.make_date)}`;
+          return (
+            <span key={e.id ?? `${e.slot}${i}`}>{i > 0 && ' · '}{`${when} ${e.qty} × ${r?.title ?? 'snack'} (${made}${e.added_by === 'household' ? ', added by you' : ''})`}
+              {e.id && <button type="button" aria-label={`Remove ${w.memberName(id)}'s ${when} ${r?.title ?? 'snack'}`} onClick={() => void w.removeSnack(e.id!)}
+                className="ml-1 rounded-full px-1.5 text-muted">✕</button>}
+            </span>
+          );
+        })}</p>
       ))}
+      {w.week && (adding2
+        ? <AddSnack date={date} w={w} onDone={() => setAdding2(false)} />
+        : <button type="button" onClick={() => setAdding2(true)} className="justify-self-start text-sm font-semibold text-accent underline">+ Add a snack</button>)}
       {rows.length > 0 && (
         <ul className="m-0 grid list-none gap-1 p-0 text-sm">
           {rows.map(([label, mark, aim]) => (
@@ -111,4 +121,53 @@ export function MealNumbers({ n, share, who = 'Each adult' }: { n: Nutrition | n
     g(n.protein_g, 'protein'), g(n.fat_g, 'fat'), g(n.carbs_g, 'carbs'), g(n.sugars_g, 'sugars'), g(n.fibre_g, 'fibre'),
   ].filter(Boolean);
   return <span className="text-[13px] text-muted tabular-nums">{who}: {parts.join(' · ')}</span>;
+}
+
+/** "+ Add a snack": who (one or more people), morning or afternoon, which snack, and how many each. */
+function AddSnack({ date, w, onDone }: { date: string; w: WeekState; onDone: () => void }) {
+  const [who, setWho] = useState<string[]>([]);
+  const [slot, setSlot] = useState<'snack_am' | 'snack_pm'>('snack_am');
+  const [recipe, setRecipe] = useState(w.snackRecipes[0]?.id ?? '');
+  const [qty, setQty] = useState('1');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const people = w.people(date).length ? w.people(date) : w.members.map((m) => ({ id: m.id, name: m.name }));
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const wrong = await w.addSnacks(date, who, recipe, slot, Number(qty.replace(',', '.')));
+    setBusy(false);
+    if (wrong) setProblem(wrong); else onDone();
+  }
+  if (!w.snackRecipes.length) {
+    return <p className="m-0 text-sm text-muted">No snacks yet: add one on the Recipes tab (Quick snack, or "Can be a snack" on a recipe).</p>;
+  }
+  return (
+    <form aria-label="Add a snack" onSubmit={(e) => void add(e)} className="grid gap-2 rounded-xl border border-line p-3 text-sm">
+      <fieldset className="m-0 flex flex-wrap gap-3 border-0 p-0"><legend className="mb-1 font-semibold">Who</legend>
+        {people.map((p) => (
+          <label key={p.id} className="flex items-center gap-1.5">
+            <input type="checkbox" checked={who.includes(p.id)} onChange={(e) => setWho((list) => (e.target.checked ? [...list, p.id] : list.filter((x) => x !== p.id)))} />{p.name}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset className="m-0 flex gap-3 border-0 p-0"><legend className="mb-1 font-semibold">When</legend>
+        <label className="flex items-center gap-1.5"><input type="radio" name={`when-${date}`} checked={slot === 'snack_am'} onChange={() => setSlot('snack_am')} />Morning</label>
+        <label className="flex items-center gap-1.5"><input type="radio" name={`when-${date}`} checked={slot === 'snack_pm'} onChange={() => setSlot('snack_pm')} />Afternoon</label>
+      </fieldset>
+      <label className="grid gap-1 font-semibold">Snack
+        <select value={recipe} onChange={(e) => setRecipe(e.target.value)} className="rounded-lg border border-line bg-bg px-2 py-1.5 font-normal">
+          {w.snackRecipes.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center justify-between gap-2 font-semibold">How many each
+        <input inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} className="w-16 rounded-lg border border-line bg-bg px-2 py-1 text-right font-normal" />
+      </label>
+      {problem && <p role="alert" className="m-0 font-semibold text-warn">{problem}</p>}
+      <span className="flex gap-2">
+        <button type="submit" disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Add</button>
+        <button type="button" onClick={onDone} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Cancel</button>
+      </span>
+    </form>
+  );
 }

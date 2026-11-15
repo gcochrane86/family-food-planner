@@ -42,6 +42,10 @@ export function fakeRepo() {
     getWeek: vi.fn(async (_hid: string, weekStart: string) =>
       (weekStart === NEXT_WEEK.week.week_start ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] }),
     saveMealPartners: vi.fn(async () => {}),
+    removeSnackEat: vi.fn(async () => {}),
+    setSnackOptions: vi.fn(async () => {}),
+    addQuickSnack: vi.fn(async (householdId: string, q: { title: string; toddler_ok: boolean }): Promise<Recipe> => ({ ...TACOS, id: 'r-quick', household_id: householdId,
+      slug: 'quick', title: q.title, kind: 'snack', quick: true, toddler_ok: q.toddler_ok, hero_image_path: null, hero_image_source: null })),
     addSnackEat: vi.fn(async (_weekId: string, eat: Record<string, unknown>) => ({ ...eat, id: 'e-new' })),
     listBasics: vi.fn(async (): Promise<WeeklyBasic[]> => [
       { id: 'b-eggs', household_id: 'h1', position: 1, name: 'Eggs', qty: 18, unit: '', approx: false, delivery: 'sun' },

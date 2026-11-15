@@ -6,6 +6,8 @@ import { repo } from '../../lib/repo';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import AddRecipe from './AddRecipe';
+import QuickSnack from './QuickSnack';
+import { isSnack } from '../../../supabase/functions/_shared/snackRules.ts';
 import HeroImage from './HeroImage';
 
 const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
@@ -16,6 +18,7 @@ const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
   { label: 'Reheats well', test: (r) => r.reheats_well },
   { label: 'Toddler OK', test: (r) => r.toddler_ok },
   { label: 'Components', test: (r) => r.kind === 'component' },
+  { label: 'Snacks', test: (r) => isSnack(r) },
 ];
 
 export default function RecipeLibrary() {
@@ -24,7 +27,8 @@ export default function RecipeLibrary() {
   const [photos, setPhotos] = useState<'idle' | 'confirm' | 'running' | 'done'>('idle');
   const [progress, setProgress] = useState(0);
   const [photoError, setPhotoError] = useState<string | null>(null);
-  const missing = (data ?? []).filter((r) => !r.hero_image_path);
+  // Quick snacks have no picture.
+  const missing = (data ?? []).filter((r) => !r.hero_image_path && !r.quick);
 
   /** Makes photos one at a time and stops at the first failure, so a problem can't run up a bill. */
   async function makePhotos() {
@@ -62,6 +66,7 @@ export default function RecipeLibrary() {
       <h1 className="text-3xl font-bold">Recipes</h1>
       <div className="flex flex-wrap items-start gap-2">
         <AddRecipe householdId={householdId!} />
+        <QuickSnack householdId={householdId!} onAdded={(r) => setData((list) => [...(list ?? []), r])} />
         <Link to="/recipes/roast" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold no-underline">Build a roast</Link>
       </div>
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}

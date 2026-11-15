@@ -96,6 +96,7 @@ export default function RecipeCard() {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [tickError, setTickError] = useState<string | null>(null);
+  const [snackOpen, setSnackOpen] = useState(false);
   const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
   const started = useRef<string | null>(null);
 
@@ -176,6 +177,18 @@ export default function RecipeCard() {
     setTickError(null);
     set(value);
     try { await repo.setReheatsWell(data.recipe.id, value); } catch { set(!value); setTickError("Couldn't save. Check your connection and try again."); }
+  }
+
+  /** "Can be a snack": turning it on opens the snack details; turning it off saves at once. */
+  async function saveSnack(o: { snack_ok: boolean; snack_portions: number | null; keeps_days: number | null; toddler_ok: boolean }) {
+    if (!data?.recipe) return;
+    const before = data.recipe;
+    setTickError(null);
+    setData((d) => d && d.recipe ? { ...d, recipe: { ...d.recipe, ...o } } : d);
+    try { await repo.setSnackOptions(before.id, o); setSnackOpen(false); } catch {
+      setData((d) => d && d.recipe ? { ...d, recipe: before } : d);
+      setTickError("Couldn't save. Check your connection and try again.");
+    }
   }
 
   if (error) return <div className="py-6"><ErrorBanner message={error} onRetry={reload} /></div>;
@@ -298,11 +311,19 @@ export default function RecipeCard() {
             className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${recipe.reheats_well ? 'bg-teal-soft text-teal' : 'border border-dashed border-line text-muted'}`}>
             {recipe.reheats_well ? '✓ Reheats well' : "Doesn't reheat"}
           </button>
+          {recipe.kind !== 'snack' && (
+            <button type="button" role="switch" aria-checked={!!recipe.snack_ok} aria-label="Can be a snack"
+              onClick={() => (recipe.snack_ok ? void saveSnack({ snack_ok: false, snack_portions: recipe.snack_portions ?? null, keeps_days: recipe.keeps_days ?? null, toddler_ok: recipe.toddler_ok }) : setSnackOpen(true))}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${recipe.snack_ok ? 'bg-accent-soft text-accent' : 'border border-dashed border-line text-muted'}`}>
+              {recipe.snack_ok ? `✓ Snack${recipe.snack_portions ? ` · ${recipe.snack_portions} a batch` : ''}` : 'Can be a snack?'}
+            </button>
+          )}
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${recipe.toddler_ok ? 'bg-accent-soft text-accent' : 'bg-yolk-soft text-yolk'}`}>
             {recipe.toddler_ok ? 'Toddler OK' : 'Toddler note'}
           </span>
           {recipe.tags.map((t) => <span key={t} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-muted">{t}</span>)}
         </div>
+        {snackOpen && <SnackDetails recipe={recipe} onCancel={() => setSnackOpen(false)} onSave={(o) => void saveSnack({ snack_ok: true, ...o })} />}
       </header>
 
       {split ? (
@@ -394,5 +415,36 @@ export default function RecipeCard() {
         </div>
       </div>
     </article>
+  );
+}
+
+/** How a recipe works as a snack: snacks from one batch, days it keeps from the day it's made, and OK for the toddler. */
+function SnackDetails({ recipe, onSave, onCancel }: { recipe: { snack_portions?: number | null; keeps_days?: number | null; toddler_ok: boolean; base_portions: number };
+  onSave: (o: { snack_portions: number; keeps_days: number; toddler_ok: boolean }) => void; onCancel: () => void }) {
+  const [count, setCount] = useState(String(recipe.snack_portions ?? Math.round(recipe.base_portions)));
+  const [keeps, setKeeps] = useState(String(recipe.keeps_days ?? 3));
+  const [toddler, setToddler] = useState(recipe.toddler_ok);
+  const [problem, setProblem] = useState<string | null>(null);
+  const box = 'w-20 rounded-lg border border-line bg-bg px-2 py-1 text-right';
+  function save() {
+    const n = Number(count), k = Number(keeps);
+    if (!Number.isInteger(n) || n < 1 || n > 100) { setProblem('Snacks from one batch: a whole number from 1 to 100.'); return; }
+    if (!Number.isInteger(k) || k < 1 || k > 7) { setProblem('Keeps for: 1 to 7 days.'); return; }
+    onSave({ snack_portions: n, keeps_days: k, toddler_ok: toddler });
+  }
+  return (
+    <div role="group" aria-label="As a snack" className="mt-3 grid gap-2 rounded-2xl border border-line bg-surface p-3 text-sm">
+      <label className="flex items-center justify-between gap-2">Snacks from one batch
+        <input inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} className={box} /></label>
+      <label className="flex items-center justify-between gap-2">Keeps for (days)
+        <input inputMode="numeric" value={keeps} onChange={(e) => setKeeps(e.target.value)} className={box} /></label>
+      <label className="flex items-center gap-2"><input type="checkbox" checked={toddler} onChange={(e) => setToddler(e.target.checked)} /> OK for the toddler</label>
+      <p className="m-0 text-xs text-muted">One snack's numbers are this recipe's for one of those: e.g. a 4-serving tray cut into 8 squares makes each square half a serving.</p>
+      {problem && <p role="alert" className="m-0 font-semibold text-warn">{problem}</p>}
+      <span className="flex gap-2">
+        <button type="button" onClick={save} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Save snack details</button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Cancel</button>
+      </span>
+    </div>
   );
 }
