@@ -62,6 +62,41 @@ describe('ingredient icons', () => {
     expect(iconKey('red onion').key).toBe('icon:red onion');
     expect(iconKey('sweet potato').key).toBe('icon:sweet potato');
   });
+  test('more names that look the same out of the cupboard share a picture', async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    const same: [string, string][] = [
+      ['Sea salt', 'salt'], ['fine sea salt', 'salt'], ['Flaky sea salt', 'salt'], ['black peppercorns', 'black pepper'],
+      ['extra virgin olive oil', 'olive oil'], ['light olive oil', 'olive oil'],
+      ['tinned chopped tomatoes', 'tinned tomato'], ['canned chopped tomatoes', 'tinned tomato'], ['canned tomatoes', 'tinned tomato'],
+      ['canned black beans', 'black bean'], ['canned chickpeas', 'chickpea'], ['tinned tuna in water', 'tinned tuna'],
+      ['tomato purée', 'tomato paste'], ['mature cheddar', 'cheddar'], ['parmesan-style hard cheese', 'parmesan'],
+      ['flat leaf parsley', 'parsley'], ['chicken breast fillets', 'chicken breast'], ['chicken thighs', 'chicken thigh fillet'],
+      ['diced chicken thigh', 'chicken thigh fillet'], ['bay leaves', 'bay leaf'], ['baby spinach', 'spinach'],
+      ['baby plum tomatoes', 'cherry tomato'], ['rolled oats', 'oat'], ['porridge oats', 'oat'], ['cider vinegar', 'apple cider vinegar'],
+      ['sourdough breadcrumbs', 'breadcrumb'], ['gluten-free breadcrumbs', 'breadcrumb'], ['rolled beef brisket', 'beef brisket'],
+      ['roasting potatoes', 'potato'], ['peanut butter', 'nut butter'], ['lemon juice', 'lemon'], ['egg white', 'egg'],
+      ['walnut halves', 'walnut'],
+    ];
+    for (const [name, picture] of same) expect([name, iconKey(name).key]).toEqual([name, `icon:${picture}`]);
+    expect(iconKey('Sea salt').ingredient).toBe('sea salt'); // its own name stays
+  });
+  test('either-or names use the first one, and new names with a plain describing word match by themselves', async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    expect(iconKey('chicken breast or thigh').key).toBe('icon:chicken breast');
+    expect(iconKey('fish stock or chicken stock').key).toBe('icon:fish stock');
+    expect(iconKey('onions or leeks').key).toBe('icon:onion');
+    expect(iconKey('fresh ginger').key).toBe('icon:ginger');
+    expect(iconKey('large free-range eggs').key).toBe('icon:egg');
+    expect(iconKey('organic coarse sea salt').key).toBe('icon:salt');
+    // Different-looking things keep their own.
+    for (const n of ['sea bass', 'red pepper', 'green pepper', 'smoked paprika', 'cumin seed', 'ground cumin', 'light brown sugar', 'red wine vinegar', 'frozen sweetcorn', 'basmati rice', 'jasmine rice'])
+      expect([n, iconKey(n).key]).toEqual([n, `icon:${n}`]);
+  });
+  test("accents and apostrophes don't break the name", async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    expect(iconKey('crème fraîche').ingredient).toBe('creme fraiche');
+    expect(iconKey("goat's cheese").ingredient).toBe('goats cheese');
+  });
   test('the icon prompt asks for a cartoon on white, with no words', async () => {
     const { iconPrompt } = await import('./prepCut.ts');
     const p = iconPrompt('olive oil', 'in a green bottle');

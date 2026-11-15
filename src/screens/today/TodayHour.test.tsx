@@ -287,7 +287,7 @@ test('Add step photos makes the missing get-out pictures too, and holding one of
 test('the step pages show the same pictures: tiles for what a step uses, and beside each thing to chop', async () => {
   h.repo.listPrepPhotos.mockResolvedValue([
     { key: 'icon:basmati rice', label: 'basmati rice', path: 'h1/prep/icon-rice.jpg', source: 'generated' },
-    { key: 'icon:chicken breast or thigh', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
+    { key: 'icon:chicken breast', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
   ]);
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));
@@ -422,7 +422,7 @@ test("tomorrow's chicken sandwich lunch: the hour roasts the chicken, unless tod
 test("the chopping picture is the board with a small cartoon of each thing to chop beside it, as one picture", async () => {
   h.repo.listPrepPhotos.mockResolvedValue([
     { key: 'chicken breast or thigh|strips (10mm)', label: 'chicken breast or thigh, strips (10mm)', path: 'h1/prep/cartoon-chicken.jpg', source: 'generated' },
-    { key: 'icon:chicken breast or thigh', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
+    { key: 'icon:chicken breast', label: 'chicken breast or thigh', path: 'h1/prep/icon-chicken.jpg', source: 'generated' },
   ]);
   open();
   await user().click(await screen.findByRole('button', { name: 'Start' }));

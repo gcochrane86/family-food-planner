@@ -6,10 +6,10 @@ const DROP = new Set(['fresh', 'large', 'small', 'medium', 'ripe', 'big']);
 
 /** "Red Peppers (about 2)" → "red pepper": lower case, no notes in brackets or size words, the last word singular. */
 function ingredientOf(name: string): string {
-  const words = name.toLowerCase().replace(/\(.*?\)/g, ' ').replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter((w) => w && !DROP.has(w));
+  const words = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\(.*?\)/g, ' ').replace(/['’]/g, '').replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter((w) => w && !DROP.has(w));
   if (!words.length) return name.trim().toLowerCase();
   const last = words[words.length - 1];
-  words[words.length - 1] = last === 'chillies' ? 'chilli'
+  words[words.length - 1] = last === 'chillies' ? 'chilli' : last === 'leaves' ? 'leaf' : last === 'halves' ? 'half' : last === 'chickpeas' ? 'chickpea'
     : last.endsWith('oes') ? last.slice(0, -2)
     : last.endsWith('ies') ? `${last.slice(0, -3)}y`
     : last.endsWith('s') && !/(ss|us|as)$/.test(last) ? last.slice(0, -1) : last;
@@ -68,7 +68,19 @@ export const isCartoonPrep = (path: string) => /\/prep\/(cartoon|own)-/.test(pat
  *  (prep_photos) under an `icon:` key. */
 export function iconKey(name: string): { key: string; ingredient: string; label: string } {
   const ingredient = ingredientOf(name);
-  return { key: `icon:${SAME_PICTURE[ingredient] ?? ingredient}`, ingredient, label: ingredient };
+  return { key: `icon:${samePicture(ingredient)}`, ingredient, label: ingredient };
+}
+
+/** Words that don't change how a thing looks out of the cupboard ("fine sea salt" is salt, "mature cheddar" is
+ *  cheddar), so a new recipe's wording finds the picture already made without anyone listing it. */
+const LOOKS_THE_SAME = ['extra virgin', 'free-range', 'organic', 'fine', 'flaky', 'coarse', 'mature', 'flat leaf'];
+
+/** The picture an ingredient shares: the first of "x or y", without words that don't change its look, then any
+ *  name listed as the same thing. */
+function samePicture(ingredient: string): string {
+  const first = ingredient.includes(' or ') ? ingredientOf(ingredient.split(' or ')[0]) : ingredient;
+  const plain = LOOKS_THE_SAME.reduce((n, w) => n.replace(new RegExp(`(^|\\s)${w}(?=\\s)`, 'g'), ' '), first).trim().replace(/\s+/g, ' ');
+  return SAME_PICTURE[plain] ?? SAME_PICTURE[first] ?? plain;
 }
 
 /** Names for what looks the same out of the cupboard: they share one picture, each keeping its own name. Things that
@@ -77,6 +89,16 @@ const SAME_PICTURE: Record<string, string> = {
   'new potato': 'potato', 'baby potato': 'potato', 'salad potato': 'potato', 'baking potato': 'potato',
   'eating apple': 'apple',
   'low-sodium soy sauce': 'soy sauce', 'light soy sauce': 'soy sauce', 'reduced-salt soy sauce': 'soy sauce',
+  'sea salt': 'salt', 'black peppercorn': 'black pepper', 'light olive oil': 'olive oil',
+  'tinned chopped tomato': 'tinned tomato', 'canned chopped tomato': 'tinned tomato', 'canned tomato': 'tinned tomato',
+  'chopped tomato': 'tinned tomato', 'canned black bean': 'black bean', 'canned chickpea': 'chickpea', 'tinned chickpea': 'chickpea',
+  'canned tuna': 'tinned tuna', 'tinned tuna in water': 'tinned tuna', 'tomato puree': 'tomato paste',
+  'parmesan-style hard cheese': 'parmesan', 'chicken breast fillet': 'chicken breast',
+  'chicken thigh': 'chicken thigh fillet', 'diced chicken thigh': 'chicken thigh fillet', 'boneless chicken thigh': 'chicken thigh fillet',
+  'baby spinach': 'spinach', 'baby plum tomato': 'cherry tomato', 'rolled oat': 'oat', 'porridge oat': 'oat',
+  'cider vinegar': 'apple cider vinegar', 'sourdough breadcrumb': 'breadcrumb', 'gluten-free breadcrumb': 'breadcrumb',
+  'rolled beef brisket': 'beef brisket', 'roasting potato': 'potato', 'peanut butter': 'nut butter',
+  'lemon juice': 'lemon', 'lime juice': 'lime', 'egg white': 'egg', 'egg yolk': 'egg', 'walnut half': 'walnut',
 };
 
 /** A small cartoon of the ingredient as it comes out of the fridge or cupboard, like a picture-vocabulary card. */
