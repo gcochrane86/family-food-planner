@@ -1,6 +1,7 @@
 // The daily balance (docs/superpowers/specs/2026-11-15-balance-snacks-design.md): how each planned day measures up to
 // a Mediterranean pattern with protein-first breakfasts, from estimates per serving (each person eats their portion share). Estimates spot patterns;
 // they're never shown as precise figures. Pure: shared by the app and the connector.
+import type { Eat } from './snackEats.ts';
 
 export interface Nutrition {
   protein_g: number;
@@ -42,7 +43,13 @@ export interface BalanceSlot {
 }
 type Recipes = Map<string, { nutrition?: unknown; reheats_well?: boolean; toddler_ok?: boolean }>;
 /** The household's home lunches, first one the default (settings.lunches, or the app's list). */
-export interface BalanceOptions { homeLunches?: string[]; /** The adult portion share the markers are judged for (1 when not given). */ share?: number }
+export interface BalanceOptions {
+  homeLunches?: string[];
+  /** The adult portion share the markers are judged for (1 when not given). */ share?: number;
+  /** Snacks and meal partners eaten (portions each), on top of the meals: one person's for the markers, everyone's for
+   *  the week, each person's own for their day. */
+  eats?: Eat[];
+}
 
 export const BREAKFAST_PROTEIN_G = 25;
 export const VEG_FRUIT_PORTIONS = 5;
@@ -121,14 +128,17 @@ export function mealEstimates(date: string, slots: BalanceSlot[], recipes: Recip
 export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): DayBalance {
   const p = parts(date, slots, recipes, routines, opts);
   const share = opts.share ?? 1;
-  const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g * share >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
+  const extra = (opts.eats ?? []).filter((e) => e.date === date).map((e) => ({ e, n: recipeEstimate(recipes, e.recipe_id) }));
+  const morning = extra.filter((x) => x.e.slot === 'breakfast').reduce((t, x) => t + (x.n?.protein_g ?? 0) * x.e.qty, 0);
+  const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g * share + morning >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
   const all = [p.breakfast, p.lunch, p.dinner, ...p.snacks];
-  const known = !p.out && [p.breakfast, p.lunch, p.dinner, ...p.snacks].every((x) => x !== null);
+  const known = !p.out && [p.breakfast, p.lunch, p.dinner, ...p.snacks, ...extra.map((x) => x.n)].every((x) => x !== null);
   const eaten = all.filter((x): x is Nutrition => !!x);
-  const sum = (k: (typeof NUMBERS)[number]) => Math.round(eaten.reduce((t, n) => t + n[k], 0) * share * 10) / 10;
+  const sum = (k: (typeof NUMBERS)[number]) => Math.round((eaten.reduce((t, n) => t + n[k], 0) * share
+    + extra.reduce((t, x) => t + (x.n?.[k] ?? 0) * x.e.qty, 0)) * 10) / 10;
   const totals: Partial<Nutrition> = {
     protein_g: sum('protein_g'), fibre_g: sum('fibre_g'), veg_portions: sum('veg_portions'), fruit_portions: sum('fruit_portions'),
-    healthy_fat: eaten.some((n) => n.healthy_fat),
+    healthy_fat: eaten.some((n) => n.healthy_fat) || extra.some((x) => x.n?.healthy_fat),
   };
   const veg = totals.veg_portions!, fruit = totals.fruit_portions!;
   const vegFruit: Mark = !known ? 'unknown' : veg + fruit >= VEG_FRUIT_PORTIONS && veg >= (veg + fruit) / 2 ? 'ok' : 'low';
@@ -148,7 +158,8 @@ export function weekBalance(dates: string[], slots: BalanceSlot[], recipes: Reci
   const count = (k: 'oily_fish' | 'red_meat' | 'processed_meat') => dinners.filter((n) => n[k]).length;
   const legumes = dates.filter((d) => {
     const p = parts(d, slots, recipes, routines, opts);
-    return [p.breakfast, p.lunch, p.dinner, ...p.snacks].some((n) => n?.legumes);
+    return [p.breakfast, p.lunch, p.dinner, ...p.snacks].some((n) => n?.legumes)
+      || (opts.eats ?? []).some((e) => e.date === d && recipeEstimate(recipes, e.recipe_id)?.legumes);
   }).length;
   const atLeast = (n: number, min: number): Mark => (n >= min ? 'ok' : 'low');
   const atMost = (n: number, max: number): Mark => (n <= max ? 'ok' : 'low');
@@ -169,7 +180,7 @@ const AT_MOST: Macro[] = ['sugars_g', 'sat_fat_g', 'salt_g'];
 /** One person's day: each meal times their portion share, and one of each snack they have (a toddler only has
  *  toddler-friendly ones, scaled to their share). `unknown` lists the numbers some part of the day has no estimate for. */
 export function personDay(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>,
-  member: { kind: string; portion_weight: number | string }, opts: BalanceOptions = {}): { totals: Partial<Record<Macro, number>>; unknown: Macro[] } {
+  member: { id?: string; kind: string; portion_weight: number | string }, opts: BalanceOptions = {}): { totals: Partial<Record<Macro, number>>; unknown: Macro[] } {
   const share = Number(member.portion_weight) || 1;
   const p = parts(date, slots, recipes, routines, opts);
   const eats: [Nutrition | null | undefined, number][] = [[p.breakfast, share], [p.lunch, share], [p.dinner, share]];
@@ -180,6 +191,8 @@ export function personDay(date: string, slots: BalanceSlot[], recipes: Recipes, 
     if (member.kind === 'child' && recipes.get(s.recipe_id)?.toddler_ok === false) continue;
     eats.push([recipeEstimate(recipes, s.recipe_id), Math.min(1, share)]);
   }
+  // Their own snacks and meal partners, by the portion.
+  for (const e of opts.eats ?? []) if (e.date === date && e.member_id === member.id) eats.push([recipeEstimate(recipes, e.recipe_id), e.qty]);
   const totals: Partial<Record<Macro, number>> = {};
   const unknown = new Set<Macro>(p.out ? MACROS : []);
   for (const k of MACROS) {
@@ -211,4 +224,23 @@ export function compareTargets(totals: Partial<Record<Macro, number>>, targets: 
     out[k] = state;
   }
   return out;
+}
+
+/** Under first: protein (the household's priority), then fibre, then calories. */
+const NUDGE: Macro[] = ['protein_g', 'fibre_g', 'kcal'];
+/** One fix for a person's day that's under a target they've set: the snack that gives the most of the first number
+ *  that's under, in a snack time they have free (afternoon first). Null when nothing's under or both snack times are taken. */
+export function nudge(p: { kind: string; totals: Partial<Record<Macro, number>>; targets: Targets; states: Partial<Record<Macro, TargetState>> },
+  eatsToday: Eat[], snacks: { id: string; title: string; toddler_ok?: boolean; nutrition?: unknown }[]):
+  { macro: Macro; gap: number; recipe_id: string; title: string; slot: 'snack_am' | 'snack_pm' } | null {
+  const macro = NUDGE.find((k) => p.states[k] === 'under' && typeof p.targets[k] === 'number');
+  if (!macro) return null;
+  const slot = (['snack_pm', 'snack_am'] as const).find((s) => !eatsToday.some((e) => e.slot === s));
+  if (!slot) return null;
+  const best = snacks.filter((r) => p.kind !== 'child' || r.toddler_ok !== false)
+    .map((r) => ({ r, v: parseNutrition(r.nutrition)?.[macro] }))
+    .filter((x): x is { r: typeof x.r; v: number } => typeof x.v === 'number' && x.v > 0)
+    .sort((a, b) => b.v - a.v)[0];
+  if (!best) return null;
+  return { macro, gap: Math.round(p.targets[macro]! - (p.totals[macro] ?? 0)), recipe_id: best.r.id, title: best.r.title, slot };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { compareTargets, dayBalance, mealEstimates, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
+import { compareTargets, dayBalance, mealEstimates, nudge, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
 
 const N = (o: Partial<Record<string, unknown>> = {}) => ({
   protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, ...o,
@@ -190,5 +190,43 @@ describe('each meal\'s estimate', () => {
   test('a meal without an estimate is null, a night out has no dinner estimate', () => {
     expect(mealEstimates(D, day({ dinner: 'nothing' }), recipes, routines).dinner).toBeNull();
     expect(mealEstimates(D, day({ dinner: null, dinnerMode: 'out' }), recipes, routines).dinner).toBeUndefined();
+  });
+});
+
+describe("each person's snacks and partners", () => {
+  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1, ...o });
+  const rs = new Map<string, { nutrition?: unknown; toddler_ok?: boolean }>([
+    ['salmon', { nutrition: full({ protein_g: 30 }) }],
+    ['egg', { nutrition: full({ kcal: 75, protein_g: 6.5, fibre_g: 0 }) }],
+    ['balls', { nutrition: full({ kcal: 120, protein_g: 5, fibre_g: 2 }) }],
+    ['chia', { nutrition: full({ kcal: 60, protein_g: 2, fibre_g: 5 }) }],
+  ]);
+  const rt = { 'Eggs & porridge': full({ protein_g: 16 }), 'Packed lunch': full({ protein_g: 30 }) };
+  const a = { id: 'a', kind: 'adult', portion_weight: 1.25 };
+  const eats = [
+    { date: D, slot: 'breakfast' as const, member_id: 'a', recipe_id: 'egg', qty: 2, make_date: '2026-11-16', partner: true },
+    { date: D, slot: 'snack_pm' as const, member_id: 'a', recipe_id: 'balls', qty: 2, make_date: '2026-11-15' },
+    { date: D, slot: 'snack_pm' as const, member_id: 'b', recipe_id: 'balls', qty: 1, make_date: '2026-11-15' },
+  ];
+
+  test("a person's day adds their own eats, qty times the estimate", () => {
+    const p = personDay(D, day(), rs, rt, a, { eats });
+    expect(p.totals.protein_g).toBe(1.25 * 76 + 2 * 6.5 + 2 * 5);
+    expect(personDay(D, day(), rs, rt, { ...a, id: 'c' }, { eats }).totals.protein_g).toBe(1.25 * 76);
+  });
+
+  test('breakfast protein counts the partner eggs', () => {
+    expect(dayBalance(D, day(), rs, rt, { share: 1.25 }).breakfastProtein).toBe('low');
+    expect(dayBalance(D, day(), rs, rt, { share: 1.25, eats: eats.filter((e) => e.member_id === 'a') }).breakfastProtein).toBe('ok');
+  });
+
+  test('the nudge: the biggest gap with a target, the snack that gives most of it, in a free slot', () => {
+    const snacks = [...rs].filter(([id]) => id !== 'salmon').map(([id, r]) => ({ id, title: id, toddler_ok: true, nutrition: r.nutrition }));
+    const person = { name: 'A', kind: 'adult', totals: { protein_g: 100, fibre_g: 20 }, targets: { protein_g: 110, fibre_g: 30 }, states: { protein_g: 'under', fibre_g: 'under' } as const, unknown: [] };
+    expect(nudge(person, eats.filter((e) => e.member_id === 'a'), snacks)).toEqual({ macro: 'protein_g', gap: 10, recipe_id: 'egg', title: 'egg', slot: 'snack_am' });
+    expect(nudge({ ...person, states: { fibre_g: 'under' } }, [], snacks)).toMatchObject({ macro: 'fibre_g', recipe_id: 'chia', slot: 'snack_pm' });
+    expect(nudge({ ...person, targets: {}, states: {} }, [], snacks)).toBeNull();
+    const both = [...eats, { ...eats[1], slot: 'snack_am' as const }].filter((e) => e.member_id === 'a');
+    expect(nudge(person, both, snacks)).toBeNull();
   });
 });
