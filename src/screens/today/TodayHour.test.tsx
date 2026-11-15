@@ -12,8 +12,10 @@ vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../lib/image', async (orig) => ({ ...(await orig<typeof import('../../lib/image')>()), resizeImage: vi.fn(async () => new Blob(['x'], { type: 'image/jpeg' })) }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 
-const week = (edit: (s: MealSlot) => MealSlot = (s) => s) => async (_hid: string, ws: string) =>
-  (ws === '2026-10-19' ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => edit({ ...s })) } : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] };
+// Monday's prep wasn't done the evening before ("I didn't get to it"), so these tests see the whole of Monday's cooking.
+const notDone = (s: MealSlot): MealSlot => (s.date === '2026-10-19' && s.slot === 'dinner' ? { ...s, prep_ahead: 'missed' } : s);
+const week = (edit: (s: MealSlot) => MealSlot = (s) => s, prep: (s: MealSlot) => MealSlot = notDone) => async (_hid: string, ws: string) =>
+  (ws === '2026-10-19' ? { week: NEXT_WEEK.week, slots: NEXT_WEEK.slots.map((s) => edit(prep({ ...s }))) } : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] };
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -46,7 +48,7 @@ test("the first page is just today's cooking, what to get out, and Start; the ch
 
 test("a day planned shorter than its steps says so gently, from the week's own time for that day", async () => {
   h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19'
-    ? { week: { ...NEXT_WEEK.week!, cooking_minutes: { '2026-10-19': 30 } }, slots: NEXT_WEEK.slots }
+    ? { week: { ...NEXT_WEEK.week!, cooking_minutes: { '2026-10-19': 30 } }, slots: NEXT_WEEK.slots.map(notDone) }
     : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
   open();
   expect(await screen.findByText('Longer than the 30 minutes you planned for Monday')).toBeInTheDocument();
@@ -621,4 +623,12 @@ test("tomorrow's packed lunch is made the evening before: the Monday prep has th
   await user().click(await screen.findByRole('button', { name: 'Start' }));
   for (let i = 0; i < 25 && !screen.queryByRole('heading', { name: "For tomorrow's lunch: Pack" }); i++) await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('heading', { name: "For tomorrow's lunch: Pack" })).toBeInTheDocument();
+});
+
+test("Monday counts the Monday prep (the Sunday before) as done, though Sunday isn't in a planned week", async () => {
+  h.repo.getWeek.mockImplementation(week((x) => x, (x) => x));
+  open(); // Monday 19 Oct; nothing planned on Sunday 18
+  const done = await screen.findByRole('region', { name: 'Done last night' });
+  expect(done).toHaveTextContent("prep for tonight's Almond-Crusted Honey Chilli Chicken");
+  expect(within(done).getByRole('button', { name: "I didn't get to it" })).toBeInTheDocument();
 });

@@ -122,7 +122,8 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       kitPhotos: Object.fromEntries(kit.filter((e) => e.photo).map((e) => [e.code, { path: e.photo!, name: e.name }])),
       tonight,
       // Yesterday was planned, so its hour boxed what keeps of tonight's dinner (shown as a fridge box to check).
-      yesterdayPlanned: slots.some((s) => s.date === yesterday),
+      // Yesterday's cooking ran if yesterday was planned, or (on a Monday) it was the week's Monday prep, the Sunday before.
+      yesterdayPlanned: slots.some((s) => s.date === yesterday) || (today === mondayOf(today) && slots.some((s) => s.date === today)),
       tomorrow: next,
     };
     return { input, plan: planHour(input), tonightSlot: find(today, 'dinner') ?? null, tomorrowSlot: find(tomorrow, 'dinner') ?? null,
