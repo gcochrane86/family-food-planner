@@ -337,3 +337,28 @@ describe("each day's cooking time", () => {
     expect(proposeWeek(input({ dayMinutes: H60 }))).toEqual(proposeWeek(input()));
   });
 });
+
+describe('nights off', () => {
+  // 2026-10-19 is a Monday: Tuesday is the 20th (an office day here), Wednesday the 21st.
+  const plan = proposeWeek(input({ officeDays: [3], nightsOff: ['2026-10-21'],
+    recipes: LIBRARY.map((x) => ({ ...x, reheatsWell: true })) }));
+  test('a night off has no dinner to cook', () => {
+    const d = dinnerOn(plan, '2026-10-21');
+    expect(d.mode).toBe('out');
+    expect(d.recipeId).toBeNull();
+    expect(d.reason).toBe('Night off');
+    expect(d.locked).toBe(true);
+  });
+  test('the next day’s lunch isn’t leftovers of it', () => {
+    const lunch = plan.find((s) => s.slot === 'lunch' && s.date === '2026-10-22')!;
+    expect(lunch.sourceDate).toBeNull();
+    expect(lunch.recipeId).toBeNull();
+  });
+  test('the other six nights are cooked', () => {
+    expect(dinners(plan).filter((s) => s.mode === 'cook')).toHaveLength(6);
+  });
+  test('a dinner chosen for a night off is ignored', () => {
+    const p = proposeWeek(input({ nightsOff: ['2026-10-21'], chosenDinners: [{ date: '2026-10-21', recipeId: 'salmon', reason: 'x' }] }));
+    expect(dinnerOn(p, '2026-10-21').mode).toBe('out');
+  });
+});

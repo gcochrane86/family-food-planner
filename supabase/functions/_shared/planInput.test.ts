@@ -113,3 +113,8 @@ test("Today's cooking reaches the planner: each recipe's prep and cook hands-on,
   expect(buildPlannerInput({ ...rows, settings: { hour_minutes: 75 } }).dayMinutes).toEqual([75, 75, 75, 75, 75, 75, 75]);
   expect(buildPlannerInput(rows).recipes[0].cookHandsOn).toBeUndefined();
 });
+
+test("a week's own office days win over the pattern (adults only)", () => {
+  expect(buildPlannerInput({ ...rows, weekOffice: { m1: [2, 4], m3: [1] } }).officeDays).toEqual([2, 4]);
+  expect(buildPlannerInput({ ...rows, weekOffice: null }).officeDays).toEqual([0]);
+});

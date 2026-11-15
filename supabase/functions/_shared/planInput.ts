@@ -19,6 +19,8 @@ interface Rows {
   recentDinnerRecipeIds: (string | null)[];
   /** The week's own cooking times by date (plan_weeks.cooking_minutes), when it has any. */
   cookingMinutes?: Record<string, unknown> | null;
+  /** The week's own office days by adult (plan_weeks.office_days), when it was planned with them. */
+  weekOffice?: Record<string, number[]> | null;
 }
 
 /** A number from the household and week, so each week's proposal varies but can be recreated. */
@@ -37,7 +39,9 @@ function frozenTotals(items: { recipe_id: string | null; portions: number }[]): 
 
 export function buildPlannerInput(rows: Rows): PlannerInput {
   const adults = new Set(rows.members.filter((m) => m.kind === 'adult').map((m) => m.id));
-  const officeDays = [...new Set(rows.pattern.filter((p) => p.office && adults.has(p.member_id)).map((p) => p.weekday))].sort();
+  const officeDays = rows.weekOffice
+    ? [...new Set(Object.entries(rows.weekOffice).filter(([id]) => adults.has(id)).flatMap(([, days]) => days))].sort()
+    : [...new Set(rows.pattern.filter((p) => p.office && adults.has(p.member_id)).map((p) => p.weekday))].sort();
   const portions = rows.members.reduce((sum, m) => sum + Number(m.portion_weight), 0);
   const recipes: PlannerRecipe[] = rows.recipes
     // Roast parts and hosting meals (a 15-person Sunday roast) are only planned by hand, never picked by the planner.

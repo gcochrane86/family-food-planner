@@ -34,6 +34,7 @@ export interface PlannerInput {
   dayRules?: { weekday: number; protein: Protein; note?: string | null }[]; // e.g. fish on Thursday
   chosenDinners?: { date: string; recipeId: string; reason: string }[]; // dinners Claude picked; the rest is planned around them
   dayMinutes?: number[];      // Today's cooking: each day's cooking time, Monday first (cookingTime.ts)
+  nightsOff?: string[];       // Plan with Claude: dates with no dinner planned or bought
 }
 
 export interface ProposedSlot {
@@ -142,8 +143,9 @@ function proteinSequence(input: PlannerInput, nights: number[], rnd: () => numbe
 export function proposeWeek(input: PlannerInput): ProposedSlot[] {
   const rnd = mulberry32(input.seed);
   const dates = Array.from({ length: input.days }, (_, i) => addDays(input.weekStart, i));
-  // Every night gets a dinner (the owner dropped the Sunday leftovers night on 17 Oct 2026).
-  const nights = dates.map((_, i) => i);
+  // Every night gets a dinner (the owner dropped the Sunday leftovers night on 17 Oct 2026), except nights off.
+  const off = new Set((input.nightsOff ?? []).map((d) => dayIndex(input.weekStart, d)));
+  const nights = dates.map((_, i) => i).filter((i) => !off.has(i));
   const chosen = new Map<number, { recipe: PlannerRecipe | null; notes: string[]; reason?: string }>();
   const used = new Set<string>();
   const frozenLeft = new Map((input.frozen ?? []).map((f) => [f.recipeId, f.portions]));
@@ -225,6 +227,10 @@ export function proposeWeek(input: PlannerInput): ProposedSlot[] {
       reason: packedLeftover ? `Packed: leftover ${packedLeftover.title}` : office ? 'Packed lunch' : homeLunch(lastNight),
     });
 
+    if (off.has(i)) {
+      slots.push({ date, slot: 'dinner', recipeId: null, mode: 'out', portions: null, guests: 0, locked: true, sourceDate: null, reason: 'Night off' });
+      return;
+    }
     const c = chosen.get(i)!;
     if (!c.recipe) {
       slots.push({ date, slot: 'dinner', recipeId: null, mode: 'leftovers', portions: null, guests: 0, locked: false, sourceDate: null,
