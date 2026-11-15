@@ -609,3 +609,16 @@ test("the Sunday before a week, with nothing planned that day, is Monday's prep"
   expect(await screen.findByText(/No dinner to cook tonight/)).toBeInTheDocument();
   expect(screen.getByRole('region', { name: 'Prep for tomorrow' })).toHaveTextContent("Prep for tomorrow's Almond-Crusted Honey Chilli Chicken");
 });
+
+test("tomorrow's packed lunch is made the evening before: the Monday prep has the burrito bowl's packing", async () => {
+  vi.setSystemTime(new Date('2026-10-18T12:00:00Z'));
+  const BURRITO = { ...HONEY, id: 'r-burrito', slug: 'burrito-bowl', title: 'Burrito Bowl', kind: 'component' as const, tags: ['Lunch', 'Packed'],
+    ingredients: [{ position: 1, group_name: null, name: 'black beans', qty: 400, unit: 'g', note: null, qty_approx: false }],
+    steps: [{ id: 's-pack', phase: 'prep_8pm' as const, position: 1, at_minute: null, title: 'Pack', body: 'Pack the **black beans** into boxes.', machine: null, settings: null, timer_minutes: null, image_path: null, image_source: null }] };
+  h.repo.listRecipes.mockResolvedValue([HONEY, BURRITO]);
+  h.repo.getRecipe.mockImplementation(async (id: string) => ({ 'r-honey': HONEY, 'r-burrito': BURRITO } as Record<string, typeof HONEY>)[id] ?? null);
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  for (let i = 0; i < 25 && !screen.queryByRole('heading', { name: "For tomorrow's lunch: Pack" }); i++) await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByRole('heading', { name: "For tomorrow's lunch: Pack" })).toBeInTheDocument();
+});

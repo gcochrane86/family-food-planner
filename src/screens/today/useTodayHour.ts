@@ -6,6 +6,7 @@ import { planHour, type HourInput } from '../../lib/todayHour';
 import type { MealSlot, Recipe, RecipeDetail } from '../../lib/types';
 import { homeLunchChoice, leftoverLunchPortions } from '../../lib/weekSummary';
 import { aheadRecipeId, homeLunchOn } from '../../lib/lunchAhead';
+import { routineRecipe } from '../../lib/mealPhotos';
 import { useAsync } from '../settings/useAsync';
 import { dayMinutes } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { isDay } from '../../lib/dayVersion';
@@ -85,6 +86,11 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       else if (l?.recipe_id && l.mode !== 'reheat') {
         const r = await forSlot(l);
         if (hasSteps(r)) lunch = { kind: 'make', title: r!.title, recipe: r! };
+      } else if (l?.mode === 'packed' && !l.source_date) {
+        // A packed lunch (the burrito bowl, or your own Packed lunch recipe) is made and boxed the evening before.
+        const r = await detail(routineRecipe('Packed lunch', byId)?.id);
+        const prep = !!r?.steps.some((x) => x.phase === 'prep_8pm');
+        lunch = r && prep ? { kind: 'ahead', title: r.title, recipe: r } : { kind: 'make', title: r?.title ?? 'Packed lunch', recipe: hasSteps(r) ? r! : undefined };
       } else {
         // A home lunch made on the day, with a part done the evening before (the chicken sandwich's roast chicken).
         const home = homeLunchOn(tomorrow, slots, recipes, byId);
