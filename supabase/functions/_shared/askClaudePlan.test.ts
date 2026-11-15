@@ -167,3 +167,33 @@ describe("the week's choices from the app", () => {
     expect(HOW_TO_PLAN).toMatch(/rules\.choicesMadeOn/);
   });
 });
+
+describe('snacks', () => {
+  const snackWorld = (o: Record<string, unknown> = {}) => world({
+    recipes: [...RECIPES, { id: 's1', slug: 'hummus', title: 'Beetroot Hummus', kind: 'snack', status: 'active' }],
+    'settings:one': { data: { adventure: 1, prep_days: [6] } }, ...o,
+  });
+  test('a snack can be named by title, made the Sunday before the week', async () => {
+    const d = deps();
+    await makePlanner(snackWorld(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
+      { snacks: [{ recipe: 'beetroot hummus', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16'] }] }));
+    expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16',
+      expect.objectContaining({ snacks: [{ recipe: 'hummus', slot: 'snack_am', makeDate: '2026-11-15', covers: ['2026-11-16'] }] }), expect.anything());
+  });
+  test('a snack on a day that isn’t a prep day is sent back to fix', async () => {
+    const d = deps();
+    const out = await makePlanner(snackWorld(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
+      { snacks: [{ recipe: 'hummus', slot: 'am', make_date: '2026-11-17', covers: ['2026-11-17'] }] }));
+    expect(out).toMatch(/isn't a snack-making day. Use one of 2026-11-15/);
+    expect(d.save).not.toHaveBeenCalled();
+  });
+  test('a dinner can’t be a snack recipe', async () => {
+    const out = await makePlanner(snackWorld(), 'h1', NOW, deps()).save(plan([{ date: '2026-11-16', recipe: 'beetroot hummus' }]));
+    expect(out).toMatch(/No recipe called "beetroot hummus"/);
+  });
+  test('how to plan asks for estimates first and aims snacks at the gaps', () => {
+    expect(HOW_TO_PLAN).toMatch(/save_nutrition/);
+    expect(HOW_TO_PLAN).toMatch(/builtInBalance/);
+    expect(HOW_TO_PLAN).toMatch(/snackMakeDates/);
+  });
+});

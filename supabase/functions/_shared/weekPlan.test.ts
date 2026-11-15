@@ -169,3 +169,49 @@ test("loadPlannerInput with choices only counts adults' office days", async () =
   const choices = { office: { a: [0], kid: [2], gone: [4] }, nightsOff: [], prepDays: [], weekdayMaxMin: 30, newRecipes: 1, useUp: [], cookingMinutes: {} };
   expect((await loadPlannerInput(db, 'h1', '2026-11-16', choices)).officeDays).toEqual([0]);
 });
+
+describe('snacks and nutrition (daily balance)', () => {
+  const N = { protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
+  test('the context lists snack recipes, the snack-making days, what has no estimate yet, and the proposal’s balance', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      'settings:one': { data: { prep_days: [2, 6], breakfasts: ['Eggs & porridge', 'Overnight oats'], lunches: ['Sandwich'], routine_nutrition: { 'Eggs & porridge': N } } },
+      members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
+      recipes: [
+        { id: 'r1', slug: 'curry', title: 'Curry', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, reheats_well: false, base_portions: 4, recipe_ingredients: [], nutrition: N },
+        { id: 'r2', slug: 'pie', title: 'Pie', kind: 'meal', status: 'active', protein: 'fish', finish_minutes: 30, reheats_well: false, base_portions: 4, recipe_ingredients: [], nutrition: null },
+        { id: 's1', slug: 'hummus', title: 'Hummus', kind: 'snack', status: 'active', keeps_days: 4, toddler_ok: true, recipe_ingredients: [], nutrition: N },
+      ],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.rules.snackMakeDates).toEqual(['2026-11-15', '2026-11-18', '2026-11-22']);
+    expect(ctx.snackRecipes.map((r: { slug: string }) => r.slug)).toEqual(['hummus']);
+    expect(ctx.recipes.map((r: { slug: string }) => r.slug)).not.toContain('hummus');
+    expect(ctx.nutritionMissing.recipes).toEqual(['pie']);
+    expect(ctx.nutritionMissing.routines).toEqual(expect.arrayContaining(['Overnight oats', 'Sandwich', 'Packed lunch']));
+    expect(ctx.nutritionMissing.routines).not.toContain('Eggs & porridge');
+    expect(ctx.builtInBalance[0]).toHaveProperty('date', '2026-11-16');
+  });
+
+  test('the save adds the snack makes to the week', async () => {
+    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }, { id: 'r-h', slug: 'hummus', keeps_days: 4, toddler_ok: true }], members: [{ kind: 'adult' }, { kind: 'adult' }, { kind: 'child' }] });
+    const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], snacks: [{ recipe: 'hummus', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16', '2026-11-17'] }] },
+      { ...WEEK, snackDates: ['2026-11-15'] });
+    await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never });
+    const slots = (db.rpcs.at(-1)!.args as { p_slots: { date: string; slot: string; mode: string; portions: number | null }[] }).p_slots;
+    expect(slots).toEqual([
+      expect.objectContaining({ date: '2026-11-15', slot: 'snack_am', mode: 'cook', portions: 6 }),
+      expect.objectContaining({ date: '2026-11-16', slot: 'snack_am', mode: 'leftovers' }),
+      expect.objectContaining({ date: '2026-11-17', slot: 'snack_am', mode: 'leftovers' }),
+    ]);
+  });
+
+  test('a snack recipe that isn’t known is refused before anything is written', async () => {
+    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }] });
+    const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], snacks: [{ recipe: 'mystery', slot: 'pm', make_date: '2026-11-15', covers: ['2026-11-16'] }] },
+      { ...WEEK, snackDates: ['2026-11-15'] });
+    await expect(saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never }))
+      .rejects.toThrow(/No snack recipe "mystery"/);
+    expect(db.rpcs).toEqual([]);
+  });
+});

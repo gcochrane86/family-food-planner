@@ -138,7 +138,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
     handler: (args: Record<string, unknown>) => safely(() => change.clearVersion(args ?? {})),
   });
   mcp.tool('get_plan_context', {
-    description: "Call this before planning a week's dinners. How to plan (the household's priorities, in order), then everything the plan needs for that week as JSON: dates and office days, portions, rules (protein balance, time limits, Today's hour, day rules, other shops, what makes a meal, house and private rules), every plannable dinner with times and ingredients, recent dinners, freezer, pantry, pack sizes, whether the week already has a draft, how many new recipes are allowed and the rules for writing one, and the app's own proposal. Read-only.",
+    description: "Call this before planning a week's dinners. How to plan (the household's priorities, in order), then everything the plan needs for that week as JSON: dates and office days, portions, rules (protein balance, time limits, Today's hour, day rules, other shops, what makes a meal, house and private rules), every plannable dinner with times and ingredients, recent dinners, freezer, pantry, pack sizes, whether the week already has a draft, how many new recipes are allowed and the rules for writing one, the app's own proposal and its daily balance, snack recipes and the days they can be made, and which recipes still need a nutrition estimate. Read-only.",
     inputSchema: { type: 'object', properties: { week: { type: 'string', description: '"next" (default), "this", or any date in the week as YYYY-MM-DD' } } },
     annotations: readOnly,
     handler: (args: { week?: string }) => safely(() => plan.context(args ?? {})),
@@ -156,10 +156,27 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
           reason: { type: 'string', description: 'One line shown on the day, up to 200 characters' } } } },
         new_recipes: { type: 'array', description: 'New recipes in the seed format from newRecipeRules (up to the allowance)', items: { type: 'object' } },
         cooking_minutes: { type: 'object', description: "This week's own cooking time for a day, as { \"YYYY-MM-DD\": minutes } (30–240), only for days the household says differ from rules.cookingTime", additionalProperties: { type: 'number' } },
+        snacks: { type: 'array', description: "Snack makes for the week (1–2): made in Today's cooking on one of rules.snackMakeDates, covering that day and the days after while it keeps", items: { type: 'object', required: ['recipe', 'slot', 'make_date', 'covers'], properties: {
+          recipe: { type: 'string', description: "A snack recipe's slug or title (snackRecipes), or a new snack recipe's slug" },
+          slot: { type: 'string', enum: ['am', 'pm'], description: 'Morning or afternoon snack' },
+          make_date: { type: 'string', description: 'YYYY-MM-DD, one of rules.snackMakeDates' },
+          covers: { type: 'array', items: { type: 'string' }, description: 'The days it is eaten, YYYY-MM-DD, from the make day on, within its keepsDays' } } } },
       },
     },
     annotations: changes,
     handler: (args: Record<string, unknown>) => safely(() => plan.save(args ?? {}), 'save the week'),
+  });
+  mcp.tool('save_nutrition', {
+    description: "Changes recipes (the household approves each call in Claude): saves nutrition estimates per adult portion, worked out from the ingredients, for recipes (by slug or title) and for breakfasts and lunches that are names (get_plan_context nutritionMissing). Each estimate: protein_g, fibre_g, veg_portions and fruit_portions (80g portions), and true/false for healthy_fat (olive oil, oily fish, nuts or seeds, avocado), oily_fish, legumes, red_meat, processed_meat. All or nothing.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        recipes: { type: 'array', items: { type: 'object', required: ['recipe', 'nutrition'], properties: { recipe: { type: 'string' }, nutrition: { type: 'object' } } } },
+        routines: { type: 'array', items: { type: 'object', required: ['name', 'nutrition'], properties: { name: { type: 'string' }, nutrition: { type: 'object' } } } },
+      },
+    },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => plan.nutrition(args ?? {}), 'save the estimates'),
   });
   mcp.tool('set_pantry', {
     description: "Changes the pantry (the household approves each call in Claude): marks a staple as have, low or out. Low and out staples go on the next shopping list. Other pantry items are changed in the app.",
