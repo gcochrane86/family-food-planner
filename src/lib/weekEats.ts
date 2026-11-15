@@ -4,7 +4,7 @@ import { makeSlots, partnerEats, type SnackInfo } from '../../supabase/functions
 import { snackMakeDates } from '../../supabase/functions/_shared/snackPlan.ts';
 import { addDays } from '../../supabase/functions/_shared/planner.ts';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
-import type { Eat, MealSlot, PlanWeek, Recipe, Settings } from './types';
+import type { Eat, MealSlot, Partners, PlanWeek, Recipe, Settings } from './types';
 
 type Week = { week: PlanWeek | null; slots: MealSlot[]; eats?: Eat[] };
 
@@ -13,13 +13,22 @@ export function weekMakeDates(week: PlanWeek, settings: Settings | null | undefi
   return snackMakeDates(week.week_start, week.days, week.prep_days ?? settings?.prep_days ?? []);
 }
 
+/** The partners that apply to a week: the saved ones, and for a draft the ones Claude proposed with it (each person's
+ *  list for a meal replaces theirs, as approving does); only for people still in the household when `memberIds` is given. */
+function partnersFor(week: PlanWeek, settings: Settings | null | undefined, memberIds?: string[]): Partners {
+  const out: Partners = JSON.parse(JSON.stringify(settings?.meal_partners ?? {}));
+  if (week.status === 'draft') for (const [meal, by] of Object.entries(week.new_partners ?? {})) out[meal] = { ...(out[meal] ?? {}), ...by };
+  if (memberIds) for (const by of Object.values(out)) for (const id of Object.keys(by)) if (!memberIds.includes(id)) delete by[id];
+  return out;
+}
+
 /** Everyone's eats this week: the stored snacks and the partners worked out from the planned breakfasts and lunches. */
-export function weekEats(w: Week, settings: Settings | null | undefined, recipes: Recipe[]): Eat[] {
+export function weekEats(w: Week, settings: Settings | null | undefined, recipes: Recipe[], memberIds?: string[]): Eat[] {
   if (!w.week) return [];
   const snacks = new Map<string, SnackInfo>(recipes.filter((r) => r.kind === 'snack')
     .map((r) => [r.slug, { id: r.id, keeps_days: r.keeps_days ?? null, toddler_ok: r.toddler_ok !== false }]));
   const dates = Array.from({ length: w.week.days }, (_, i) => addDays(w.week!.week_start, i));
-  const partners = partnerEats(dates, w.slots, settings?.meal_partners, snacks, weekMakeDates(w.week, settings), new Map(recipes.map((r) => [r.id, r])), {
+  const partners = partnerEats(dates, w.slots, partnersFor(w.week, settings, memberIds), snacks, weekMakeDates(w.week, settings), new Map(recipes.map((r) => [r.id, r])), {
     breakfasts: settings?.breakfasts?.length ? settings.breakfasts : DEFAULT_BREAKFASTS,
     homeLunches: settings?.lunches?.length ? settings.lunches : HOME_LUNCHES,
   });

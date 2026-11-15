@@ -23,3 +23,16 @@ describe("a week's eats and makes", () => {
     expect(weekEats({ week: null, slots: [] }, settings, recipes)).toEqual([]);
   });
 });
+
+describe('review fixes', () => {
+  test("a draft counts the partners Claude proposed with it, over the saved ones", () => {
+    const draft = { ...week, status: 'draft', new_partners: { 'Overnight oats': { a: [{ recipe: 'boiled-egg', qty: 3 }] } } } as PlanWeek;
+    const eats = weekEats({ week: draft, slots }, settings, recipes).filter((e) => e.member_id === 'a');
+    expect(eats.map((e) => e.qty)).toEqual([3, 3]);
+    expect(weekEats({ week: { ...draft, status: 'approved' }, slots }, settings, recipes).filter((e) => e.member_id === 'a').map((e) => e.qty)).toEqual([2, 2]);
+  });
+
+  test("a person who's no longer in the household has no partners", () => {
+    expect(weekEats({ week, slots }, settings, recipes, ['b']).map((e) => e.member_id)).toEqual(['b', 'b']);
+  });
+});

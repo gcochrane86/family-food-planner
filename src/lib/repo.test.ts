@@ -119,3 +119,17 @@ test("saving slots from the app never sends a dinner's prep ahead (set on its ow
     locked: true, reason: null, source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, prep_ahead: 'ahead' }]);
   expect((h.upserts[0] as Record<string, unknown>[])[0]).not.toHaveProperty('prep_ahead');
 });
+
+test("saving settings keeps the meal partners already saved (approving a week adds them in the database)", async () => {
+  const partners = { 'Overnight oats': { a: [{ recipe: 'boiled-egg', qty: 2 }] } };
+  h.results.settings = [{ data: { data: { meal_partners: partners } }, error: null }, { data: null, error: null }];
+  await repo.saveSettings('h1', { breakfasts: ['Toast'], meal_partners: {} } as never);
+  expect(h.upserts.at(-1)).toMatchObject({ household_id: 'h1', data: { breakfasts: ['Toast'], meal_partners: partners } });
+});
+
+test('meal partners are saved on their own, over the latest settings', async () => {
+  h.results.settings = [{ data: { data: { breakfasts: ['Toast'], meal_partners: {} } }, error: null }, { data: null, error: null }];
+  const partners = { Toast: { a: [{ recipe: 'boiled-egg', qty: 1 }] } };
+  await repo.saveMealPartners('h1', partners);
+  expect(h.upserts.at(-1)).toMatchObject({ household_id: 'h1', data: { breakfasts: ['Toast'], meal_partners: partners } });
+});

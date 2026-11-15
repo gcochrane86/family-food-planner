@@ -110,6 +110,14 @@ export default function Household() {
     try {
       await repo.deleteMember(id);
       setMembers(members.filter((m) => m.id !== id));
+      // Their meal partners go with them, so nothing more is made or bought for them.
+      const partners = data?.settings?.meal_partners ?? {};
+      if (Object.values(partners).some((by) => id in by)) {
+        const next = Object.fromEntries(Object.entries(partners).map(([meal, by]) => [meal, Object.fromEntries(Object.entries(by).filter(([k]) => k !== id))])
+          .filter(([, by]) => Object.keys(by as object).length)) as Partners;
+        await repo.saveMealPartners(hid, next);
+        setData((d) => (d && d.settings ? { ...d, settings: { ...d.settings, meal_partners: next } } : d));
+      }
     } catch {
       setBanner(SAVE_ERROR);
     }
@@ -157,9 +165,7 @@ export default function Household() {
               onSave={async (next) => {
                 setBanner(null);
                 try {
-                  // The latest settings, so nothing changed elsewhere is overwritten.
-                  const latest = await repo.getSettings(hid);
-                  await repo.saveSettings(hid, { ...latest, meal_partners: next });
+                  await repo.saveMealPartners(hid, next);
                   setData((d) => (d && d.settings ? { ...d, settings: { ...d.settings, meal_partners: next } } : d));
                 } catch { setBanner(SAVE_ERROR); }
               }} />}

@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
-  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat } from './types';
+  Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat, Partners } from './types';
 import { CANCELLED } from './types';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import { COPY_UP_TO, SMALL_EDGE, smallPath } from './photos';
@@ -79,8 +79,16 @@ export const repo = {
     const row = must<{ data: unknown } | null>(await db().from('settings').select('data').eq('household_id', householdId).maybeSingle());
     return validateSettings(row?.data);
   },
+  /** Saves settings. The meal partners are kept as the database has them (approving a week adds Claude's there), so a
+   *  screen with an older copy can't drop them; they're changed with saveMealPartners. */
   async saveSettings(householdId: string, settings: Settings): Promise<void> {
-    must(await db().from('settings').upsert({ household_id: householdId, data: settings }));
+    const row = must<{ data: Record<string, unknown> } | null>(await db().from('settings').select('data').eq('household_id', householdId).maybeSingle());
+    must(await db().from('settings').upsert({ household_id: householdId, data: { ...settings, meal_partners: row?.data?.meal_partners ?? {} } }));
+  },
+  /** Each person's meal partners, over the latest settings. */
+  async saveMealPartners(householdId: string, partners: Partners): Promise<void> {
+    const row = must<{ data: Record<string, unknown> } | null>(await db().from('settings').select('data').eq('household_id', householdId).maybeSingle());
+    must(await db().from('settings').upsert({ household_id: householdId, data: { ...(row?.data ?? {}), meal_partners: partners } }));
   },
 
   async listRules(householdId: string): Promise<HouseRule[]> {

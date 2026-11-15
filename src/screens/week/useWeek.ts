@@ -68,7 +68,7 @@ export function useWeek() {
   }), [data]);
   const [dismissedTick, setDismissedTick] = useState(0);
   // Each person's snacks and meal partners this week (stored snacks, and partners worked out from the plan).
-  const eats = useMemo(() => (current ? weekEats(current, data?.settings, data?.recipes ?? []) : []), [current, data]);
+  const eats = useMemo(() => (current ? weekEats(current, data?.settings, data?.recipes ?? [], (data?.members ?? []).map((m: Member) => m.id)) : []), [current, data]);
   const members = (data?.members ?? []) as Member[];
   const firstAdult = members.find((m) => m.kind === 'adult');
 
@@ -405,6 +405,9 @@ export function useWeek() {
         setCurrent(latest.current, { ...current.week, status: 'approved', approved_at: current.week.approved_at ?? new Date().toISOString() });
         const key = shown === 'next' ? 'nextCookidoo' : 'thisCookidoo';
         setData((d) => d && { ...d, [key]: { id: '', plan_week_id: current.week!.id, status: 'requested', requested_at: new Date().toISOString(), started_at: null, finished_at: null, summary: null } });
+        // Approving keeps the draft's proposed meal partners in settings: read them back, so they stay on the days.
+        const fresh = await repo.getSettings(hid).catch(() => null);
+        if (fresh) setData((d) => d && { ...d, settings: fresh });
         return true;
       } catch {
         setSaveError("Couldn't approve the week. Check your connection and try again.");

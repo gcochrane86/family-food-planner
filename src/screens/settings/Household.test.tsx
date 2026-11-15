@@ -132,13 +132,22 @@ describe("each person's meal partners", () => {
     await userEvent.clear(screen.getByLabelText('You partner how many'));
     await userEvent.type(screen.getByLabelText('You partner how many'), '1');
     await userEvent.click(screen.getByRole('button', { name: 'Add a partner for You' }));
-    expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ meal_partners: {
+    expect(h.repo.saveMealPartners).toHaveBeenLastCalledWith('h1', {
       'Overnight oats': { [YOU.id]: [{ recipe: 'boiled-egg', qty: 2 }] }, 'Chicken sandwich': { [YOU.id]: [{ recipe: 'apple-almonds', qty: 1 }] },
-    } }));
+    });
     await userEvent.click(screen.getByRole('button', { name: 'Remove Boiled egg with Overnight oats for You' }));
-    expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ meal_partners: {
+    expect(h.repo.saveMealPartners).toHaveBeenLastCalledWith('h1', {
       'Chicken sandwich': { [YOU.id]: [{ recipe: 'apple-almonds', qty: 1 }] },
-    } }));
+    });
+  });
+
+  test("removing a person removes their meal partners", async () => {
+    render(<Household />, { wrapper: MemoryRouter });
+    await screen.findByText('With Overnight oats: 2 × Boiled egg');
+    const removes = screen.getAllByRole('button', { name: 'Remove' });
+    await userEvent.click(removes[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove You' }));
+    expect(h.repo.saveMealPartners).toHaveBeenLastCalledWith('h1', {});
   });
 
   test("the toddler is only offered toddler-friendly snacks", async () => {
