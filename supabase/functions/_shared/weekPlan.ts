@@ -4,7 +4,7 @@
 import { MAX_MINUTES, MIN_MINUTES } from './cookingTime.ts';
 import { loadPlannerInput } from './loadPlan.ts';
 import { parseChoices, type PlanChoices } from './planChoices.ts';
-import { dayBalance, parseNutrition } from './balance.ts';
+import { compareTargets, dayBalance, parseNutrition, personDay } from './balance.ts';
 import { parseSnacks, snackMakeDates, snackRows, type SnackMake } from './snackPlan.ts';
 import { MEAL_SPEC } from './mealSpec.ts';
 import { slotRows } from './planInput.ts';
@@ -43,7 +43,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const input = await loadPlannerInput(db, hid, weekStart, choices);
   const [settings, members, rules, recipes, recent, freezer, pantry, products, existing] = await Promise.all([
     db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
-    db.from('members').select('name, kind, portion_weight').eq('household_id', hid),
+    db.from('members').select('name, kind, portion_weight, targets').eq('household_id', hid),
     db.from('house_rules').select('kind, match, replacement, note').eq('household_id', hid),
     // Ingredients nested in each recipe, so a big library isn't cut off at the API's row limit.
     db.from('recipes').select('id, slug, title, subtitle, kind, protein, finish_minutes, prep_minutes, reheats_well, freezes_well, tags, rating, status, base_portions, nutrition, keeps_days, toddler_ok, recipe_ingredients(name, qty, unit)').eq('household_id', hid).in('kind', ['meal', 'snack']),
@@ -78,9 +78,18 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true }]));
   const homeLunches = Array.isArray(s.lunches) && s.lunches.length ? s.lunches as string[] : ['Chicken sandwich'];
   const balanceSlots = proposed.map((x) => ({ date: x.date, slot: x.slot, mode: x.mode, recipe_id: x.recipeId, reason: x.reason, source_date: x.sourceDate }));
+  const people = list(members, 'Reading members') as { name: string; kind: string; portion_weight: number | string; targets?: Record<string, number> | null }[];
   const builtInBalance = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i)).map((date) => {
     const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches });
-    return { date, low: b.low, unknown: (['breakfastProtein', 'vegFruit', 'healthyFat', 'fibre'] as const).filter((k) => b[k] === 'unknown') };
+    return {
+      date, low: b.low, unknown: (['breakfastProtein', 'vegFruit', 'healthyFat', 'fibre'] as const).filter((k) => b[k] === 'unknown'),
+      // Each person's day (meals by their portion share) against their own targets.
+      people: people.map((m) => {
+        const d = personDay(date, balanceSlots, estimates, routines, m, { homeLunches });
+        const states = compareTargets(d.totals, m.targets, d.unknown);
+        return { name: m.name, totals: d.totals, targets: m.targets ?? {}, off: Object.entries(states).filter(([, v]) => v === 'under' || v === 'over').map(([k, v]) => `${v} ${k}`) };
+      }),
+    };
   });
   const names = [...new Set([...(Array.isArray(s.breakfasts) ? s.breakfasts : []), ...(Array.isArray(s.lunches) ? s.lunches : []), 'Packed lunch']
     .filter((n): n is string => typeof n === 'string' && !!n.trim()))];

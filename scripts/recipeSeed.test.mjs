@@ -193,3 +193,10 @@ test('a snack needs no protein, but needs how many days it keeps; nutrition is c
   expect(row).toMatchObject({ kind: 'snack', keeps_days: 4, nutrition: snack.nutrition });
   expect(recipeRow('h1', f.recipes[0])).not.toHaveProperty('nutrition');
 });
+
+test('a fuller estimate (calories, fat, carbs, sugars, salt) is accepted; a bad extra number is not', () => {
+  const f = clone();
+  const n = { protein_g: 6, fibre_g: 6, veg_portions: 1, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: true, red_meat: false, processed_meat: false };
+  expect(validateRecipeSeed({ recipes: [{ ...f.recipes[0], nutrition: { ...n, kcal: 450, fat_g: 20, sat_fat_g: 4, carbs_g: 40, sugars_g: 8, salt_g: 1.2 } }] })).toEqual([]);
+  expect(validateRecipeSeed({ recipes: [{ ...f.recipes[0], nutrition: { ...n, kcal: 'lots' } }] })).toHaveLength(1);
+});

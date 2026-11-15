@@ -222,3 +222,16 @@ test('snack recipes without an estimate are listed too', async () => {
     recipes: [{ id: 's1', slug: 'hummus', title: 'Hummus', kind: 'snack', status: 'active', keeps_days: 4, recipe_ingredients: [], nutrition: null }] });
   expect((await planContext(db as never, 'h1', '2026-11-16')).nutritionMissing.recipes).toEqual(['hummus']);
 });
+
+test("the proposal's balance gives each person's day against their targets", async () => {
+  const { planContext } = await import('./weekPlan');
+  const N = { protein_g: 20, fibre_g: 5, veg_portions: 1, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, kcal: 500, sugars_g: 10 };
+  const db = tableDb({
+    'settings:one': { data: { routine_nutrition: { 'Overnight oats': N, 'Baked oats': N, 'Eggs & porridge': N, 'Packed lunch': N, 'Chicken sandwich': N } } },
+    members: [{ id: 'a', name: 'A', kind: 'adult', portion_weight: 1.25, targets: { protein_g: 90, sugars_g: 30 } }],
+    recipes: [{ id: 'r1', slug: 'curry', title: 'Curry', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, reheats_well: false, base_portions: 4, recipe_ingredients: [], nutrition: N }],
+  });
+  const day = (await planContext(db as never, 'h1', '2026-11-16')).builtInBalance[0];
+  expect(day.people).toEqual([expect.objectContaining({ name: 'A', targets: { protein_g: 90, sugars_g: 30 }, off: ['under protein_g', 'over sugars_g'] })]);
+  expect(day.people[0].totals.protein_g).toBe(75);
+});

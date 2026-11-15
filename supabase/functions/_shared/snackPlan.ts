@@ -79,7 +79,7 @@ export function snackRows(makes: SnackMake[], recipes: Map<string, { id: string;
   return rows;
 }
 
-const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), and true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat';
+const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat, and (0 or more) kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g';
 
 /** Saves Claude's estimates per adult portion: recipes by slug or title, and breakfasts or lunches that are names
  *  (into settings.routine_nutrition). All or nothing. */

@@ -31,7 +31,8 @@ export function validateRecipeSeed(file: any): string[] {
     if (r?.kind === 'snack' && (!Number.isInteger(r?.keeps_days) || r.keeps_days < 1 || r.keeps_days > 7)) problems.push(`${at}.keeps_days must be 1 to 7 days for a snack`);
     if (r?.nutrition != null && !(typeof r.nutrition === 'object'
       && NUTRITION_KEYS.numbers.every((k) => isNum(r.nutrition[k]) && r.nutrition[k] >= 0)
-      && NUTRITION_KEYS.flags.every((k) => typeof r.nutrition[k] === 'boolean'))) {
+      && NUTRITION_KEYS.flags.every((k) => typeof r.nutrition[k] === 'boolean')
+      && ['kcal', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugars_g', 'salt_g'].every((k) => r.nutrition[k] == null || (isNum(r.nutrition[k]) && r.nutrition[k] >= 0)))) {
       problems.push(`${at}.nutrition must have protein_g, fibre_g, veg_portions and fruit_portions (0 or more) and the five yes/no flags`);
     }
     if (r?.component_role != null && !ROLES.includes(r.component_role)) problems.push(`${at}.component_role must be one of ${ROLES.join(', ')}`);
