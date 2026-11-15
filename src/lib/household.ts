@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   breakfast_ahead: ['Overnight oats', 'Baked oats'],
   tm7_machines: 1,
   tm7_bowls: 1,
+  prep_days: [],
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -130,6 +131,9 @@ export function validateSettings(raw: unknown): Settings {
     tm7_machines: r.tm7_machines === 1 || r.tm7_machines === 2 ? r.tm7_machines : d.tm7_machines,
     tm7_bowls: r.tm7_bowls === 1 || r.tm7_bowls === 2 ? r.tm7_bowls : d.tm7_bowls,
     ...(cookingMinutes(r.cooking_minutes) ? { cooking_minutes: cookingMinutes(r.cooking_minutes) } : {}),
+    prep_days: Array.isArray(r.prep_days)
+      ? [...new Set(r.prep_days.filter((x): x is number => Number.isInteger(x) && (x as number) >= 0 && (x as number) <= 6))].sort((a, b) => a - b)
+      : [],
     private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
 }

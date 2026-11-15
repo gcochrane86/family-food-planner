@@ -704,3 +704,20 @@ test('0021: a recipe can say which week Claude added it for while planning', asy
   const id = await one(OWNER, `insert into recipes (household_id, slug, title, kind, status, source, base_portions, planned_for) values ('${hid}', 'made-up', 'Made up', 'meal', 'active', 'claude', 4, '2026-10-26') returning id`);
   expect(await one(OWNER, `select planned_for::text from recipes where id = '${id}'`)).toBe('2026-10-26');
 });
+
+test("0022: a plan request carries the week's choices; save_claude_week saves the week's office and prep days; the 5-argument call still works", async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  await svc(`update week_plan_requests set status = 'failed' where id = '${req}'`);
+  const withChoices = await one(OWNER, `insert into week_plan_requests (household_id, week_start, note, choices) values ('${hid}', '2026-10-26', 'hi', '{"nightsOff": ["2026-10-28"]}') returning id`);
+  expect(await one(OWNER, `select choices from week_plan_requests where id = '${withChoices}'`)).toEqual({ nightsOff: ['2026-10-28'] });
+  await svc(`update week_plan_requests set status = 'planning' where id = '${withChoices}'`);
+  await svc(`select save_claude_week('${withChoices}', 7, '${claudeSlots(rid)}', 'S', null, '{"${OWNER}": [0, 2]}', '{6}')`);
+  expect(await one(OWNER, `select office_days from plan_weeks where week_start = '2026-10-26'`)).toEqual({ [OWNER]: [0, 2] });
+  expect(await one(OWNER, `select prep_days from plan_weeks where week_start = '2026-10-26'`)).toEqual([6]);
+  const req2 = await one(OWNER, `insert into week_plan_requests (household_id, week_start, replace) values ('${hid}', '2026-10-26', true) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req2}'`);
+  await svc(`select save_claude_week('${req2}', 7, '${claudeSlots(rid)}', 'S', null)`);
+  expect(await one(OWNER, `select office_days from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
+  expect(await one(OWNER, `select prep_days from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
+  expect(await fails(OWNER, `select save_claude_week('${req2}', 7, '[]', 'S', null, null, null)`)).toMatch(/permission denied/);
+});

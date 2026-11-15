@@ -1,3 +1,4 @@
+import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
 import type { SlotVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 export type { SlotVersion };
 
@@ -55,6 +56,8 @@ export interface Settings {
   /** How many Thermomixes, and how many TM7 bowls. */
   tm7_machines?: 1 | 2;
   tm7_bowls?: 1 | 2;
+  /** Usual week: longer prep days, weekdays 0 = Monday … 6 = Sunday. */
+  prep_days?: number[];
 }
 
 export interface DayRule { weekday: number; protein: Protein; note: string | null }
@@ -200,6 +203,9 @@ export interface PlanWeek {
   cooking_minutes?: Record<string, number> | null;
   planned_by?: 'planner' | 'claude';
   summary?: string | null; // Claude's note on why this week
+  /** Plan with Claude: the week's own office days by adult and its longer prep days (migration 0022). */
+  office_days?: Record<string, number[]> | null;
+  prep_days?: number[] | null;
 }
 
 /** The summary on a request the household cancelled (not shown as a failure). */
@@ -215,6 +221,8 @@ export interface WeekPlanRequest {
   replace?: boolean; // Replan: may replace the week's draft
   requested_at: string;
   summary: string | null;
+  /** The choices made on the Plan with Claude screen (migration 0022). */
+  choices?: PlanChoices | null;
 }
 
 export interface MealSlot {

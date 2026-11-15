@@ -56,6 +56,7 @@ describe('validateSettings', () => {
       breakfast_ahead: ['Overnight oats', 'Baked oats'],
       tm7_machines: 1,
       tm7_bowls: 1,
+      prep_days: [],
     });
   });
   test("Today's hour: a real start time, 30–120 minutes, 1 or 2 TM7s and bowls", () => {
@@ -106,4 +107,9 @@ test('your requirements: day rules and other shops are kept tidy', () => {
 test('private rules are kept when settings are saved, tidied, and default to none', () => {
   expect(validateSettings({ private_rules: [' Rule one ', '', 3, 'x'.repeat(301)] }).private_rules).toEqual(['Rule one']);
   expect(validateSettings({}).private_rules).toEqual([]);
+});
+
+test('validateSettings keeps prep days as unique weekdays 0–6, none by default', () => {
+  expect(validateSettings({ prep_days: [6, 6, 9, 'x', 0] }).prep_days).toEqual([0, 6]);
+  expect(validateSettings({}).prep_days).toEqual([]);
 });
