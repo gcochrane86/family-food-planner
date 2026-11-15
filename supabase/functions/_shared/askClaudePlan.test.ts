@@ -170,22 +170,23 @@ describe("the week's choices from the app", () => {
 
 describe('snacks', () => {
   const snackWorld = (o: Record<string, unknown> = {}) => world({
-    recipes: [...RECIPES, { id: 's1', slug: 'hummus', title: 'Beetroot Hummus', kind: 'snack', status: 'active' }],
+    recipes: [...RECIPES, { id: 's1', slug: 'hummus', title: 'Beetroot Hummus', kind: 'snack', status: 'active', keeps_days: 4 }],
     'settings:one': { data: { adventure: 1, prep_days: [6] } }, ...o,
   });
-  test('a snack can be named by title, made the Sunday before the week', async () => {
+  test("each person's snack is checked in the chat: a make day that isn't a prep day is sent back to fix", async () => {
     const d = deps();
-    await makePlanner(snackWorld(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
-      { snacks: [{ recipe: 'beetroot hummus', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16'] }] }));
-    expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16',
-      expect.objectContaining({ snacks: [{ recipe: 'hummus', slot: 'snack_am', makeDate: '2026-11-15', covers: ['2026-11-16'] }] }), expect.anything());
-  });
-  test('a snack on a day that isn’t a prep day is sent back to fix', async () => {
-    const d = deps();
-    const out = await makePlanner(snackWorld(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
-      { snacks: [{ recipe: 'hummus', slot: 'am', make_date: '2026-11-17', covers: ['2026-11-17'] }] }));
+    const out = await makePlanner(snackWorld({ members: [{ id: 'm1', name: 'Adult A', kind: 'adult' }] }), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
+      { snacks: [{ person: 'Adult A', recipe: 'beetroot hummus', slot: 'am', date: '2026-11-17', make_date: '2026-11-17' }] }));
     expect(out).toMatch(/isn't a snack-making day. Use one of 2026-11-15/);
     expect(d.save).not.toHaveBeenCalled();
+  });
+  test('a snack by title for a named person goes through to the save', async () => {
+    const d = deps();
+    const out = await makePlanner(snackWorld({ members: [{ id: 'm1', name: 'Adult A', kind: 'adult' }] }), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }],
+      { snacks: [{ person: 'adult a', recipe: 'beetroot hummus', slot: 'am', date: '2026-11-16', make_date: '2026-11-15' }] }));
+    expect(out).not.toMatch(/needs fixing/);
+    expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16',
+      expect.objectContaining({ snacks: [expect.objectContaining({ person: 'adult a', recipe: 'beetroot hummus' })] }), expect.anything());
   });
   test('a dinner can’t be a snack recipe', async () => {
     const out = await makePlanner(snackWorld(), 'h1', NOW, deps()).save(plan([{ date: '2026-11-16', recipe: 'beetroot hummus' }]));
@@ -195,13 +196,15 @@ describe('snacks', () => {
     expect(HOW_TO_PLAN).toMatch(/save_nutrition/);
     expect(HOW_TO_PLAN).toMatch(/builtInBalance/);
     expect(HOW_TO_PLAN).toMatch(/snackMakeDates/);
+    expect(HOW_TO_PLAN).toMatch(/partners/);
+    expect(HOW_TO_PLAN).toMatch(/each person/);
   });
 });
 
 test("a new recipe is only a snack when it's written as one", async () => {
   const NEWMEAL = { slug: 'lemon-chicken', title: 'Lemon Chicken', kind: 'meal', protein: 'chicken', base_portions: 4,
     ingredients: [{ name: 'chicken thigh', qty: 800, unit: 'g' }], steps: [{ phase: 'finish', title: 'Cook', body: 'Cook the **chicken thigh**.' }] };
-  const out = await makePlanner(world({ 'settings:one': { data: { adventure: 1, prep_days: [6] } } }), 'h1', NOW, deps())
-    .save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWMEAL], snacks: [{ recipe: 'lemon-chicken', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16'] }] }));
-  expect(out).toMatch(/No snack recipe called "lemon-chicken"/);
+  const out = await makePlanner(world({ 'settings:one': { data: { adventure: 1, prep_days: [6] } }, members: [{ id: 'm1', name: 'Adult A', kind: 'adult' }] }), 'h1', NOW, deps())
+    .save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWMEAL], snacks: [{ person: 'Adult A', recipe: 'lemon-chicken', slot: 'am', date: '2026-11-16', make_date: '2026-11-15' }] }));
+  expect(out).toMatch(/No snack recipe "lemon-chicken"/);
 });

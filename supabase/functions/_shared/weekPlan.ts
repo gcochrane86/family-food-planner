@@ -5,7 +5,8 @@ import { MAX_MINUTES, MIN_MINUTES } from './cookingTime.ts';
 import { loadPlannerInput } from './loadPlan.ts';
 import { parseChoices, type PlanChoices } from './planChoices.ts';
 import { compareTargets, dayBalance, parseNutrition, personDay } from './balance.ts';
-import { parseSnacks, snackMakeDates, snackRows, type SnackMake } from './snackPlan.ts';
+import { snackMakeDates } from './snackPlan.ts';
+import { parseEats, parsePartners, partnerEats, type Eat, type Partners } from './snackEats.ts';
 import { MEAL_SPEC } from './mealSpec.ts';
 import { slotRows } from './planInput.ts';
 import { addDays, OFFICE_MAX, proposeWeek } from './planner.ts';
@@ -30,8 +31,42 @@ export interface WeekPlan {
   newRecipes: SeedRecipe[];
   /** Today's cooking: the week's own time for some days, from the household's note; null when there are none. */
   cookingMinutes: Record<string, number> | null;
-  /** Snack makes (daily balance): made on prep days, covering the days after while they keep. */
-  snacks: SnackMake[];
+  /** Each person's snacks and new meal partners, as Claude wrote them: checked against the household on saving
+   *  (snackChecker). */
+  snacks: unknown;
+  partners: unknown;
+}
+
+/** Checks Claude's snacks and partners against the household's people and snack recipes (and the plan's new snack
+ *  recipes): the snacks' recipe_id is a slug until the save resolves it. Throws words Claude can act on. */
+export async function snackChecker(db: Db, hid: string, weekStart: string, days: number, prepDays: number[],
+  newRecipes: { slug?: unknown; title?: unknown; kind?: unknown; keeps_days?: unknown; toddler_ok?: unknown }[] = []) {
+  const [m, r, st] = await Promise.all([
+    db.from('members').select('id, name, kind').eq('household_id', hid),
+    db.from('recipes').select('id, slug, title, kind, status, keeps_days, toddler_ok').eq('household_id', hid),
+    db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
+  ]);
+  const members = list(m, 'Reading members') as { id: string; name: string; kind: string }[];
+  const pool = new Map<string, { id: string; slug: string; keeps_days: number | null; toddler_ok: boolean }>();
+  const snacks = [
+    ...(list(r, 'Reading recipes') as { slug: string; title: string; kind?: string; status?: string; keeps_days?: number | null; toddler_ok?: boolean }[])
+      .filter((x) => x.kind === 'snack' && x.status !== 'archived'),
+    ...newRecipes.filter((n) => n?.kind === 'snack').map((n) => ({ slug: String(n.slug ?? ''), title: String(n.title ?? n.slug ?? ''), keeps_days: typeof n.keeps_days === 'number' ? n.keeps_days : null, toddler_ok: n.toddler_ok !== false })),
+  ];
+  for (const x of snacks) {
+    const info = { id: x.slug, slug: x.slug, keeps_days: x.keeps_days ?? null, toddler_ok: x.toddler_ok !== false };
+    pool.set(x.slug.toLowerCase(), info);
+    pool.set(x.title.toLowerCase(), info);
+  }
+  const data = (must(st, 'Reading settings') as { data: Record<string, unknown> } | null)?.data ?? {};
+  const meals = [...new Set([...(Array.isArray(data.breakfasts) ? data.breakfasts : []), ...(Array.isArray(data.lunches) ? data.lunches : []), 'Packed lunch']
+    .filter((n): n is string => typeof n === 'string' && !!n.trim()))];
+  const dates = Array.from({ length: days }, (_, i) => addDays(weekStart, i));
+  const makeDates = snackMakeDates(weekStart, days, prepDays);
+  return (raw: { snacks?: unknown; partners?: unknown }): { eats: Eat[]; partners: Partners | null } => ({
+    eats: parseEats(raw.snacks, { dates, makeDates, members, snacks: pool }),
+    partners: parsePartners(raw.partners, { members, snacks: pool, meals }),
+  });
 }
 
 /** Everything the plan needs: the week, the household's specifications and rules, recipes, freezer, pantry, pack
@@ -43,7 +78,7 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const input = await loadPlannerInput(db, hid, weekStart, choices);
   const [settings, members, rules, recipes, recent, freezer, pantry, products, existing] = await Promise.all([
     db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
-    db.from('members').select('name, kind, portion_weight, targets').eq('household_id', hid),
+    db.from('members').select('id, name, kind, portion_weight, targets').eq('household_id', hid),
     db.from('house_rules').select('kind, match, replacement, note').eq('household_id', hid),
     // Ingredients nested in each recipe, so a big library isn't cut off at the API's row limit.
     db.from('recipes').select('id, slug, title, subtitle, kind, protein, finish_minutes, prep_minutes, reheats_well, freezes_well, tags, rating, status, base_portions, nutrition, keeps_days, toddler_ok, recipe_ingredients(name, qty, unit)').eq('household_id', hid).in('kind', ['meal', 'snack']),
@@ -78,14 +113,23 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   const estimates = new Map(everything.map((x) => [x.id, { nutrition: x.nutrition, reheats_well: x.reheats_well === true, toddler_ok: x.toddler_ok !== false }]));
   const homeLunches = Array.isArray(s.lunches) && s.lunches.length ? s.lunches as string[] : ['Chicken sandwich'];
   const balanceSlots = proposed.map((x) => ({ date: x.date, slot: x.slot, mode: x.mode, recipe_id: x.recipeId, reason: x.reason, source_date: x.sourceDate }));
-  const people = list(members, 'Reading members') as { name: string; kind: string; portion_weight: number | string; targets?: Record<string, number> | null }[];
-  const builtInBalance = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i)).map((date) => {
-    const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches, share: Number(people.find((m) => m.kind === 'adult')?.portion_weight) || 1.25 });
+  const people = list(members, 'Reading members') as { id: string; name: string; kind: string; portion_weight: number | string; targets?: Record<string, number> | null }[];
+  // Meal partners (overnight oats → 2 boiled eggs), counted in each person's day of the proposal.
+  const mealPartners = (s.meal_partners && typeof s.meal_partners === 'object' ? s.meal_partners : {}) as Partners;
+  const snackBySlug = new Map(snacks.map((x) => [x.slug, { id: x.id, keeps_days: (x.keeps_days as number | null) ?? null, toddler_ok: x.toddler_ok !== false }]));
+  const weekDates = Array.from({ length: input.days }, (_, i) => addDays(weekStart, i));
+  const prepDays = choices?.prepDays ?? (Array.isArray(s.prep_days) ? s.prep_days as number[] : []);
+  const breakfasts = Array.isArray(s.breakfasts) ? s.breakfasts as string[] : [];
+  const proposalEats = partnerEats(weekDates, balanceSlots, mealPartners, snackBySlug, snackMakeDates(weekStart, input.days, prepDays), estimates, { breakfasts, homeLunches });
+  const firstAdult = people.find((m) => m.kind === 'adult');
+  const builtInBalance = weekDates.map((date) => {
+    const b = dayBalance(date, balanceSlots, estimates, routines, { homeLunches, share: Number(firstAdult?.portion_weight) || 1.25,
+      eats: proposalEats.filter((e) => e.member_id === firstAdult?.id) });
     return {
       date, low: b.low, unknown: (['breakfastProtein', 'vegFruit', 'healthyFat', 'fibre'] as const).filter((k) => b[k] === 'unknown'),
       // Each person's day (meals by their portion share) against their own targets.
       people: people.map((m) => {
-        const d = personDay(date, balanceSlots, estimates, routines, m, { homeLunches });
+        const d = personDay(date, balanceSlots, estimates, routines, m, { homeLunches, eats: proposalEats });
         const states = compareTargets(d.totals, m.targets, d.unknown);
         return { name: m.name, totals: d.totals, targets: m.targets ?? {}, off: Object.entries(states).filter(([, v]) => v === 'under' || v === 'over').map(([k, v]) => `${v} ${k}`) };
       }),
@@ -118,7 +162,10 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
       whatMakesAMeal: MEAL_SPEC, houseRules: list(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
     },
     newRecipeRules: NEW_RECIPE_RULES,
-    members: list(members, 'Reading members'),
+    members: people.map(({ id: _id, ...m }) => m),
+    // Each person's meal partners, by name: they come with that breakfast or lunch whenever it's planned.
+    partners: Object.entries(mealPartners).flatMap(([meal, byMember]) => Object.entries(byMember ?? {}).flatMap(([mid, items]) =>
+      (items ?? []).map((it) => ({ meal, person: people.find((m) => m.id === mid)?.name ?? 'someone', recipe: it.recipe, qty: it.qty })))),
     recipes: all.filter((x) => plannable.has(x.id)).map(({ id, recipe_ingredients: ings, ...x }) => ({
       ...x, ...(handsOnOf.get(id) ?? { prepMinutes: null, cookHandsOn: null }), lastCooked: lastCooked.get(id) ?? null,
       ingredients: (ings ?? []).map((i) => [i.qty, i.unit, i.name].filter((v) => v !== null && v !== '').join(' ')),
@@ -202,8 +249,9 @@ export function parsePlan(input: unknown, week: { weekStart: string; days: numbe
       if (dates.includes(date) && typeof m === 'number' && m >= MIN_MINUTES && m <= MAX_MINUTES) cooking[date] = Math.round(m);
     }
   }
-  const snacks = parseSnacks(o.snacks, { weekStart: week.weekStart, days: week.days, makeDates: week.snackDates ?? snackMakeDates(week.weekStart, week.days, []) });
-  return { summary, dinners, newRecipes, cookingMinutes: Object.keys(cooking).length ? cooking : null, snacks };
+  if (o.snacks != null && !Array.isArray(o.snacks)) throw new Error('"snacks" must be a list');
+  if (o.partners != null && !Array.isArray(o.partners)) throw new Error('"partners" must be a list');
+  return { summary, dinners, newRecipes, cookingMinutes: Object.keys(cooking).length ? cooking : null, snacks: o.snacks ?? null, partners: o.partners ?? null };
 }
 
 // The week can't be saved any more: the request is closed with why, so the app says so.
@@ -223,19 +271,16 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
   const propose = deps.propose ?? ((input, chosenDinners) => slotRows('', proposeWeek({ ...input, chosenDinners })).map(({ plan_week_id: _, ...s }) => s));
   const existing = list<{ id: string; slug: string; keeps_days?: number | null; toddler_ok?: boolean }>(await db.from('recipes').select('id, slug, keeps_days, toddler_ok').eq('household_id', hid), 'Reading recipes');
   const bySlug = new Map(existing.map((x) => [x.slug, x.id]));
-  const snackInfo = new Map(existing.map((x) => [x.slug, { keeps_days: x.keeps_days ?? null, toddler_ok: x.toddler_ok !== false }]));
-  for (const n of plan.newRecipes) snackInfo.set(n.slug, { keeps_days: n.keeps_days ?? null, toddler_ok: n.toddler_ok !== false });
   for (const n of plan.newRecipes) if (bySlug.has(n.slug)) throw new Error(`A recipe with the slug "${n.slug}" already exists. Pick another slug.`);
   const newSlugs = new Set(plan.newRecipes.map((n) => n.slug));
   for (const d of plan.dinners) if (!bySlug.has(d.recipe) && !newSlugs.has(d.recipe)) throw new Error(`No recipe "${d.recipe}" (${d.date}). Use a recipe from the context, or add it as a new recipe.`);
   const off = nightOffDinner(plan, deps.choices);
   if (off) throw new Error(`${off} Nothing was saved.`);
-  for (const sn of plan.snacks ?? []) if (!bySlug.has(sn.recipe) && !newSlugs.has(sn.recipe)) throw new Error(`No snack recipe "${sn.recipe}". Use one from snackRecipes, or add it as a new snack recipe.`);
-  // Who the snacks are for: the adults, and the children on a toddler-friendly snack.
-  const kinds = (plan.snacks ?? []).length ? list<{ kind: string }>(await db.from('members').select('kind').eq('household_id', hid), 'Reading members') : [];
-  const people = { adults: kinds.filter((m) => m.kind === 'adult').length || 2, children: kinds.filter((m) => m.kind === 'child').length };
-  // Checked before anything is written (ids for new recipes are filled in once they're added).
-  snackRows(plan.snacks ?? [], new Map((plan.snacks ?? []).map((sn) => [sn.recipe, { id: sn.recipe, ...(snackInfo.get(sn.recipe) ?? { keeps_days: null, toddler_ok: true }) }])), people);
+  // Each person's snacks and partners, checked before anything is written (for the week's days, again once it's loaded).
+  const prefs = (must(await db.from('settings').select('data').eq('household_id', hid).maybeSingle(), 'Reading settings') as { data: { prep_days?: unknown } } | null)?.data ?? {};
+  const prepDays = deps.choices?.prepDays ?? (Array.isArray(prefs.prep_days) ? prefs.prep_days as number[] : []);
+  const wantsSnacks = plan.snacks != null || plan.partners != null;
+  if (wantsSnacks) (await snackChecker(db, hid, weekStart, 7, prepDays, plan.newRecipes as never))({ snacks: plan.snacks, partners: plan.partners });
 
   const added: string[] = [];
   try {
@@ -257,8 +302,10 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
     const chosen = plan.dinners.map((d) => ({ date: d.date, recipeId: bySlug.get(d.recipe)!, reason: d.reason }));
     const left = plan.dinners.filter((d) => !plannable.has(bySlug.get(d.recipe)!));
     if (left.length) throw new Error(`Not plannable (archived, rated 👎, or a roast or hosting recipe): ${left.map((d) => d.recipe).join(', ')}.`);
-    const snackSlots = snackRows(plan.snacks ?? [], new Map((plan.snacks ?? []).map((sn) => [sn.recipe, { id: bySlug.get(sn.recipe)!, ...(snackInfo.get(sn.recipe) ?? { keeps_days: null, toddler_ok: true }) }])), people);
-    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: [...propose(input, chosen), ...snackSlots], p_summary: plan.summary, p_cooking: plan.cookingMinutes,
+    const checked = wantsSnacks ? (await snackChecker(db, hid, weekStart, input.days, prepDays, plan.newRecipes as never))({ snacks: plan.snacks, partners: plan.partners }) : { eats: [], partners: null };
+    const eats = checked.eats.map((e) => ({ ...e, recipe_id: bySlug.get(e.recipe_id)! }));
+    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: propose(input, chosen), p_summary: plan.summary, p_cooking: plan.cookingMinutes,
+      ...(wantsSnacks ? { p_eats: eats, p_partners: checked.partners } : {}),
       ...(deps.choices ? { p_office: deps.choices.office, p_prep: deps.choices.prepDays } : {}) });
     if (res.error) {
       const code = Object.keys(CLOSED).find((k) => res.error.message.includes(k));

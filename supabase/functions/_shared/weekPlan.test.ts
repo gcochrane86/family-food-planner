@@ -193,26 +193,52 @@ describe('snacks and nutrition (daily balance)', () => {
     expect(ctx.builtInBalance[0]).toHaveProperty('date', '2026-11-16');
   });
 
-  test('the save adds the snack makes to the week', async () => {
-    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }, { id: 'r-h', slug: 'hummus', keeps_days: 4, toddler_ok: true }], members: [{ kind: 'adult' }, { kind: 'adult' }, { kind: 'child' }] });
-    const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], snacks: [{ recipe: 'hummus', slot: 'am', make_date: '2026-11-15', covers: ['2026-11-16', '2026-11-17'] }] },
-      { ...WEEK, snackDates: ['2026-11-15'] });
-    await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never });
-    const slots = (db.rpcs.at(-1)!.args as { p_slots: { date: string; slot: string; mode: string; portions: number | null }[] }).p_slots;
-    expect(slots).toEqual([
-      expect.objectContaining({ date: '2026-11-15', slot: 'snack_am', mode: 'cook', portions: 6 }),
-      expect.objectContaining({ date: '2026-11-16', slot: 'snack_am', mode: 'leftovers' }),
-      expect.objectContaining({ date: '2026-11-17', slot: 'snack_am', mode: 'leftovers' }),
-    ]);
+  const SNACKS = [{ id: 'r-curry', slug: 'curry' }, { id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack', status: 'active', keeps_days: 5, toddler_ok: true },
+    { id: 'r-nuts', slug: 'nuts', title: 'Apple & almonds', kind: 'snack', status: 'active', keeps_days: 2, toddler_ok: false }];
+  const PEOPLE = [{ id: 'm-a', name: 'Adult A', kind: 'adult' }, { id: 'm-t', name: 'Little', kind: 'child' }];
+  const save = (db: ReturnType<typeof tableDb>, raw: Record<string, unknown>) => saveWeekPlan(db, 'h1', 'req1', '2026-11-16',
+    parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], ...raw }, WEEK),
+    { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never, choices: { prepDays: [6] } as never });
+
+  test("the save sends each person's snacks and new meal partners with the week", async () => {
+    const db = tableDb({ recipes: SNACKS, members: PEOPLE, 'settings:one': { data: { breakfasts: ['Overnight oats'] } } });
+    await save(db, {
+      snacks: [{ person: 'Adult A', date: '2026-11-17', slot: 'pm', recipe: 'Boiled egg', qty: 2, make_date: '2026-11-15' }],
+      partners: [{ meal: 'Overnight oats', person: 'Little', recipe: 'boiled-egg', qty: 1 }],
+    });
+    expect(db.rpcs.at(-1)!.args).toMatchObject({
+      p_eats: [{ date: '2026-11-17', slot: 'snack_pm', member_id: 'm-a', recipe_id: 'r-egg', qty: 2, make_date: '2026-11-15' }],
+      p_partners: { 'Overnight oats': { 'm-t': [{ recipe: 'boiled-egg', qty: 1 }] } },
+    });
+  });
+
+  test('a nut snack for the toddler is refused, and nothing is saved', async () => {
+    const db = tableDb({ recipes: SNACKS, members: PEOPLE });
+    await expect(save(db, { snacks: [{ person: 'Little', date: '2026-11-16', slot: 'am', recipe: 'nuts', qty: 1, make_date: '2026-11-15' }] }))
+      .rejects.toThrow(/isn't toddler-friendly/);
+    expect(db.rpcs.map((r) => r.fn)).not.toContain('save_claude_week');
   });
 
   test('a snack recipe that isn’t known is refused before anything is written', async () => {
-    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }] });
-    const plan = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-16')], snacks: [{ recipe: 'mystery', slot: 'pm', make_date: '2026-11-15', covers: ['2026-11-16'] }] },
-      { ...WEEK, snackDates: ['2026-11-15'] });
-    await expect(saveWeekPlan(db, 'h1', 'req1', '2026-11-16', plan, { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never }))
+    const db = tableDb({ recipes: SNACKS, members: PEOPLE });
+    await expect(save(db, { snacks: [{ person: 'Adult A', recipe: 'mystery', date: '2026-11-16', slot: 'pm', make_date: '2026-11-15' }] }))
       .rejects.toThrow(/No snack recipe "mystery"/);
     expect(db.rpcs).toEqual([]);
+  });
+
+  test('the context names each person and their partners, and counts partners in their day', async () => {
+    const { planContext } = await import('./weekPlan');
+    const E = { ...N, protein_g: 6, kcal: 75 };
+    const db = tableDb({
+      'settings:one': { data: { breakfasts: ['Overnight oats'], routine_nutrition: { 'Overnight oats': { ...N, kcal: 300 } }, meal_partners: { 'Overnight oats': { 'm-a': [{ recipe: 'boiled-egg', qty: 2 }] } } } },
+      members: [{ id: 'm-a', name: 'Adult A', kind: 'adult', portion_weight: 1 }],
+      recipes: [{ id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack', status: 'active', keeps_days: 5, toddler_ok: true, recipe_ingredients: [], nutrition: E }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.partners).toEqual([{ meal: 'Overnight oats', person: 'Adult A', recipe: 'boiled-egg', qty: 2 }]);
+    expect(ctx.members[0]).not.toHaveProperty('id');
+    const monday = ctx.builtInBalance[0].people[0];
+    expect(monday.totals.kcal).toBeGreaterThanOrEqual(300 + 2 * 75);
   });
 });
 

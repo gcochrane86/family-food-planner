@@ -156,11 +156,18 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
           reason: { type: 'string', description: 'One line shown on the day, up to 200 characters' } } } },
         new_recipes: { type: 'array', description: 'New recipes in the seed format from newRecipeRules (up to the allowance)', items: { type: 'object' } },
         cooking_minutes: { type: 'object', description: "This week's own cooking time for a day, as { \"YYYY-MM-DD\": minutes } (30–240), only for days the household says differ from rules.cookingTime", additionalProperties: { type: 'number' } },
-        snacks: { type: 'array', description: "Snack makes for the week (1–2): made in Today's cooking on one of rules.snackMakeDates, covering that day and the days after while it keeps", items: { type: 'object', required: ['recipe', 'slot', 'make_date', 'covers'], properties: {
-          recipe: { type: 'string', description: "A snack recipe's slug or title (snackRecipes), or a new snack recipe's slug" },
+        snacks: { type: 'array', description: "Each person's snacks: one per person per am/pm slot a day, made as one family on one of rules.snackMakeDates, on or before the day and within its keepsDays", items: { type: 'object', required: ['person', 'date', 'slot', 'recipe', 'make_date'], properties: {
+          person: { type: 'string', description: 'A name from members' },
+          date: { type: 'string', description: 'YYYY-MM-DD, the day it is eaten, in the week' },
           slot: { type: 'string', enum: ['am', 'pm'], description: 'Morning or afternoon snack' },
-          make_date: { type: 'string', description: 'YYYY-MM-DD, one of rules.snackMakeDates' },
-          covers: { type: 'array', items: { type: 'string' }, description: 'The days it is eaten, YYYY-MM-DD, from the make day on, within its keepsDays' } } } },
+          recipe: { type: 'string', description: "A snack recipe's slug or title (snackRecipes), or a new snack recipe's slug" },
+          qty: { type: 'number', description: 'Portions (one item each, e.g. 2 boiled eggs), default 1' },
+          make_date: { type: 'string', description: 'YYYY-MM-DD, one of rules.snackMakeDates' } } } },
+        partners: { type: 'array', description: 'New or changed meal partners, kept when the household approves the week: they then come with that breakfast or lunch for that person every time it is planned. qty 0 removes that person\'s partners for the meal', items: { type: 'object', required: ['meal', 'person', 'recipe', 'qty'], properties: {
+          meal: { type: 'string', description: 'A breakfast or lunch name (e.g. Overnight oats, Packed lunch)' },
+          person: { type: 'string', description: 'A name from members' },
+          recipe: { type: 'string', description: "A snack recipe's slug or title" },
+          qty: { type: 'number', description: 'Portions with each meal (e.g. 2 boiled eggs)' } } } },
       },
     },
     annotations: changes,

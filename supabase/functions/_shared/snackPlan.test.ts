@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseSnacks, saveNutrition, snackMakeDates, snackRows } from './snackPlan.ts';
+import { saveNutrition, snackMakeDates } from './snackPlan.ts';
 import { tableDb } from './testDb';
 
 const W = '2026-11-23'; // a Monday; the Sunday before is the 22nd
@@ -12,49 +12,6 @@ describe('snackMakeDates', () => {
   });
   test('with no prep days, any evening from the Sunday before', () => {
     expect(snackMakeDates(W, 5, [])).toEqual(['2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27']);
-  });
-});
-
-describe('parseSnacks', () => {
-  const week = { weekStart: W, days: 7, makeDates: ['2026-11-22', '2026-11-25'] };
-  test('a Sunday make covering Monday to Wednesday, and a Wednesday make covering the rest', () => {
-    const s = parseSnacks([
-      { recipe: 'hummus', slot: 'am', make_date: '2026-11-22', covers: ['2026-11-23', '2026-11-24', '2026-11-25'] },
-      { recipe: 'egg-muffins', slot: 'pm', make_date: '2026-11-25', covers: ['2026-11-25', '2026-11-26'] },
-    ], week);
-    expect(s).toHaveLength(2);
-    expect(s[0]).toEqual({ recipe: 'hummus', slot: 'snack_am', makeDate: '2026-11-22', covers: ['2026-11-23', '2026-11-24', '2026-11-25'] });
-  });
-  test('refuses a make day that isn’t a prep day, a day covered twice, and a day before the make', () => {
-    expect(() => parseSnacks([{ recipe: 'x', slot: 'am', make_date: '2026-11-24', covers: ['2026-11-24'] }], week)).toThrow(/2026-11-24 isn't a snack-making day. Use one of 2026-11-22, 2026-11-25/);
-    expect(() => parseSnacks([
-      { recipe: 'x', slot: 'am', make_date: '2026-11-22', covers: ['2026-11-25'] },
-      { recipe: 'y', slot: 'am', make_date: '2026-11-25', covers: ['2026-11-25'] },
-    ], week)).toThrow(/morning snack on 2026-11-25 is covered twice/);
-    expect(() => parseSnacks([{ recipe: 'x', slot: 'am', make_date: '2026-11-25', covers: ['2026-11-24'] }], week)).toThrow(/before it's made/);
-    expect(() => parseSnacks([{ recipe: 'x', slot: 'lunch', make_date: '2026-11-25', covers: ['2026-11-25'] }], week)).toThrow(/slot must be am or pm/);
-  });
-  test('no snacks is fine', () => {
-    expect(parseSnacks(undefined, week)).toEqual([]);
-  });
-});
-
-describe('snackRows', () => {
-  const make = { recipe: 'hummus', slot: 'snack_am' as const, makeDate: '2026-11-22', covers: ['2026-11-23', '2026-11-24', '2026-11-25'] };
-  test('a make on its day with portions for every day it covers, and the covered days as leftovers', () => {
-    expect(snackRows([make], new Map([['hummus', { id: 'r-h', keeps_days: 4, toddler_ok: true }]]), { adults: 2, children: 1 })).toEqual([
-      { date: '2026-11-22', slot: 'snack_am', recipe_id: 'r-h', mode: 'cook', portions: 9, guests: 0, locked: false, reason: 'Snack: made today for 3 days', source_date: null },
-      { date: '2026-11-23', slot: 'snack_am', recipe_id: 'r-h', mode: 'leftovers', portions: null, guests: 0, locked: false, reason: 'Snack', source_date: '2026-11-22' },
-      { date: '2026-11-24', slot: 'snack_am', recipe_id: 'r-h', mode: 'leftovers', portions: null, guests: 0, locked: false, reason: 'Snack', source_date: '2026-11-22' },
-      { date: '2026-11-25', slot: 'snack_am', recipe_id: 'r-h', mode: 'leftovers', portions: null, guests: 0, locked: false, reason: 'Snack', source_date: '2026-11-22' },
-    ]);
-  });
-  test('the toddler only counts for a toddler-friendly snack', () => {
-    expect(snackRows([make], new Map([['hummus', { id: 'r-h', keeps_days: 4, toddler_ok: false }]]), { adults: 2, children: 1 })[0].portions).toBe(6);
-  });
-  test('refuses a cover beyond how long it keeps', () => {
-    expect(() => snackRows([make], new Map([['hummus', { id: 'r-h', keeps_days: 3, toddler_ok: true }]]), { adults: 2, children: 1 }))
-      .toThrow(/hummus keeps 3 days from 2026-11-22, so not until 2026-11-25/);
   });
 });
 
@@ -76,10 +33,6 @@ describe('saveNutrition', () => {
 });
 
 describe('review fixes', () => {
-  test('a make day in the week must be one of the days it covers', () => {
-    expect(() => parseSnacks([{ recipe: 'x', slot: 'am', make_date: '2026-11-25', covers: ['2026-11-26'] }], { weekStart: W, days: 7, makeDates: ['2026-11-25'] }))
-      .toThrow(/made on 2026-11-25, so it covers that day too/);
-  });
   test('when no prep day falls in the plan, any evening will do', () => {
     expect(snackMakeDates(W, 5, [5])).toEqual(snackMakeDates(W, 5, []));
   });

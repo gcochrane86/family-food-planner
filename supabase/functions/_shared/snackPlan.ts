@@ -1,17 +1,11 @@
-// Snack makes (docs/superpowers/specs/2026-11-15-balance-snacks-design.md): snacks made in Today's cooking on prep
-// days, each covering its make day and the days after while it keeps, as a morning or afternoon snack. Also the
-// nutrition estimates Claude saves for recipes and for breakfasts and lunches that are names. Called "snack makes",
+// Snack make days (docs/superpowers/specs/2026-11-15-balance-snacks-design.md; who eats what is in snackEats.ts), and
+// the nutrition estimates Claude saves for recipes and for breakfasts and lunches that are names. Called "snack makes",
 // never batches: meal_slots.batch means freezer batches.
 import { parseNutrition } from './balance.ts';
 import { addDays } from './planner.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
-
-export interface SnackMake { recipe: string; slot: 'snack_am' | 'snack_pm'; makeDate: string; covers: string[] }
-
-const NAME = { snack_am: 'morning snack', snack_pm: 'afternoon snack' } as const;
-const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
 /** The days a snack can be made: the week's prep days (Sunday means the Sunday before the week, and that week's own
  *  Sunday when it's planned), or with no prep days, any evening from the Sunday before. */
@@ -25,58 +19,6 @@ export function snackMakeDates(weekStart: string, days: number, prepDays: number
   }
   // No prep day falls in the plan (a Saturday on a 5-day plan): any evening will do.
   return out.size ? [...out].sort() : any;
-}
-
-/** Claude's snack makes, checked: a make day it may use, covered days in the week from the make day on, and no
- *  morning or afternoon snack covered twice. */
-export function parseSnacks(raw: unknown, week: { weekStart: string; days: number; makeDates: string[] }): SnackMake[] {
-  if (raw == null) return [];
-  if (!Array.isArray(raw)) throw new Error('"snacks" must be a list');
-  const dates = Array.from({ length: week.days }, (_, i) => addDays(week.weekStart, i));
-  const taken = new Set<string>();
-  return raw.map((s: Record<string, unknown>) => {
-    const recipe = typeof s?.recipe === 'string' && s.recipe.trim() ? s.recipe.trim() : null;
-    if (!recipe) throw new Error('each snack needs a recipe');
-    if (s.slot !== 'am' && s.slot !== 'pm') throw new Error(`${recipe}: slot must be am or pm`);
-    const slot = s.slot === 'am' ? 'snack_am' : 'snack_pm';
-    const makeDate = String(s.make_date ?? '');
-    if (!week.makeDates.includes(makeDate)) throw new Error(`${makeDate || 'A snack with no make_date'} isn't a snack-making day. Use one of ${week.makeDates.join(', ')}.`);
-    if (!Array.isArray(s.covers) || !s.covers.length) throw new Error(`${recipe}: "covers" must list the days it's eaten`);
-    const covers = [...new Set(s.covers.map(String))].sort();
-    for (const d of covers) {
-      if (!dates.includes(d)) throw new Error(`${recipe}: ${d} isn't in the week`);
-      if (d < makeDate) throw new Error(`${recipe}: ${d} is before it's made (${makeDate})`);
-    }
-    if (dates.includes(makeDate) && !covers.includes(makeDate)) throw new Error(`${recipe} is made on ${makeDate}, so it covers that day too: add it to "covers"`);
-    for (const d of new Set([makeDate, ...covers])) {
-      const key = `${slot}|${d}`;
-      if (taken.has(key)) throw new Error(`The ${NAME[slot]} on ${d} is covered twice`);
-      taken.add(key);
-    }
-    return { recipe, slot, makeDate, covers };
-  });
-}
-
-/** The meal_slots rows for snack makes: the make on its day (portions for every day it covers) and each other day it
- *  covers as leftovers of it. Throws when a snack is covered past how long it keeps. */
-export function snackRows(makes: SnackMake[], recipes: Map<string, { id: string; keeps_days: number | null; toddler_ok: boolean }>,
-  people: { adults: number; children: number }): Record<string, unknown>[] {
-  const rows: Record<string, unknown>[] = [];
-  for (const m of makes) {
-    const r = recipes.get(m.recipe);
-    if (!r) throw new Error(`No snack recipe "${m.recipe}"`);
-    const keeps = r.keeps_days ?? 1;
-    const last = m.covers[m.covers.length - 1];
-    if (daysBetween(m.makeDate, last) > keeps - 1) throw new Error(`${m.recipe} keeps ${keeps} days from ${m.makeDate}, so not until ${last}`);
-    const perDay = people.adults + (r.toddler_ok ? people.children : 0);
-    rows.push({ date: m.makeDate, slot: m.slot, recipe_id: r.id, mode: 'cook', portions: m.covers.length * perDay, guests: 0, locked: false,
-      reason: `Snack: made today for ${m.covers.length} day${m.covers.length === 1 ? '' : 's'}`, source_date: null });
-    for (const d of m.covers) {
-      if (d === m.makeDate) continue;
-      rows.push({ date: d, slot: m.slot, recipe_id: r.id, mode: 'leftovers', portions: null, guests: 0, locked: false, reason: 'Snack', source_date: m.makeDate });
-    }
-  }
-  return rows;
 }
 
 const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat, and (0 or more) kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g';
