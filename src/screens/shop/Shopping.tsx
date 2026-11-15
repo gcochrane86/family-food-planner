@@ -31,7 +31,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     const chosen = wanted ? (next.week ? next : null) : pickShoppingWeek(next, current);
     const draft = !chosen && (next.week ?? current.week) ? true : false;
     if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
-    const ids = [...new Set(chosen.slots.filter((s) => s.slot === 'dinner' && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+    const ids = [...new Set(chosen.slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
     // A roast also needs its sides, which are recipes of their own (found by slug).
     const sideSlugs = new Set(chosen.slots.flatMap((s) => { const r = parseRoastChoice(s.roast); return r ? roastPartSlugs(r) : []; }));
     if (sideSlugs.size) {

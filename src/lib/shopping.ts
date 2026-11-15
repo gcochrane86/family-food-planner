@@ -78,7 +78,18 @@ export function buildShoppingList(
     }
   };
 
+  // The week's first day: a snack made the Sunday before it comes with the first (Sunday) delivery.
+  const firstDay = slots.filter((s) => s.slot === 'breakfast' || s.slot === 'lunch' || s.slot === 'dinner').map((s) => s.date).sort()[0] ?? '';
+  const beforeWeek = new Set<string>();
   for (const slot of [...slots].sort((a, b) => a.date.localeCompare(b.date))) {
+    // Snack makes: bought for the day they're made, scaled to every day they cover.
+    if ((slot.slot === 'snack_am' || slot.slot === 'snack_pm') && slot.mode === 'cook' && slot.recipe_id) {
+      const r = recipes.get(slot.recipe_id);
+      if (!r) continue;
+      if (firstDay && slot.date < firstDay) beforeWeek.add(slot.date);
+      add(r, (slot.portions ?? r.base_portions) / r.base_portions, `${SHORT[weekdayIndex(slot.date)]} snack: ${r.title}`, slot);
+      continue;
+    }
     if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
     const saved = recipes.get(slot.recipe_id);
     if (!saved) continue;
@@ -102,7 +113,7 @@ export function buildShoppingList(
   const tue: ShopItem[] = [];
   for (const item of items.values()) {
     if (item.qty !== null) item.qty = Math.round(item.qty * 1000) / 1000;
-    (shopsPerWeek === 2 && weekdayIndex(item.neededBy) >= 3 ? tue : sun).push(item);
+    (shopsPerWeek === 2 && !beforeWeek.has(item.neededBy) && weekdayIndex(item.neededBy) >= 3 ? tue : sun).push(item);
   }
   // Breakfast and lunch basics: merged into a matching line in the same delivery, otherwise added.
   const counts = (unit: string) => unit !== 'g' && unit !== 'ml';

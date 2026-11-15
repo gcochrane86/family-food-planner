@@ -394,3 +394,20 @@ describe('prep ahead: essential and optional', () => {
     expect(all(plan).some((t) => t.includes('Salt the beef'))).toBe(false);
   });
 });
+
+describe('snack makes', () => {
+  const HUMMUS = recipe('hummus', 'Beetroot Hummus', [ing(1, 'chickpeas', 400, 'g', 'drained'), ing(2, 'cooked beetroot', 200, 'g', null), ing(3, 'tahini', 2, 'tbsp', null)], [
+    step('finish', 1, null, 'Blend', 'Blend the **chickpeas**, **cooked beetroot** and **tahini** until smooth.', 'tm7', '1 min · speed 7', null),
+    step('finish', 2, null, 'Pot up', 'Spoon into pots for the fridge.', null, null, null),
+  ]);
+  it("a snack made tonight joins the hour as 'Snack:' steps, and its ingredients come out", () => {
+    const plan = planHour(input({ tm7Machines: 2, snacks: [{ title: 'Beetroot Hummus', recipe: HUMMUS, factor: 1 }] }));
+    expect(titled(plan, 'Snack: Blend')).toBeTruthy();
+    expect(titled(plan, 'Snack: Pot up')).toBeTruthy();
+    expect(plan.getOut.flatMap((g) => g.items).map((i) => i.name)).toEqual(expect.arrayContaining([expect.stringMatching(/chickpea/i)]));
+  });
+  it('with no dinner tomorrow (the Sunday before a new plan), the snack is still made', () => {
+    const plan = planHour(input({ tomorrow: null, snacks: [{ title: 'Beetroot Hummus', recipe: HUMMUS, factor: 2 }] }));
+    expect(titled(plan, 'Snack: Blend')).toBeTruthy();
+  });
+});

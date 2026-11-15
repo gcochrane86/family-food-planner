@@ -41,6 +41,8 @@ export interface HourInput {
     /** Only a breakfast made the night before. */
     breakfast?: { title: string; recipe?: RecipeDetail } | null;
   } | null;
+  /** Snacks made tonight (daily balance), each enough for the days it covers. */
+  snacks?: { title: string; recipe: RecipeDetail; factor: number }[];
 }
 
 export interface ChopGroup {
@@ -193,7 +195,7 @@ export function planHour(input: HourInput): HourPlan {
     if (placed.rinseAfter !== null) add(placed.rinseAfter, RINSE, true, null, rinse(false, input.kitPhotos));
     return add(placed.at, e.length, !e.handsOff, e.machine, e.step, ci).end;
   };
-  for (const [ci, chain] of extras(tomorrow, input.kitPhotos, nextDay(input.date)).entries()) {
+  for (const [ci, chain] of extras(tomorrow, input.kitPhotos, nextDay(input.date), input.snacks).entries()) {
     let earliest = base;
     for (const [n, e] of chain.entries()) {
       const placed = place(e, earliest, endAt, slots, input.tm7Machines, bowls, ci);
@@ -246,7 +248,7 @@ export function planHour(input: HourInput): HourPlan {
   const loose = getOutList([
     ...tonightOut,
     ...used,
-    ...extras(tomorrow).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
+    ...extras(tomorrow, undefined, undefined, input.snacks).flat().flatMap((e) => e.step.ingredients.map((i) => ({ i, factor: e.step.factor }))),
   ], input.prepPhotos);
   const preppedItems = [
     ...(prepDone.length && input.tonight ? [{ name: preppedName(input.tonight.recipe, prepDone), qty: 'made last night', key: `prepped:${input.tonight.recipe.id}`, icon: input.tonight.recipe.hero_image_path ?? null }] : []),
@@ -261,7 +263,7 @@ export function planHour(input: HourInput): HourPlan {
   const doneLastNight = input.yesterdayPlanned && input.tonight && doneSteps.length
     ? { title: input.tonight.recipe.title, steps: doneSteps.map((s) => s.title), state } : null;
   const total = Math.max(0, ...ordered.map((s) => s.end));
-  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, total, toWash: toWash(items > 0, chop, steps, ordered, [...extras(tomorrow).flat()]), warnings,
+  return { chop, getOut, iconsMissing, prepMissing, steps, handsOn, total, toWash: toWash(items > 0, chop, steps, ordered, [...extras(tomorrow, undefined, undefined, input.snacks).flat()]), warnings,
     forTomorrow, doneLastNight, roastAhead: tomorrow?.roast ?? null };
 }
 
@@ -324,8 +326,8 @@ const finishSteps = (r: RecipeDetail) => r.steps.filter((s) => s.phase === 'fini
 interface Extra { length: number; handsOff: boolean; machine: Machine | null; step: Omit<HourStep, 'from' | 'length'> }
 
 /** Tomorrow's prep steps, the night-before breakfast, then a lunch to make: each a chain of steps done in order. */
-function extras(tomorrow: HourInput['tomorrow'], kit?: Kit, tomorrowDate?: string): Extra[][] {
-  if (!tomorrow) return [];
+function extras(tomorrow: HourInput['tomorrow'], kit?: Kit, tomorrowDate?: string, snacks: HourInput['snacks'] = []): Extra[][] {
+  if (!tomorrow && !snacks.length) return [];
   const fromSteps = (r: RecipeDetail, steps: RecipeStep[], prefix: string, factor: number, dinner = false): Extra[] =>
     steps.map((s) => ({
       length: lengthOf(s), handsOff: isHandsOff(s), machine: s.machine,
@@ -335,6 +337,12 @@ function extras(tomorrow: HourInput['tomorrow'], kit?: Kit, tomorrowDate?: strin
   const simple = (title: string, body: string): Extra[] =>
     [{ length: 5, handsOff: false, machine: null, step: { kind: 'extra', title, body, kit: null, timer: null, ingredients: [], factor: 1, photos: [] } }];
   const chains: Extra[][] = [];
+  // Snacks made tonight, scaled to every day they cover.
+  for (const sn of snacks) {
+    const steps = finishSteps(sn.recipe);
+    if (steps.length) chains.push(fromSteps(sn.recipe, steps, 'Snack: ', sn.factor));
+  }
+  if (!tomorrow) return chains;
   if (tomorrow.dinner) {
     const r = tomorrow.dinner.recipe;
     const prep = tomorrowPrep(tomorrow.dinner);

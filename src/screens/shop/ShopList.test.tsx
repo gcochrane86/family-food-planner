@@ -254,3 +254,12 @@ describe('other shops', () => {
     expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).queryByText(/lamb mince/)).not.toBeInTheDocument();
   });
 });
+
+test("a snack make's ingredients are on the list for the day it's made", async () => {
+  const w = approved();
+  w.slots.push({ ...w.slots.find((s: MealSlot) => s.slot === 'dinner'), date: '2026-10-21', slot: 'snack_am', recipe_id: 'r-doner', mode: 'cook', portions: 6 });
+  h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? w : { week: null, slots: [] }));
+  render(<ShopList />, { wrapper: MemoryRouter });
+  const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+  expect(within(sunday).getByText(/for Wed snack: /)).toBeInTheDocument();
+});

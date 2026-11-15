@@ -632,3 +632,17 @@ test("Monday counts the Monday prep (the Sunday before) as done, though Sunday i
   expect(done).toHaveTextContent("prep for tonight's Almond-Crusted Honey Chilli Chicken");
   expect(within(done).getByRole('button', { name: "I didn't get to it" })).toBeInTheDocument();
 });
+
+test("a snack made today is one of the day's steps", async () => {
+  h.repo.getWeek.mockImplementation(async (_hid: string, ws: string) => (ws === '2026-10-19'
+    ? { week: NEXT_WEEK.week, slots: [...NEXT_WEEK.slots.map((s) => notDone({ ...s })), { ...NEXT_WEEK.slots.find((s) => s.slot === 'dinner')!, slot: 'snack_am', recipe_id: 'r-doner', mode: 'cook', portions: 6, date: '2026-10-19' } as MealSlot] }
+    : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] });
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  const titles: string[] = [];
+  for (let i = 0; i < 40 && screen.queryByRole('button', { name: 'Next' }); i++) {
+    titles.push(screen.getByRole('heading', { level: 1 }).textContent ?? '');
+    await user().click(screen.getByRole('button', { name: 'Next' }));
+  }
+  expect(titles.some((t) => t.startsWith('Snack: '))).toBe(true);
+});

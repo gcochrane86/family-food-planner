@@ -112,8 +112,16 @@ export function useTodayHour(day?: string | null, now = new Date()) {
       next = { dinner, lunch, breakfast, roast };
     }
 
+    // Snacks made today (daily balance), scaled to every day they cover.
+    const snackMakes = slots.filter((s) => s.date === today && (s.slot === 'snack_am' || s.slot === 'snack_pm') && s.mode === 'cook' && s.recipe_id);
+    const snacks = (await Promise.all(snackMakes.map(async (s) => {
+      const r = await forSlot(s);
+      return r ? { title: r.title, recipe: r, factor: (s.portions ?? r.base_portions) / r.base_portions } : null;
+    }))).filter((x): x is NonNullable<typeof x> => !!x);
+
     const input: HourInput = {
       date: today,
+      ...(snacks.length ? { snacks } : {}),
       // The day's cooking time: this week's own time for the day when it has one, else the day's setting.
       aim: dayMinutes(today, settings, loaded[weeks.indexOf(mondayOf(today))]?.week?.cooking_minutes),
       tm7Bowls: settings.tm7_bowls ?? 1,

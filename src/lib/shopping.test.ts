@@ -270,3 +270,22 @@ test("a day's tonight's version is what gets bought, and a stale one is ignored"
   expect(names(version)).not.toContain('crème fraîche');
   expect(names({ ...version, based_on: 'other' })).toContain('crème fraîche');
 });
+
+describe('snack makes', () => {
+  const hummus = { ...recipe('hummus', 6, [['chickpeas', 400, 'g'], ['tahini', 2, 'tbsp']]), kind: 'snack' as const };
+  const snack = (date: string, mode: MealSlot['mode'], portions: number | null, source: string | null = null): MealSlot => ({
+    ...dinner(date, 'hummus', portions, mode), slot: 'snack_am', source_date: source,
+  });
+  const withSnacks = new Map([...recipes, ['hummus', hummus]]);
+  test('a midweek make is bought with Tuesday’s delivery, scaled to its portions; the days it covers add nothing', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), snack('2026-10-22', 'cook', 12), snack('2026-10-23', 'leftovers', null, '2026-10-22')], withSnacks, [], 2);
+    const chickpeas = list.tue.find((i) => i.name === 'chickpeas')!;
+    expect(chickpeas.qty).toBe(800);
+    expect(chickpeas.forMeals).toEqual(['Thu snack: hummus']);
+  });
+  test('a make on the Sunday before the week comes in Sunday’s delivery', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), snack('2026-10-18', 'cook', 6)], withSnacks, [], 2);
+    expect(list.sun.find((i) => i.name === 'chickpeas')?.qty).toBe(400);
+    expect(list.tue.find((i) => i.name === 'chickpeas')).toBeUndefined();
+  });
+});
