@@ -58,6 +58,7 @@ describe('validateSettings', () => {
       tm7_bowls: 1,
       prep_days: [],
       routine_nutrition: {},
+      meal_partners: {},
     });
   });
   test("Today's hour: a real start time, 30–120 minutes, 1 or 2 TM7s and bowls", () => {
@@ -119,4 +120,13 @@ test('validateSettings keeps whole routine estimates only', () => {
   const good = { protein_g: 28, fibre_g: 6, veg_portions: 0, fruit_portions: 1, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
   expect(validateSettings({ routine_nutrition: { 'Eggs & porridge': good, Toast: { protein_g: 'x' } } }).routine_nutrition).toEqual({ 'Eggs & porridge': good });
   expect(validateSettings({}).routine_nutrition).toEqual({});
+});
+
+test("each person's meal partners are kept when settings are read and saved", () => {
+  const s = validateSettings({ meal_partners: {
+    'Overnight oats': { a: [{ recipe: 'boiled-egg', qty: 2 }, { recipe: '', qty: 1 }, { recipe: 'chia', qty: 0 }], b: 'nope' },
+    '': { a: [{ recipe: 'x', qty: 1 }] },
+  } });
+  expect(s.meal_partners).toEqual({ 'Overnight oats': { a: [{ recipe: 'boiled-egg', qty: 2 }] } });
+  expect(validateSettings({}).meal_partners).toEqual({});
 });

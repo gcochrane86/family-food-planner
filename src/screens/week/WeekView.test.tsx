@@ -1176,10 +1176,12 @@ describe('daily balance', () => {
       routine_nutrition: new Proxy({}, { get: () => N }) });
   };
 
-  test('a day short of the pattern says what is low on its tile', async () => {
+  test('the week stays calm: tiles show the meals only, and there is no week strip', async () => {
     estimated();
     render(<WeekView />, { wrapper: MemoryRouter });
-    expect(within(await tile('Monday 19')).getByText(/^Low: veg & fruit, healthy fats, fibre$/)).toBeInTheDocument();
+    await tile('Monday 19');
+    expect(screen.queryByText(/^Low:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: "This week's balance" })).not.toBeInTheDocument();
   });
 
   test('with no estimates yet, tiles say nothing about balance and there is no week strip', async () => {
@@ -1193,26 +1195,20 @@ describe('daily balance', () => {
     estimated();
     const week = await h.repo.getWeek('h1', '2026-10-19');
     const dinner = week.slots.find((s: MealSlot) => s.slot === 'dinner')!;
+    void dinner;
     h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
-      ? { ...week, slots: [...week.slots, { ...dinner, date: '2026-10-19', slot: 'snack_am', recipe_id: TACOS.id, mode: 'cook', portions: 6 } as MealSlot] }
-      : { week: null, slots: [] }));
+      ? { ...week, eats: [{ date: '2026-10-19', slot: 'snack_am', member_id: YOU.id, recipe_id: TACOS.id, qty: 2, make_date: '2026-10-18' }] }
+      : { week: null, slots: [], eats: [] }));
     render(<WeekView />, { wrapper: MemoryRouter });
     await openDay('Monday 19');
     const balance = within(screen.getByRole('dialog')).getByRole('region', { name: 'Balance' });
-    expect(within(balance).getByText(/Morning snack:/)).toHaveTextContent(TACOS.title);
+    expect(within(balance).getByText(/^You:/)).toHaveTextContent(`morning 2 × ${TACOS.title}`);
     const markers = within(balance).getByRole('list');
     expect(within(markers).getByText('Breakfast protein').closest('li')).toHaveTextContent('OK');
     expect(within(markers).getByText('Fibre').closest('li')).toHaveTextContent('Low');
   });
 
-  test("the week strip counts oily fish, beans or lentils, and red meat", async () => {
-    estimated();
-    render(<WeekView />, { wrapper: MemoryRouter });
-    const strip = await screen.findByRole('region', { name: "This week's balance" });
-    expect(strip).toHaveTextContent('Oily fish 0 of 2');
-    expect(strip).toHaveTextContent('Beans or lentils 0 of 3 days');
-    expect(strip).toHaveTextContent('Red meat 0 (2 at most)');
-  });
+
 });
 
 describe('each person against their targets', () => {
@@ -1245,8 +1241,36 @@ describe('each person against their targets', () => {
     expect(lines[0]).toHaveTextContent('Each adult: 625 kcal · 25g protein · 25g fat · 63g carbs · 13g sugars · 6g fibre');
   });
 
-  test('a tile says how many people are off target', async () => {
+  test('a tile never says who is off target', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
-    expect(within(await tile('Monday 19')).getByText(/Under protein: 1/)).toBeInTheDocument();
+    await tile('Monday 19');
+    expect(screen.queryByText(/Under protein/)).not.toBeInTheDocument();
+  });
+
+  test("each meal lists each person's partners; the day sheet nudges one fix and Yes adds it", async () => {
+    const egg = { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' as const, keeps_days: 5, toddler_ok: true, nutrition: { ...N, protein_g: 6, kcal: 75 } };
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY].map((r) => ({ ...r, nutrition: N })).concat([egg]));
+    h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
+      routine_nutrition: new Proxy({}, { get: () => N }), meal_partners: { 'Overnight oats': { [YOU.id]: [{ recipe: 'boiled-egg', qty: 2 }], [PARTNER.id]: [{ recipe: 'boiled-egg', qty: 1 }] } } });
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Monday 19');
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/^With it:/)).toHaveTextContent('With it: You 2 × Boiled egg · Partner 1 × Boiled egg');
+    // You're under protein (target 90): one fix offered.
+    const nudge = within(dialog).getByRole('region', { name: 'Suggestion' });
+    expect(nudge).toHaveTextContent(/You is \d+g under protein: add Boiled egg as an afternoon snack\?/);
+    await user().click(within(nudge).getByRole('button', { name: 'Yes, add it' }));
+    expect(h.repo.addSnackEat).toHaveBeenCalledWith(NEXT_WEEK.week.id, expect.objectContaining({ date: '2026-10-19', slot: 'snack_pm', member_id: YOU.id, recipe_id: 'r-egg', qty: 1 }));
+  });
+
+  test('a draft lists the meal partners Claude proposed with it', async () => {
+    const week = await h.repo.getWeek('h1', '2026-10-19');
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' }]);
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
+      ? { ...week, week: { ...week.week!, status: 'draft' as const, new_partners: { 'Overnight oats': { [YOU.id]: [{ recipe: 'boiled-egg', qty: 2 }] } } } }
+      : { week: null, slots: [] }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const box = await screen.findByRole('region', { name: 'New meal partners' });
+    expect(box).toHaveTextContent('Overnight oats now comes with 2 × Boiled egg for You');
   });
 });

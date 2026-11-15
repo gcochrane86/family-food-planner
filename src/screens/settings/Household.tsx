@@ -4,7 +4,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions, parseWeight } from '../../lib/household';
 import { INVITE_LENGTH, joinErrorMessage, normaliseCode } from '../../lib/invite';
 import { repo } from '../../lib/repo';
-import type { Member, MemberKind } from '../../lib/types';
+import type { Member, MemberKind, Partners, Recipe } from '../../lib/types';
 import { button, card, copyText, input, Page, primary } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
 import type { Macro, Targets } from '../../../supabase/functions/_shared/balance.ts';
@@ -18,8 +18,10 @@ export default function Household() {
   const hid = householdId!;
   const { data, setData, error, loading, reload } = useAsync(
     async () => {
-      const [household, members] = await Promise.all([repo.getHousehold(hid), repo.listMembers(hid)]);
-      return { household, members };
+      const [household, members, settings, recipes] = await Promise.all([repo.getHousehold(hid), repo.listMembers(hid),
+        Promise.resolve().then(() => repo.getSettings(hid)).catch(() => null),
+        Promise.resolve().then(() => repo.listRecipes(hid)).catch(() => [] as Recipe[])]);
+      return { household, members, settings, recipes };
     },
     [hid],
   );
@@ -149,6 +151,18 @@ export default function Household() {
                 return false;
               }
             }} />
+            {data?.settings && <MealPartners m={m} partners={data.settings.meal_partners ?? {}}
+              meals={[...new Set([...(data.settings.breakfasts ?? []), ...(data.settings.lunches ?? []), 'Packed lunch'])]}
+              snacks={data.recipes.filter((r) => r.kind === 'snack' && r.status !== 'archived' && (m.kind !== 'child' || r.toddler_ok !== false))}
+              onSave={async (next) => {
+                setBanner(null);
+                try {
+                  // The latest settings, so nothing changed elsewhere is overwritten.
+                  const latest = await repo.getSettings(hid);
+                  await repo.saveSettings(hid, { ...latest, meal_partners: next });
+                  setData((d) => (d && d.settings ? { ...d, settings: { ...d.settings, meal_partners: next } } : d));
+                } catch { setBanner(SAVE_ERROR); }
+              }} />}
             <div>
               {confirmRemove === m.id ? (
                 <span className="flex flex-wrap gap-2">
@@ -257,6 +271,56 @@ function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promis
       </div>
       {problem && <p className="m-0 mt-1 font-semibold text-warn">{problem}</p>}
       <p className="m-0 mt-1 text-muted">Protein and fibre: at least. Sugars, saturated fat and salt: at most. The rest: about.</p>
+    </details>
+  );
+}
+
+/** A person's meal partners: what always comes with a breakfast or lunch for them (overnight oats → 2 boiled eggs). */
+function MealPartners({ m, partners, meals, snacks, onSave }: { m: Member; partners: Partners; meals: string[]; snacks: Recipe[]; onSave: (p: Partners) => Promise<void> }) {
+  const [meal, setMeal] = useState(meals[0] ?? '');
+  const [snack, setSnack] = useState(snacks[0]?.slug ?? '');
+  const [qty, setQty] = useState('1');
+  const title = (slug: string) => snacks.find((r) => r.slug === slug)?.title ?? slug;
+  const mine = Object.entries(partners).flatMap(([ml, by]) => (by[m.id] ?? []).map((it) => ({ meal: ml, ...it })));
+  const without = (ml: string, slug: string): Partners => {
+    const next: Partners = JSON.parse(JSON.stringify(partners));
+    const list = (next[ml]?.[m.id] ?? []).filter((it) => it.recipe !== slug);
+    if (list.length) next[ml][m.id] = list; else if (next[ml]) delete next[ml][m.id];
+    if (next[ml] && !Object.keys(next[ml]).length) delete next[ml];
+    return next;
+  };
+  function add() {
+    const n = Number(qty.replace(',', '.'));
+    if (!meal || !snack || !Number.isFinite(n) || n <= 0 || n > 6) return;
+    const next = without(meal, snack);
+    ((next[meal] ??= {})[m.id] ??= []).push({ recipe: snack, qty: n });
+    void onSave(next);
+  }
+  return (
+    <details className="text-sm" open={mine.length > 0 || undefined}>
+      <summary className="cursor-pointer font-semibold text-accent">Meal partners</summary>
+      <ul className="m-0 mt-2 grid list-none gap-1 p-0">
+        {mine.map((it) => (
+          <li key={`${it.meal}|${it.recipe}`} className="flex items-center justify-between gap-2">
+            <span>{`With ${it.meal}: ${it.qty} × ${title(it.recipe)}`}</span>
+            <button type="button" className="text-muted underline" aria-label={`Remove ${title(it.recipe)} with ${it.meal} for ${m.name}`}
+              onClick={() => void onSave(without(it.meal, it.recipe))}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      {snacks.length ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <select aria-label={`${m.name} partner meal`} className={input} value={meal} onChange={(e) => setMeal(e.target.value)}>
+            {meals.map((x) => <option key={x}>{x}</option>)}
+          </select>
+          <select aria-label={`${m.name} partner snack`} className={input} value={snack} onChange={(e) => setSnack(e.target.value)}>
+            {snacks.map((r) => <option key={r.id} value={r.slug}>{r.title}</option>)}
+          </select>
+          <input aria-label={`${m.name} partner how many`} inputMode="decimal" className={`${input} w-16 text-right`} value={qty} onChange={(e) => setQty(e.target.value)} />
+          <button type="button" className={button} aria-label={`Add a partner for ${m.name}`} onClick={add}>Add</button>
+        </div>
+      ) : <p className="m-0 mt-1 text-muted">No snack recipes yet. Claude adds them when it plans a week.</p>}
+      <p className="m-0 mt-1 text-muted">Comes with that meal for {m.name} whenever it's planned: counted in their day, made on prep days and bought with the shop.</p>
     </details>
   );
 }

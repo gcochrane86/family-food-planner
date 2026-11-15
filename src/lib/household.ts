@@ -48,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tm7_bowls: 1,
   prep_days: [],
   routine_nutrition: {},
+  meal_partners: {},
 };
 
 const DAYS = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
@@ -140,6 +141,23 @@ export function validateSettings(raw: unknown): Settings {
     routine_nutrition: r.routine_nutrition && typeof r.routine_nutrition === 'object' && !Array.isArray(r.routine_nutrition)
       ? Object.fromEntries(Object.entries(r.routine_nutrition as Record<string, unknown>).flatMap(([k, v]) => { const n = parseNutrition(v); return n && k.trim() ? [[k.trim(), n]] : []; }))
       : {},
+    // Each person's meal partners: routine name → member id → [{ recipe slug, qty }].
+    meal_partners: mealPartners(r.meal_partners),
     private_rules: Array.isArray(r.private_rules) ? r.private_rules.filter((x): x is string => typeof x === 'string' && !!x.trim() && x.trim().length <= 300).map((x) => x.trim()).slice(0, 30) : [],
   };
+}
+
+function mealPartners(v: unknown): NonNullable<Settings['meal_partners']> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+  const out: NonNullable<Settings['meal_partners']> = {};
+  for (const [meal, byMember] of Object.entries(v as Record<string, unknown>)) {
+    if (!meal.trim() || !byMember || typeof byMember !== 'object' || Array.isArray(byMember)) continue;
+    for (const [member, items] of Object.entries(byMember as Record<string, unknown>)) {
+      if (!Array.isArray(items)) continue;
+      const kept = items.filter((x): x is { recipe: string; qty: number } => !!x && typeof x.recipe === 'string' && !!x.recipe.trim()
+        && typeof x.qty === 'number' && x.qty > 0 && x.qty <= 6).map((x) => ({ recipe: x.recipe, qty: x.qty }));
+      if (kept.length) (out[meal.trim()] ??= {})[member] = kept;
+    }
+  }
+  return out;
 }

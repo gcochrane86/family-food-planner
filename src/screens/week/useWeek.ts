@@ -1,3 +1,5 @@
+import { weekEats, weekMakeDates } from '../../lib/weekEats';
+import { placeEat } from '../../../supabase/functions/_shared/snackEats.ts';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { dayMinutes } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { useAuth } from '../../auth/AuthProvider';
@@ -14,7 +16,7 @@ import {
 import { londonParts, nextMonday } from '../../../supabase/functions/_shared/schedule.ts';
 import { mergePlan as merge, toProposed } from '../../../supabase/functions/_shared/slotMerge.ts';
 import { useAsync } from '../settings/useAsync';
-import { compareTargets, dayBalance, mealEstimates, parseNutrition, personDay, weekBalance, type DayBalance, type Macro, type TargetState, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
+import { compareTargets, dayBalance, mealEstimates, nudge, parseNutrition, personDay, weekBalance, type DayBalance, type Macro, type TargetState, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
 
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -65,6 +67,10 @@ export function useWeek() {
     lunch: data?.settings?.lunches?.length ? data.settings.lunches : HOME_LUNCHES,
   }), [data]);
   const [dismissedTick, setDismissedTick] = useState(0);
+  // Each person's snacks and meal partners this week (stored snacks, and partners worked out from the plan).
+  const eats = useMemo(() => (current ? weekEats(current, data?.settings, data?.recipes ?? []) : []), [current, data]);
+  const members = (data?.members ?? []) as Member[];
+  const firstAdult = members.find((m) => m.kind === 'adult');
 
   /** Last night's dinner (tonight's after 8pm), from this week or next, if it still needs "How was it?". */
   const lastNight = useMemo(() => {
@@ -171,18 +177,56 @@ export function useWeek() {
       : [],
     officeDays: input?.officeDays ?? [],
     /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
-    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare }) : null),
+    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines,
+      { homeLunches: mealOptions.lunch, share: adultShare, eats: eats.filter((e) => e.member_id === firstAdult?.id) }) : null),
+    /** Each person's snacks and meal partners on a day. */
+    eatsOn: (date: string) => eats.filter((e) => e.date === date),
+    memberName: (id: string) => members.find((m) => m.id === id)?.name ?? 'Someone',
+    /** Meal partners Claude proposed with this draft (kept when it's approved). */
+    newPartners: current?.week?.status === 'draft' ? current.week.new_partners ?? null : null,
     /** Each meal's estimate per serving, by slot (empty until any recipe has an estimate). */
     meals: (date: string) => (hasEstimates ? mealEstimates(date, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch }) : {}),
     adultShare,
     /** Each person's day against their own targets (empty until any recipe has an estimate). */
     people: (date: string): { id: string; name: string; totals: Partial<Record<Macro, number>>; unknown: Macro[]; states: Partial<Record<Macro, TargetState>>; targets: Partial<Record<Macro, number>> }[] =>
       (hasEstimates ? (data?.members ?? []).map((m: Member) => {
-        const p = personDay(date, current?.slots ?? [], recipes, routines, m, { homeLunches: mealOptions.lunch });
+        const p = personDay(date, current?.slots ?? [], recipes, routines, m, { homeLunches: mealOptions.lunch, eats });
         return { id: m.id, name: m.name, ...p, targets: m.targets ?? {}, states: compareTargets(p.totals, m.targets, p.unknown) };
       }) : []),
     /** The week's oily fish, beans or lentils, and red meat (null until any recipe has an estimate). */
-    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare }) : null),
+    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines, { homeLunches: mealOptions.lunch, share: adultShare, eats }) : null),
+    /** One fix for the first person whose day is under a target they've set, or null. */
+    nudge(date: string): { memberId: string; name: string; macro: Macro; gap: number; recipe_id: string; title: string; slot: 'snack_am' | 'snack_pm' } | null {
+      if (!hasEstimates || !current?.week) return null;
+      const snacks = (data?.recipes ?? []).filter((r) => r.kind === 'snack' && r.status !== 'archived');
+      for (const m of members) {
+        const p = personDay(date, current.slots, recipes, routines, m, { homeLunches: mealOptions.lunch, eats });
+        const states = compareTargets(p.totals, m.targets, p.unknown);
+        const fix = nudge({ kind: m.kind, totals: p.totals, targets: m.targets ?? {}, states }, eats.filter((e) => e.date === date && e.member_id === m.id), snacks);
+        if (fix) return { memberId: m.id, name: m.name, ...fix };
+      }
+      return null;
+    },
+    /** Adds one person's snack on a day (a nudge's yes), made with the family's makes. */
+    async addSnack(date: string, memberId: string, recipeId: string, slot: 'snack_am' | 'snack_pm'): Promise<boolean> {
+      const week = current?.week;
+      const r = recipes.get(recipeId);
+      if (!week || !r) return false;
+      setSaveError(null);
+      try {
+        const eat = placeEat({ date, slot, member_id: memberId, recipe_id: recipeId, qty: 1 }, eats, r.keeps_days ?? 1, weekMakeDates(week, data?.settings));
+        const saved = await repo.addSnackEat(week.id, eat);
+        setData((d) => {
+          if (!d) return d;
+          const key = shown === 'next' ? 'nextWeek' : 'thisWeek';
+          return { ...d, [key]: { ...d[key], eats: [...(d[key].eats ?? []), saved] } };
+        });
+        return true;
+      } catch {
+        setSaveError("Couldn't add the snack. Try again.");
+        return false;
+      }
+    },
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     /** Trades two days' dinners (recipe, portions, guests, batch and roast plans), and keeps both where you put them. */

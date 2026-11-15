@@ -1,8 +1,10 @@
 import { MemoryRouter } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { fakeRepo, TODDLER, YOU, type FakeRepo } from '../../test/fakeRepo';
 import Household from './Household';
+import { TACOS } from '../../test/fixtures';
+import { validateSettings } from '../../lib/household';
 
 const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
@@ -111,4 +113,38 @@ test("a target that can't be saved goes back to what was saved, and a typo says 
   await userEvent.type(fat, 'abc');
   await userEvent.tab();
   expect(screen.getByText('Enter a number of 0 or more, or leave it empty.')).toBeInTheDocument();
+});
+
+describe("each person's meal partners", () => {
+  const egg = { ...TACOS, id: 'r-egg', slug: 'boiled-egg', title: 'Boiled egg', kind: 'snack' as const, toddler_ok: true, status: 'active' as const };
+  const nuts = { ...TACOS, id: 'r-nuts', slug: 'apple-almonds', title: 'Apple & almonds', kind: 'snack' as const, toddler_ok: false, status: 'active' as const };
+  beforeEach(() => {
+    h.repo.listRecipes.mockResolvedValue([TACOS, egg, nuts]);
+    h.repo.getSettings.mockResolvedValue({ ...validateSettings({}), breakfasts: ['Overnight oats'], lunches: ['Chicken sandwich'],
+      meal_partners: { 'Overnight oats': { [YOU.id]: [{ recipe: 'boiled-egg', qty: 2 }] } } });
+  });
+
+  test('listed per person, added and removed', async () => {
+    render(<Household />, { wrapper: MemoryRouter });
+    expect(await screen.findByText('With Overnight oats: 2 × Boiled egg')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('You partner meal'), 'Chicken sandwich');
+    await userEvent.selectOptions(screen.getByLabelText('You partner snack'), 'apple-almonds');
+    await userEvent.clear(screen.getByLabelText('You partner how many'));
+    await userEvent.type(screen.getByLabelText('You partner how many'), '1');
+    await userEvent.click(screen.getByRole('button', { name: 'Add a partner for You' }));
+    expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ meal_partners: {
+      'Overnight oats': { [YOU.id]: [{ recipe: 'boiled-egg', qty: 2 }] }, 'Chicken sandwich': { [YOU.id]: [{ recipe: 'apple-almonds', qty: 1 }] },
+    } }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Boiled egg with Overnight oats for You' }));
+    expect(h.repo.saveSettings).toHaveBeenLastCalledWith('h1', expect.objectContaining({ meal_partners: {
+      'Chicken sandwich': { [YOU.id]: [{ recipe: 'apple-almonds', qty: 1 }] },
+    } }));
+  });
+
+  test("the toddler is only offered toddler-friendly snacks", async () => {
+    render(<Household />, { wrapper: MemoryRouter });
+    const snack = await screen.findByLabelText('Toddler partner snack');
+    expect(within(snack).queryByRole('option', { name: 'Apple & almonds' })).not.toBeInTheDocument();
+    expect(within(snack).getByRole('option', { name: 'Boiled egg' })).toBeInTheDocument();
+  });
 });

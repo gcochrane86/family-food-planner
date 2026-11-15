@@ -145,7 +145,14 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
 
   const hint = <span className="text-xs font-semibold text-muted">Hold for options</span>;
   const meals = w.meals(date);
-  const numbers = (meal: 'breakfast' | 'lunch' | 'dinner') => <MealNumbers n={meals[meal]} share={w.adultShare} />;
+  const partners = (meal: 'breakfast' | 'lunch') => {
+    const eats = w.eatsOn(date).filter((e) => e.slot === meal);
+    return eats.length ? <span className="text-[13px] font-semibold text-accent">With it: {eats.map((e) => `${w.memberName(e.member_id)} ${e.qty} × ${w.recipes.get(e.recipe_id)?.title ?? 'snack'}`).join(' · ')}</span> : null;
+  };
+  const numbers = (meal: 'breakfast' | 'lunch' | 'dinner') => <>
+    <MealNumbers n={meals[meal]} share={w.adultShare} />
+    {meal !== 'dinner' && partners(meal)}
+  </>;
   const caption = (title: string, sub?: string, withHint = true, extra?: React.ReactNode) => (
     <span className="grid gap-0.5 px-4 py-2.5">
       <b className="font-display text-lg leading-tight">{title}</b>

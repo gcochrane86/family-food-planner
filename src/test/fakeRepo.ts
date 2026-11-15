@@ -41,6 +41,7 @@ export function fakeRepo() {
     makeSmallCopy: vi.fn(async (_path: string) => {}),
     getWeek: vi.fn(async (_hid: string, weekStart: string) =>
       (weekStart === NEXT_WEEK.week.week_start ? JSON.parse(JSON.stringify(NEXT_WEEK)) : { week: null, slots: [] }) as { week: PlanWeek | null; slots: MealSlot[] }),
+    addSnackEat: vi.fn(async (_weekId: string, eat: Record<string, unknown>) => ({ ...eat, id: 'e-new' })),
     listBasics: vi.fn(async (): Promise<WeeklyBasic[]> => [
       { id: 'b-eggs', household_id: 'h1', position: 1, name: 'Eggs', qty: 18, unit: '', approx: false, delivery: 'sun' },
       { id: 'b-milk', household_id: 'h1', position: 2, name: 'Whole milk', qty: 3000, unit: 'ml', approx: false, delivery: 'split' },

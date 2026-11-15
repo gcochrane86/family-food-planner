@@ -1,5 +1,4 @@
 import type { Macro, Mark, Nutrition, TargetState } from '../../../supabase/functions/_shared/balance.ts';
-import { addDays } from './useWeek';
 import type { WeekState } from './useWeek';
 
 const MARK: Record<Mark, { label: string; className: string }> = {
@@ -7,15 +6,16 @@ const MARK: Record<Mark, { label: string; className: string }> = {
   low: { label: 'Low', className: 'text-warn' },
   unknown: { label: 'Not known', className: 'text-muted' },
 };
-const SNACK = { snack_am: 'Morning snack', snack_pm: 'Afternoon snack' } as const;
 const weekdayOf = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
 
 /** In a day's sheet: the day's snacks and how it measures up (breakfast protein, veg and fruit, healthy fats, fibre). */
 export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
   const b = w.balance(date);
-  const snacks = w.slots.filter((s) => s.date === date && (s.slot === 'snack_am' || s.slot === 'snack_pm') && s.recipe_id)
-    .sort((a, b2) => a.slot.localeCompare(b2.slot));
-  if (!b && !snacks.length) return null;
+  // Each person's snacks that day, with when they're made.
+  const snacks = w.eatsOn(date).filter((e) => e.slot === 'snack_am' || e.slot === 'snack_pm');
+  const byPerson = [...new Set(snacks.map((e) => e.member_id))];
+  const fix = w.nudge(date);
+  if (!b && !snacks.length && !fix) return null;
   const rows: [string, Mark | undefined, string][] = b ? [
     ['Breakfast protein', b.breakfastProtein, 'about 25g or more'],
     ['Veg & fruit', b.vegFruit, '5 or more portions, at least half veg'],
@@ -25,11 +25,20 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
   return (
     <section aria-label="Balance" className="grid gap-2 rounded-2xl bg-surface px-4 py-3 shadow-sm">
       <h3 className="m-0 text-base font-bold">Balance</h3>
-      {snacks.map((s) => {
-        const r = w.recipes.get(s.recipe_id!);
-        const made = s.mode === 'cook' ? 'made today' : s.source_date ? `made ${s.source_date < w.weekStart ? 'Sunday' : weekdayOf(s.source_date)}` : '';
-        return <p key={s.slot} className="m-0 grid text-sm"><span>{SNACK[s.slot as keyof typeof SNACK]}: <b>{r?.title ?? 'Snack'}</b>{made && <span className="text-muted"> · {made}</span>}</span><MealNumbers n={w.meals(date)[s.slot as keyof typeof SNACK]} share={1} /></p>;
-      })}
+      {fix && (
+        <div role="region" aria-label="Suggestion" className="grid gap-2 rounded-xl bg-accent-soft px-3 py-2.5 text-sm">
+          <p className="m-0">{fix.name} is {fix.gap}{UNIT[fix.macro]} under {WORD[fix.macro]}: add {fix.title} as {fix.slot === 'snack_am' ? 'a morning' : 'an afternoon'} snack?</p>
+          <button type="button" className="justify-self-start rounded-xl bg-accent px-3.5 py-2 font-semibold text-accent-ink"
+            onClick={() => void w.addSnack(date, fix.memberId, fix.recipe_id, fix.slot)}>Yes, add it</button>
+        </div>
+      )}
+      {byPerson.map((id) => (
+        <p key={id} className="m-0 text-sm">{w.memberName(id)}: {snacks.filter((e) => e.member_id === id).sort((x, y) => x.slot.localeCompare(y.slot)).map((e) => {
+          const r = w.recipes.get(e.recipe_id);
+          const made = e.make_date === date ? 'made today' : `made ${e.make_date < w.weekStart ? 'Sunday' : weekdayOf(e.make_date)}`;
+          return `${e.slot === 'snack_am' ? 'morning' : 'afternoon'} ${e.qty} × ${r?.title ?? 'snack'} (${made})`;
+        }).join(' · ')}</p>
+      ))}
       {rows.length > 0 && (
         <ul className="m-0 grid list-none gap-1 p-0 text-sm">
           {rows.map(([label, mark, aim]) => (
@@ -42,25 +51,6 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
       )}
       <PeopleTable date={date} w={w} />
       {rows.length > 0 && <p className="m-0 text-[12px] text-muted">Estimates from the ingredients, for spotting patterns. The markers are for an adult's share.</p>}
-    </section>
-  );
-}
-
-/** Above the week: oily fish, beans or lentils, and red meat across the week. */
-export function WeekBalanceStrip({ w, days }: { w: WeekState; days: number }) {
-  const b = w.weekBalance(Array.from({ length: days }, (_, i) => addDays(w.weekStart, i)));
-  if (!b) return null;
-  const items: [string, Mark][] = [
-    [`Oily fish ${b.oilyFish.count} of 2`, b.oilyFish.mark],
-    [`Beans or lentils ${b.legumes.count} of 3 days`, b.legumes.mark],
-    [`Red meat ${b.redMeat.count} (2 at most)`, b.redMeat.mark],
-    ...(b.processed.count ? [[`Processed meat ${b.processed.count} (1 at most)`, b.processed.mark] as [string, Mark]] : []),
-  ];
-  return (
-    <section aria-label="This week's balance" className="flex flex-wrap gap-1.5">
-      {items.map(([text, mark]) => (
-        <span key={text} className={`rounded-full px-3 py-1 text-[13px] font-semibold ${mark === 'low' ? 'bg-warn-soft text-warn' : 'bg-accent-soft text-accent'}`}>{text}</span>
-      ))}
     </section>
   );
 }
@@ -102,18 +92,8 @@ function PeopleTable({ date, w }: { date: string; w: WeekState }) {
   );
 }
 
+const UNIT: Partial<Record<Macro, string>> = { kcal: ' kcal', protein_g: 'g', fibre_g: 'g' };
 const WORD: Partial<Record<Macro, string>> = { kcal: 'calories', protein_g: 'protein', fat_g: 'fat', sat_fat_g: 'saturated fat', carbs_g: 'carbs', sugars_g: 'sugars', fibre_g: 'fibre', salt_g: 'salt' };
-/** For a day's tile: how many people are under or over each target, e.g. "Under protein: 2 · Over sugars: 1". */
-export function offTargets(people: ReturnType<WeekState['people']>): string | null {
-  const parts: string[] = [];
-  for (const [k] of ROWS) {
-    for (const s of ['under', 'over'] as const) {
-      const n = people.filter((p) => p.states[k] === s).length;
-      if (n) parts.push(`${s === 'under' ? 'Under' : 'Over'} ${WORD[k]}: ${n}`);
-    }
-  }
-  return parts.length ? parts.slice(0, 3).join(' · ') : null;
-}
 
 /** Under a meal: its numbers for one person's share, e.g. "Each adult: 625 kcal · 25g protein · …". */
 export function MealNumbers({ n, share, who = 'Each adult' }: { n: Nutrition | null | undefined; share: number; who?: string }) {

@@ -6,7 +6,6 @@ import DaySheet from './DaySheet';
 import FeedbackCard from './FeedbackCard';
 import ApprovedSheet from './ApprovedSheet';
 import ShoppingSheet from './ShoppingSheet';
-import { offTargets, WeekBalanceStrip } from './Balance';
 import ClaudeWeekNotes, { Failed, Planning, planPath, usePlanRequest } from './PlanWithClaude';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
@@ -91,7 +90,19 @@ export default function WeekView() {
         </Link>
       )}
 
-      {w.week && <WeekBalanceStrip w={w} days={w.week.days} />}
+      {w.newPartners && Object.keys(w.newPartners).length > 0 && (
+        <section aria-label="New meal partners" className="grid gap-2 rounded-2xl border-2 border-yolk bg-surface p-4">
+          <h2 className="m-0 text-base font-bold">New meal partners</h2>
+          <p className="m-0 text-sm text-muted">Claude suggests these to balance your days. Approving the week keeps them (change them in Settings → Household).</p>
+          <ul className="m-0 grid list-none gap-1 p-0 text-sm">
+            {Object.entries(w.newPartners).flatMap(([meal, byMember]) => Object.entries(byMember).map(([id, items]) => (
+              <li key={`${meal}|${id}`}>{items.length
+                ? `${meal} now comes with ${items.map((it) => `${it.qty} × ${[...w.recipes.values()].find((r) => r.slug === it.recipe)?.title ?? it.recipe}`).join(' and ')} for ${w.memberName(id)}`
+                : `${meal} no longer comes with anything for ${w.memberName(id)}`}</li>
+            )))}
+          </ul>
+        </section>
+      )}
 
       {w.newDinners.length > 0 && (
         <section aria-label="New recipes to check" className="grid gap-2 rounded-2xl border-2 border-yolk bg-surface p-4">
@@ -127,7 +138,7 @@ export default function WeekView() {
           })()}
           {dates.map((d) => (
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
-              isNew={w.newDinners.some((n) => n.date === d)} low={w.balance(d)?.low ?? []} targets={offTargets(w.people(d))}
+              isNew={w.newDinners.some((n) => n.date === d)}
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
           <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14}
