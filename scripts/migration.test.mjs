@@ -782,3 +782,28 @@ test("0025: each person's snack eats are saved with Claude's week, replaced with
   await as(OWNER, `insert into snack_eats (plan_week_id, date, slot, member_id, recipe_id, qty, make_date) values ('${wid}', '2026-10-28', 'snack_am', '${a}', '${egg}', 1, '2026-10-27')`);
   expect(await one(OWNER, `select count(*)::int from snack_eats`)).toBe(1);
 });
+
+test("0026: recipes that can be snacks and quick snacks; a replan keeps the household's own snacks", async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  const a = await one(OWNER, `insert into members (household_id, name, kind, portion_weight) values ('${hid}', 'A', 'adult', 1.25) returning id`);
+  await as(OWNER, `update recipes set snack_ok = true, snack_portions = 8 where id = '${rid}'`);
+  expect(await one(OWNER, `select snack_portions from recipes where id = '${rid}'`)).toBe(8);
+  await expect(as(OWNER, `update recipes set snack_portions = 0 where id = '${rid}'`)).rejects.toThrow();
+  const apple = await one(OWNER, `insert into recipes (household_id, slug, title, kind, status, source, base_portions, quick) values ('${hid}', 'apple-almonds', 'Apple & almonds', 'snack', 'active', 'own_doc', 1, true) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  const claudeEats = (rows) => JSON.stringify(rows.map(([date, slot, recipe]) => ({ date, slot, member_id: a, recipe_id: recipe, qty: 1, make_date: '2026-10-25' })));
+  await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S', null, null, null, '${claudeEats([['2026-10-26', 'snack_pm', rid]])}', null)`);
+  const wid = await one(OWNER, `select id from plan_weeks where week_start = '2026-10-26'`);
+  expect(await one(OWNER, `select added_by from snack_eats limit 1`)).toBe('claude');
+  // The household adds their own afternoon snack on Tuesday.
+  await as(OWNER, `insert into snack_eats (plan_week_id, date, slot, member_id, recipe_id, qty, make_date, added_by) values ('${wid}', '2026-10-27', 'snack_pm', '${a}', '${apple}', 1, '2026-10-27', 'household')`);
+  await expect(as(OWNER, `insert into snack_eats (plan_week_id, date, slot, member_id, recipe_id, qty, make_date, added_by) values ('${wid}', '2026-10-28', 'snack_pm', '${a}', '${apple}', 1, '2026-10-28', 'someone')`)).rejects.toThrow();
+  // A replan: Claude's old snack goes, the household's stays, and Claude's clashing Tuesday snack is skipped.
+  const req2 = await one(OWNER, `insert into week_plan_requests (household_id, week_start, replace) values ('${hid}', '2026-10-26', true) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req2}'`);
+  await svc(`select save_claude_week('${req2}', 7, '${claudeSlots(rid)}', 'S', null, null, null, '${claudeEats([['2026-10-27', 'snack_pm', rid], ['2026-10-28', 'snack_am', rid]])}', null)`);
+  expect(await as(OWNER, `select date::text, slot, added_by from snack_eats order by date`)).toEqual([
+    { date: '2026-10-27', slot: 'snack_pm', added_by: 'household' },
+    { date: '2026-10-28', slot: 'snack_am', added_by: 'claude' },
+  ]);
+});
