@@ -3,6 +3,7 @@
 // connector, so the two can't drift. Pure TS with the database client passed in.
 import { MAX_MINUTES, MIN_MINUTES } from './cookingTime.ts';
 import { loadPlannerInput } from './loadPlan.ts';
+import { parseChoices, type PlanChoices } from './planChoices.ts';
 import { MEAL_SPEC } from './mealSpec.ts';
 import { slotRows } from './planInput.ts';
 import { addDays, OFFICE_MAX, proposeWeek } from './planner.ts';
@@ -33,7 +34,8 @@ export interface WeekPlan {
  *  sizes, recent dinners, whether the week already has a draft or is approved, the rules for a new recipe, and the
  *  built-in planner's proposal as a starting point. */
 export async function planContext(db: Db, hid: string, weekStart: string) {
-  const input = await loadPlannerInput(db, hid, weekStart);
+  const choices = await openChoices(db, hid, weekStart);
+  const input = await loadPlannerInput(db, hid, weekStart, choices);
   const [settings, members, rules, recipes, recent, freezer, pantry, products, existing] = await Promise.all([
     db.from('settings').select('data').eq('household_id', hid).maybeSingle(),
     db.from('members').select('name, kind, portion_weight').eq('household_id', hid),
@@ -68,7 +70,10 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
   return {
     week: {
       start: weekStart, days: input.days,
-      dates: Array.from({ length: input.days }, (_, i) => ({ date: addDays(weekStart, i), day: DAY[i], office: input.officeDays.includes(i) })),
+      dates: Array.from({ length: input.days }, (_, i) => ({
+        date: addDays(weekStart, i), day: DAY[i], office: input.officeDays.includes(i),
+        nightOff: (choices?.nightsOff ?? []).includes(addDays(weekStart, i)), prepDay: (choices?.prepDays ?? []).includes(i),
+      })),
       householdPortions: input.householdPortions,
       existing: !week ? 'none' : week.status === 'approved' ? 'approved' : 'draft',
     },
@@ -76,7 +81,9 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
       proteinBalance: input.balance, weekdayDinnerMaxMinutes: input.weekdayMaxMin, officeDayMaxMinutes: Math.min(OFFICE_MAX, input.weekdayMaxMin),
       // Today's cooking: each day's time for cooking (the dinner's cook, the next day's prep, the extras).
       cookingTime: (input.dayMinutes ?? Array(7).fill(60)).slice(0, input.days).map((minutes, i) => ({ date: addDays(weekStart, i), day: DAY[i], minutes })),
-      dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: s.adventure ?? 1,
+      dayRules: s.day_rules ?? [], otherShops: s.other_shops ?? [], newRecipesAllowed: choices ? choices.newRecipes : s.adventure ?? 1,
+      // Plan with Claude: the week's choices (none without an open request from the app).
+      nightsOff: choices?.nightsOff ?? [], prepDays: (choices?.prepDays ?? []).map((d) => DAY[d]), useUp: choices?.useUp ?? [],
       whatMakesAMeal: MEAL_SPEC, houseRules: list(rules, 'Reading house rules'), privateRules: Array.isArray(s.private_rules) ? s.private_rules : [],
     },
     newRecipeRules: NEW_RECIPE_RULES,
@@ -94,6 +101,23 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
       .filter((p) => p.pack_size).map((p) => ({ item: p.item_key.split('|')[0], pack: `${p.pack_size}${p.pack_unit}`, product: p.product_name })),
     builtInProposal: proposal,
   };
+}
+
+/** The choices made on the app's Plan with Claude screen, from the week's open plan request, or null. */
+export async function openChoices(db: Db, hid: string, weekStart: string): Promise<PlanChoices | null> {
+  const res = await db.from('week_plan_requests').select('choices').eq('household_id', hid).eq('week_start', weekStart)
+    .in('status', ['requested', 'planning']).maybeSingle();
+  // No choices column before migration 0022: the usual week.
+  if (res.error) return null;
+  return parseChoices(res.data?.choices, weekStart);
+}
+
+const shortDay = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+/** A dinner Claude put on a night off, as words to fix, or null. */
+export function nightOffDinner(plan: WeekPlan, choices: PlanChoices | null | undefined): string | null {
+  const hit = plan.dinners.find((d) => (choices?.nightsOff ?? []).includes(d.date));
+  return hit ? `${shortDay(hit.date)} is a night off. Leave it out.` : null;
 }
 
 const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
@@ -142,7 +166,9 @@ const CLOSED: Record<string, string> = {
  *  request that's being planned: all or nothing (new recipes are removed again if the week isn't saved). Throws an
  *  Error the household can read. `deps` is for tests. */
 export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekStart: string, plan: WeekPlan,
-  deps: { loadInput?: typeof loadPlannerInput; propose?: (input: Awaited<ReturnType<typeof loadPlannerInput>>, chosen: { date: string; recipeId: string; reason: string }[]) => Record<string, unknown>[] } = {}): Promise<{ added: number }> {
+  deps: { loadInput?: typeof loadPlannerInput; propose?: (input: Awaited<ReturnType<typeof loadPlannerInput>>, chosen: { date: string; recipeId: string; reason: string }[]) => Record<string, unknown>[];
+    /** The week's choices from the app's Plan with Claude screen. */
+    choices?: PlanChoices | null } = {}): Promise<{ added: number }> {
   const loadInput = deps.loadInput ?? loadPlannerInput;
   const propose = deps.propose ?? ((input, chosenDinners) => slotRows('', proposeWeek({ ...input, chosenDinners })).map(({ plan_week_id: _, ...s }) => s));
   const existing = list<{ id: string; slug: string }>(await db.from('recipes').select('id, slug').eq('household_id', hid), 'Reading recipes');
@@ -150,6 +176,8 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
   for (const n of plan.newRecipes) if (bySlug.has(n.slug)) throw new Error(`A recipe with the slug "${n.slug}" already exists. Pick another slug.`);
   const newSlugs = new Set(plan.newRecipes.map((n) => n.slug));
   for (const d of plan.dinners) if (!bySlug.has(d.recipe) && !newSlugs.has(d.recipe)) throw new Error(`No recipe "${d.recipe}" (${d.date}). Use a recipe from the context, or add it as a new recipe.`);
+  const off = nightOffDinner(plan, deps.choices);
+  if (off) throw new Error(`${off} Nothing was saved.`);
 
   const added: string[] = [];
   try {
@@ -163,7 +191,7 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
       const saved = await db.rpc('replace_recipe_contents', { p_recipe_id: row.data.id, p_ingredients: ingredients, p_steps: steps });
       if (saved.error) throw new Error(`Saving ${n.title}'s ingredients and steps: ${saved.error.message}`);
     }
-    const loaded = await loadInput(db, hid, weekStart);
+    const loaded = await loadInput(db, hid, weekStart, deps.choices);
     // The week's own times win over the days' settings for the planning around Claude's dinners.
     const own = plan.cookingMinutes;
     const input = own && loaded.dayMinutes ? { ...loaded, dayMinutes: loaded.dayMinutes.map((m, i) => own[addDays(weekStart, i)] ?? m) } : loaded;
@@ -171,7 +199,8 @@ export async function saveWeekPlan(db: Db, hid: string, requestId: string, weekS
     const chosen = plan.dinners.map((d) => ({ date: d.date, recipeId: bySlug.get(d.recipe)!, reason: d.reason }));
     const left = plan.dinners.filter((d) => !plannable.has(bySlug.get(d.recipe)!));
     if (left.length) throw new Error(`Not plannable (archived, rated 👎, or a roast or hosting recipe): ${left.map((d) => d.recipe).join(', ')}.`);
-    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: propose(input, chosen), p_summary: plan.summary, p_cooking: plan.cookingMinutes });
+    const res = await db.rpc('save_claude_week', { p_request: requestId, p_days: input.days, p_slots: propose(input, chosen), p_summary: plan.summary, p_cooking: plan.cookingMinutes,
+      ...(deps.choices ? { p_office: deps.choices.office, p_prep: deps.choices.prepDays } : {}) });
     if (res.error) {
       const code = Object.keys(CLOSED).find((k) => res.error.message.includes(k));
       if (code) {

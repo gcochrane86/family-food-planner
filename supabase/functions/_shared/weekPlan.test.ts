@@ -90,3 +90,53 @@ describe('planContext', () => {
     expect(ctx.recipes[0]).toMatchObject({ prepMinutes: 10, cookHandsOn: 10 });
   });
 });
+
+describe('the week’s choices (Plan with Claude)', () => {
+  const choices = {
+    office: { a: [0] }, nightsOff: ['2026-11-18'], prepDays: [6], weekdayMaxMin: 30, newRecipes: 2, useUp: ['Lamb mince (freezer)'],
+    cookingMinutes: { '2026-11-16': 60, '2026-11-17': 60, '2026-11-18': 60, '2026-11-19': 60, '2026-11-20': 90, '2026-11-21': 60, '2026-11-22': 120 },
+  };
+  test('planContext reads the open request and plans with its choices', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({
+      'settings:one': { data: { adventure: 1 } },
+      members: [{ id: 'a', kind: 'adult', portion_weight: 1 }],
+      member_week_pattern: [{ member_id: 'a', weekday: 1, office: true }],
+      'week_plan_requests:one': { choices },
+      recipes: [{ id: 'r1', slug: 'curry', title: 'Curry', kind: 'meal', status: 'active', protein: 'chicken', finish_minutes: 30, reheats_well: false, base_portions: 4, recipe_ingredients: [] }],
+    });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.week.dates[0]).toMatchObject({ office: true, nightOff: false, prepDay: false });
+    expect(ctx.week.dates[1].office).toBe(false);
+    expect(ctx.week.dates[2].nightOff).toBe(true);
+    expect(ctx.week.dates[6].prepDay).toBe(true);
+    expect(ctx.rules.cookingTime[4].minutes).toBe(90);
+    expect(ctx.rules).toMatchObject({ nightsOff: ['2026-11-18'], prepDays: ['Sunday'], useUp: ['Lamb mince (freezer)'], newRecipesAllowed: 2 });
+    expect(ctx.builtInProposal.find((d) => d.date === '2026-11-18')?.recipe).toBeNull();
+  });
+
+  test('with no open request the usual week is planned, as before', async () => {
+    const { planContext } = await import('./weekPlan');
+    const db = tableDb({ 'settings:one': { data: { adventure: 1 } }, members: [{ id: 'a', kind: 'adult', portion_weight: 1 }], member_week_pattern: [{ member_id: 'a', weekday: 1, office: true }] });
+    const ctx = await planContext(db as never, 'h1', '2026-11-16');
+    expect(ctx.week.dates[1].office).toBe(true);
+    expect(ctx.rules).toMatchObject({ nightsOff: [], prepDays: [], useUp: [], newRecipesAllowed: 1 });
+  });
+
+  test('the save refuses a dinner on a night off before anything is written, and saves the office and prep days', async () => {
+    const db = tableDb({ recipes: [{ id: 'r-curry', slug: 'curry' }] });
+    const deps = { loadInput: async () => ({ days: 7, recipes: [{ id: 'r-curry' }] }) as never, propose: () => [] as never, choices };
+    const bad = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-18')] }, WEEK);
+    await expect(saveWeekPlan(db, 'h1', 'req1', '2026-11-16', bad, deps)).rejects.toThrow(/Wed 18 Nov is a night off/);
+    expect(db.rpcs).toEqual([]);
+    const good = parsePlan({ summary: 'A week.', dinners: [dinner('2026-11-17')] }, WEEK);
+    await saveWeekPlan(db, 'h1', 'req1', '2026-11-16', good, deps);
+    expect(db.rpcs.at(-1)!.args).toMatchObject({ p_office: { a: [0] }, p_prep: [6] });
+  });
+
+  test('loadPlannerInput uses a planned week’s own office days', async () => {
+    const { loadPlannerInput } = await import('./loadPlan');
+    const db = tableDb({ members: [{ id: 'a', kind: 'adult', portion_weight: 1 }], member_week_pattern: [{ member_id: 'a', weekday: 1, office: true }], 'plan_weeks:one': { office_days: { a: [3] } } });
+    expect((await loadPlannerInput(db, 'h1', '2026-11-16')).officeDays).toEqual([3]);
+  });
+});

@@ -32,7 +32,7 @@ test('dinners can be named by title; the plan is saved through a new planning re
   expect(insert?.payload).toMatchObject({ household_id: 'h1', week_start: '2026-11-16', status: 'planning', replace: true });
   expect(d.save).toHaveBeenCalledWith(db, 'h1', 'new-req', '2026-11-16', expect.objectContaining({ dinners: [
     { date: '2026-11-16', recipe: 'thai-green-curry', reason: 'Because' }, { date: '2026-11-17', recipe: 'fish-pie', reason: 'Because' },
-  ] }));
+  ] }), { choices: null });
   expect(out).toMatch(/Saved a draft for the week of Mon 16 Nov/);
   expect(out).toMatch(/Mon 16 Nov: Thai Green Curry/);
   expect(out).toMatch(/approve it in the app/i);
@@ -41,7 +41,7 @@ test('dinners can be named by title; the plan is saved through a new planning re
 test("a day's own cooking time from the household's note is saved with the week, and said back", async () => {
   const d = deps();
   const out = await makePlanner(world(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { cooking_minutes: { '2026-11-18': 120 } }));
-  expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16', expect.objectContaining({ cookingMinutes: { '2026-11-18': 120 } }));
+  expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'new-req', '2026-11-16', expect.objectContaining({ cookingMinutes: { '2026-11-18': 120 } }), { choices: null });
   expect(out).toMatch(/Cooking time: Wed 18 Nov 2 hours/);
 });
 
@@ -57,7 +57,7 @@ test('an open request for that week is taken over, not doubled', async () => {
   await makePlanner(db, 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }]));
   expect(db.writes().some((w) => w.table === 'week_plan_requests' && w.method === 'insert')).toBe(false);
   expect(db.writes().find((w) => w.table === 'week_plan_requests' && w.method === 'update')?.payload).toMatchObject({ status: 'planning', replace: true });
-  expect(d.save).toHaveBeenCalledWith(db, 'h1', 'open-req', '2026-11-16', expect.anything());
+  expect(d.save).toHaveBeenCalledWith(db, 'h1', 'open-req', '2026-11-16', expect.anything(), expect.anything());
 });
 
 test('nothing is written for an ambiguous title, a past week, or an approved week', async () => {
@@ -119,5 +119,41 @@ describe('review fixes', () => {
 
   test('replacing a draft is called out in how to plan', async () => {
     expect(await makePlanner(world(), 'h1', NOW, deps()).context({})).toMatch(/existing is "draft".*replace/i);
+  });
+});
+
+describe("the week's choices from the app", () => {
+  const choices = {
+    office: {}, nightsOff: ['2026-11-18'], prepDays: [], weekdayMaxMin: 30, newRecipes: 2, useUp: [],
+    cookingMinutes: { '2026-11-16': 60, '2026-11-17': 90, '2026-11-18': 60, '2026-11-19': 60, '2026-11-20': 60, '2026-11-21': 60, '2026-11-22': 60 },
+  };
+  const NEWR = (slug: string) => ({ slug, title: slug, kind: 'meal', protein: 'chicken', base_portions: 4,
+    ingredients: [{ name: 'chicken thigh', qty: 800, unit: 'g', note: 'cut into 3cm chunks' }],
+    steps: [{ phase: 'finish', title: 'Cook', body: 'Cook the **chicken thigh**.', picture: 'Chicken browning in a frying pan on the hob' }] });
+  const open = () => world({ 'week_plan_requests:one': { id: 'open-req', status: 'requested', choices } });
+
+  test('a dinner on a night off is refused before the request is taken over', async () => {
+    const d = deps();
+    const db = open();
+    const out = await makePlanner(db, 'h1', NOW, d).save(plan([{ date: '2026-11-18', recipe: 'fish-pie' }]));
+    expect(out).toMatch(/Wed 18 Nov is a night off/);
+    expect(d.save).not.toHaveBeenCalled();
+    expect(db.writes()).toEqual([]);
+  });
+
+  test('the new-recipe allowance is the one chosen, and the chosen times are saved with the week', async () => {
+    const d = deps();
+    const out = await makePlanner(open(), 'h1', NOW, d).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWR('a-one'), NEWR('a-two')] }));
+    expect(out).not.toMatch(/at most/);
+    expect(d.save).toHaveBeenCalledWith(expect.anything(), 'h1', 'open-req', '2026-11-16',
+      expect.objectContaining({ cookingMinutes: { '2026-11-17': 90 } }), expect.objectContaining({ choices: expect.objectContaining({ newRecipes: 2 }) }));
+    const three = await makePlanner(open(), 'h1', NOW, deps()).save(plan([{ date: '2026-11-16', recipe: 'fish-pie' }], { new_recipes: [NEWR('b-one'), NEWR('b-two'), NEWR('b-three')] }));
+    expect(three).toMatch(/at most 2 new recipes/);
+  });
+
+  test('how to plan covers nights off, prep days and use-up', () => {
+    expect(HOW_TO_PLAN).toMatch(/rules\.nightsOff/);
+    expect(HOW_TO_PLAN).toMatch(/rules\.prepDays/);
+    expect(HOW_TO_PLAN).toMatch(/rules\.useUp/);
   });
 });
