@@ -284,38 +284,33 @@ describe('Plan with Claude', () => {
     id: 'q1', household_id: 'h1', week_start: '2026-10-19', note: null, status: 'requested', requested_at: '2026-10-16T19:00:00Z', summary: null, ...over,
   });
 
-  test('Plan with Claude opens the Claude app with the week and the note typed in', async () => {
+  const planLink = () => screen.findByRole('link', { name: 'Plan with Claude' });
+
+  test('Plan with Claude opens the choices for the week', async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
     render(<WeekView />, { wrapper: MemoryRouter });
-    await user().type(await screen.findByRole('textbox', { name: 'Anything for this week?' }), 'Out Wednesday');
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
-    await user().click(screen.getByRole('button', { name: 'Plan with Claude' }));
-    // Planning happens in the Claude app, through the connector: it opens with the request typed in.
-    const url = new URL(opened.mock.calls[0][0] as string);
-    expect(url.origin + url.pathname).toBe('https://claude.ai/new');
-    expect(url.searchParams.get('q')).toBe('Plan next week (week of Mon 19 Oct, 2026-10-19) for the Family Food Planner. Note: Out Wednesday');
-    expect(h.repo.requestWeekPlan).not.toHaveBeenCalled();
-    opened.mockRestore();
+    expect(await planLink()).toHaveAttribute('href', '/plan?week=2026-10-19');
+    expect(screen.queryByRole('textbox', { name: 'Anything for this week?' })).not.toBeInTheDocument();
   });
 
   test('while Claude is planning, Quick menu still works and the request can be cancelled', async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
     h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'planning', requested_at: new Date().toISOString() }));
     render(<WeekView />, { wrapper: MemoryRouter });
-    expect(await screen.findByText(/Claude is saving the plan for next week/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Plan with Claude' })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Waiting for Claude to save the plan for next week/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Plan with Claude' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Quick menu' })).toBeInTheDocument();
     await user().click(screen.getByRole('button', { name: 'Cancel' }));
     expect(h.repo.cancelWeekPlan).toHaveBeenCalledWith('q1');
-    expect(await screen.findByRole('button', { name: 'Plan with Claude' })).toBeInTheDocument();
+    expect(await planLink()).toBeInTheDocument();
   });
 
   test("an old request that never finished doesn't hide Plan with Claude, and Friday's wording is about the app's own menu", async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
     h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'planning', requested_at: new Date(Date.now() - 30 * 60_000).toISOString() }));
     render(<WeekView />, { wrapper: MemoryRouter });
-    expect(await screen.findByRole('button', { name: 'Plan with Claude' })).toBeInTheDocument();
-    expect(screen.queryByText(/Claude is saving/)).not.toBeInTheDocument();
+    expect(await planLink()).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for Claude/)).not.toBeInTheDocument();
     expect(screen.getByText(/The app proposes next week on Friday evening/)).toBeInTheDocument();
     expect(screen.queryByText(/Mac/)).not.toBeInTheDocument();
   });
@@ -327,30 +322,21 @@ describe('Plan with Claude', () => {
     h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'failed', summary: 'That week was approved while planning.' }));
     render(<WeekView />, { wrapper: MemoryRouter });
     expect(await screen.findByText('✓ Approved')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Try again' })).not.toBeInTheDocument();
   });
 
-  test('a failed request says why and can try again', async () => {
+  test('a failed request says why, and Try again opens the choices again', async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
-    h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'failed', note: 'Out Wednesday', summary: 'Stopped part-way (the Mac may have slept).' }));
+    h.repo.getWeekPlanRequest.mockResolvedValue(request({ status: 'failed', note: 'Out Wednesday', summary: 'Stopped part-way.' }));
     render(<WeekView />, { wrapper: MemoryRouter });
-    expect(await screen.findByText(/the Mac may have slept/)).toBeInTheDocument();
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
-    await user().click(screen.getByRole('button', { name: 'Try again' }));
-    expect(new URL(opened.mock.calls[0][0] as string).searchParams.get('q')).toMatch(/Note: Out Wednesday$/);
-    opened.mockRestore();
+    expect(await screen.findByText(/Stopped part-way/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Try again' })).toHaveAttribute('href', '/plan?week=2026-10-19');
   });
 
-  test('replanning a draft warns that it replaces the draft first', async () => {
+  test('replanning a draft opens the choices to replace it', async () => {
     render(<WeekView />, { wrapper: MemoryRouter });
-    await user().click(await screen.findByRole('button', { name: 'Replan with Claude' }));
-    expect(screen.getByText(/replaces this draft, including any changes/)).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Replan with Claude' })).toHaveAttribute('href', '/plan?week=2026-10-19&replace=1');
     expect(h.repo.requestWeekPlan).not.toHaveBeenCalled();
-    const opened = vi.spyOn(window, 'open').mockReturnValue(null);
-    await user().click(screen.getByRole('button', { name: 'Replan' }));
-    expect(new URL(opened.mock.calls[0][0] as string).searchParams.get('q')).toBe('Replan next week (week of Mon 19 Oct, 2026-10-19) for the Family Food Planner, replacing the draft.');
-    expect(h.repo.requestWeekPlan).not.toHaveBeenCalled();
-    opened.mockRestore();
   });
 
   test("a week Claude planned shows Claude's summary", async () => {

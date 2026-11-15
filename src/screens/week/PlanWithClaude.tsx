@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { CANCELLED } from '../../lib/types';
 import type { WeekState } from './useWeek';
 
 const MINUTE = 60_000;
 
-/** "Plan with Claude": the note form (it opens the Claude app, which plans through the connector), a plan request
- *  still open or one that couldn't be made, and Claude's summary under a week Claude planned. */
+/** "Plan with Claude": the link to the week's choices (src/screens/week/PlanChoices.tsx, which opens the Claude app),
+ *  a plan request still open or one that couldn't be made, and Claude's summary under a week Claude planned. */
+export const planPath = (weekStart: string, replace = false) => `/plan?week=${weekStart}${replace ? '&replace=1' : ''}`;
 export function usePlanRequest(w: WeekState) {
   const req = w.planRequest;
   // Claude saves a plan in seconds now (from the Claude app), so a request still open after 10 minutes was abandoned:
@@ -28,36 +30,18 @@ export function Planning({ w }: { w: WeekState }) {
   return (
     <div className="grid justify-items-start gap-2 rounded-2xl bg-accent-soft p-4">
       <p role="status" className="m-0 font-semibold">
-        Claude is saving the plan for {w.shown === 'next' ? 'next week' : 'this week'}…
+        Waiting for Claude to save the plan for {w.shown === 'next' ? 'next week' : 'this week'}…
       </p>
       <button type="button" onClick={() => void w.cancelPlan()} className="text-sm font-semibold text-accent underline">Cancel</button>
     </div>
   );
 }
 
-export function Failed({ w, summary, note }: { w: WeekState; summary: string | null; note: string | null }) {
+export function Failed({ w, summary }: { w: WeekState; summary: string | null }) {
   return (
     <div role="alert" className="grid justify-items-start gap-2 rounded-2xl border border-warn p-4">
       <p className="m-0">Claude couldn't plan it{summary ? `: ${summary}` : '.'}</p>
-      <button type="button" onClick={() => void w.planWithClaude(note, !!w.week)} className="font-semibold text-accent underline">Try again</button>
-    </div>
-  );
-}
-
-export function PlanForm({ label, onPlan, onCancel }: { label: string; onPlan: (note: string) => void; onCancel?: () => void }) {
-  const [note, setNote] = useState('');
-  return (
-    <div className="grid w-full gap-2">
-      <label className="grid gap-1 text-sm font-semibold">
-        Anything for this week?
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} rows={2}
-          placeholder="e.g. out Wednesday, use up the lamb, something lighter"
-          className="rounded-xl border border-line bg-surface p-2.5 text-[15px] font-normal" />
-      </label>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => onPlan(note)} className="rounded-xl bg-accent px-4 py-2.5 font-semibold text-accent-ink">{label}</button>
-        {onCancel && <button type="button" onClick={onCancel} className="rounded-xl px-4 py-2.5 font-semibold text-muted">Cancel</button>}
-      </div>
+      <Link to={planPath(w.weekStart, !!w.week)} className="font-semibold text-accent underline">Try again</Link>
     </div>
   );
 }
@@ -65,7 +49,6 @@ export function PlanForm({ label, onPlan, onCancel }: { label: string; onPlan: (
 /** Under the week: Claude's summary, and Replan with Claude while the week is a draft. */
 export default function ClaudeWeekNotes({ w, plan }: { w: WeekState; plan: ReturnType<typeof usePlanRequest> }) {
   const { req, open, failed } = plan;
-  const [replanning, setReplanning] = useState(false);
   if (!w.week) return null;
   return (
     <div className="grid gap-3">
@@ -76,15 +59,10 @@ export default function ClaudeWeekNotes({ w, plan }: { w: WeekState; plan: Retur
         </section>
       )}
       {open && <Planning w={w} />}
-      {!open && failed && <Failed w={w} summary={req!.summary} note={req!.note} />}
-      {!open && w.week.status === 'draft' && (replanning ? (
-        <div className="grid gap-2 rounded-2xl border border-line p-4">
-          <p className="m-0 text-sm">Claude replaces this draft, including any changes you've made to it.</p>
-          <PlanForm label="Replan" onPlan={(note) => { setReplanning(false); void w.planWithClaude(note, true); }} onCancel={() => setReplanning(false)} />
-        </div>
-      ) : (
-        <button type="button" onClick={() => setReplanning(true)} className="justify-self-start font-semibold text-accent underline">Replan with Claude</button>
-      ))}
+      {!open && failed && <Failed w={w} summary={req!.summary} />}
+      {!open && w.week.status === 'draft' && (
+        <Link to={planPath(w.weekStart, true)} className="justify-self-start font-semibold text-accent underline">Replan with Claude</Link>
+      )}
     </div>
   );
 }

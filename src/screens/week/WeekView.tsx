@@ -5,7 +5,7 @@ import { daySummary } from '../../lib/weekSummary';
 import DaySheet from './DaySheet';
 import FeedbackCard from './FeedbackCard';
 import ApprovedSheet from './ApprovedSheet';
-import ClaudeWeekNotes, { Failed, PlanForm, Planning, usePlanRequest } from './PlanWithClaude';
+import ClaudeWeekNotes, { Failed, Planning, planPath, usePlanRequest } from './PlanWithClaude';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
 import { addDays, useWeek } from './useWeek';
@@ -68,11 +68,11 @@ export default function WeekView() {
           {plan.open ? <Planning w={w} /> : (<>
           <p className="m-0 font-semibold">{w.shown === 'next' ? 'The app proposes next week on Friday evening' : 'No menu for this week'}</p>
           <p className="m-0 text-sm text-muted">
-            Or plan it with Claude any time: it opens the Claude app, plans from your specifications, recipes, freezer and pantry, and saves a draft here to approve.
+            Or plan it with Claude any time: pick this week's office days, nights off and cooking time, then the Claude app plans from your specifications, recipes, freezer and pantry and saves a draft here to approve.
             Quick menu uses the built-in planner straight away.
           </p>
-          {plan.failed && <Failed w={w} summary={plan.req!.summary} note={plan.req!.note} />}
-          <PlanForm label="Plan with Claude" onPlan={(note) => void w.planWithClaude(note)} />
+          {plan.failed && <Failed w={w} summary={plan.req!.summary} />}
+          <Link to={planPath(w.weekStart)} className="rounded-xl bg-accent px-4 py-2.5 font-semibold text-accent-ink no-underline">Plan with Claude</Link>
           </>)}
           <button type="button" onClick={() => void w.propose()} className="font-semibold text-accent underline">Quick menu</button>
         </div>

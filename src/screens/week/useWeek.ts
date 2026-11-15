@@ -84,6 +84,8 @@ export function useWeek() {
       weekStart, householdId: hid, settings: data.settings as never, members: data.members, pattern: data.pattern,
       recipes: data.recipes.map((r: Recipe) => ({ ...r })), recentDinnerRecipeIds: data.recent,
       cookingMinutes: (shown === 'next' ? data.nextWeek : data.thisWeek)?.week?.cooking_minutes,
+      // Plan with Claude: a week planned with its own office days keeps them.
+      weekOffice: (shown === 'next' ? data.nextWeek : data.thisWeek)?.week?.office_days ?? null,
     });
   }, [data, weekStart, hid, shown]);
 
@@ -351,14 +353,6 @@ export function useWeek() {
       if (!req) return;
       if (req.status === 'done') await reload();
       else setData((d) => d && { ...d, [key]: req });
-    },
-    /** Opens the Claude app to plan the week shown (or, with `replace`, replan its draft) with the household, through
-     *  the Family Food Planner connector; Claude saves it as a draft to approve here. */
-    async planWithClaude(note: string | null, replace = false) {
-      setSaveError(null);
-      const when = new Date(`${weekStart}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-      const ask = `${replace ? 'Replan' : 'Plan'} ${shown} week (week of ${when}, ${weekStart}) for the Family Food Planner${replace ? ', replacing the draft' : ''}.${note?.trim() ? ` Note: ${note.trim()}` : ''}`;
-      window.open(`https://claude.ai/new?q=${encodeURIComponent(ask)}`, '_blank', 'noopener');
     },
     /** Asks Claude to fill a delivery's Sainsbury's trolley again (tops up only). */
     async resendBasket(delivery: 'sun' | 'tue') {
