@@ -7,8 +7,8 @@ const dot = 'mt-[0.32em] h-2.5 w-2.5 rounded-full md:h-3 md:w-3';
 const text = 'min-w-0 break-words';
 
 /** One day on the week grid: breakfast, lunch and dinner at a glance. Tap to open the day. */
-const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummary; today: boolean; onOpen: () => void; isNew?: boolean }>(
-  ({ date, summary, today, onOpen, isNew = false }, ref) => {
+const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummary; today: boolean; onOpen: () => void; isNew?: boolean; low?: string[] }>(
+  ({ date, summary, today, onOpen, isNew = false, low = [] }, ref) => {
     const [weekday, dateNum] = dayLabel(date).split(' ');
     return (
       <button ref={ref} type="button" onClick={onOpen} aria-label={dayLabel(date)}
@@ -24,6 +24,7 @@ const DayTile = forwardRef<HTMLButtonElement, { date: string; summary: DaySummar
           <span className={`dinner ${text}`}>{summary.dinner}
             {isNew && <span className="ml-1.5 inline-block rounded-full bg-yolk px-2 py-px align-middle text-[11px] font-bold uppercase tracking-wide text-[#1B211D] md:text-xs">New</span>}</span>
         </span>
+        {low.length > 0 && <span className="text-[12px] font-semibold leading-snug text-warn md:text-sm">{`Low: ${low.join(', ')}`}</span>}
       </button>
     );
   },

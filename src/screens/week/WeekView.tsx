@@ -6,6 +6,7 @@ import DaySheet from './DaySheet';
 import FeedbackCard from './FeedbackCard';
 import ApprovedSheet from './ApprovedSheet';
 import ShoppingSheet from './ShoppingSheet';
+import { WeekBalanceStrip } from './Balance';
 import ClaudeWeekNotes, { Failed, Planning, planPath, usePlanRequest } from './PlanWithClaude';
 import DayTile from './DayTile';
 import WeekTile from './WeekTile';
@@ -90,6 +91,8 @@ export default function WeekView() {
         </Link>
       )}
 
+      {w.week && <WeekBalanceStrip w={w} days={w.week.days} />}
+
       {w.newDinners.length > 0 && (
         <section aria-label="New recipes to check" className="grid gap-2 rounded-2xl border-2 border-yolk bg-surface p-4">
           <h2 className="m-0 text-base font-bold">New recipes to check</h2>
@@ -124,7 +127,7 @@ export default function WeekView() {
           })()}
           {dates.map((d) => (
             <DayTile key={d} date={d} today={d === today} summary={daySummary(d, w.slots, w.recipes, w.officeDays)}
-              isNew={w.newDinners.some((n) => n.date === d)}
+              isNew={w.newDinners.some((n) => n.date === d)} low={w.balance(d)?.low ?? []}
               ref={(el) => { tiles.current.set(d, el); }} onOpen={() => setOpen(d)} />
           ))}
           <WeekTile approved={w.week.status !== 'draft'} saturdayMorning={weekday === 6 && hour < 14}

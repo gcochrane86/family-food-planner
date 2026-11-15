@@ -1166,3 +1166,50 @@ test("a ?day= that isn't a real date, or isn't in this week or next, opens nothi
     unmount();
   }
 });
+
+describe('daily balance', () => {
+  const N = { protein_g: 30, fibre_g: 5, veg_portions: 1, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
+  const estimated = () => {
+    h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY].map((r) => ({ ...r, nutrition: N })));
+    // Every breakfast and lunch name has an estimate.
+    h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
+      routine_nutrition: new Proxy({}, { get: () => N }) });
+  };
+
+  test('a day short of the pattern says what is low on its tile', async () => {
+    estimated();
+    render(<WeekView />, { wrapper: MemoryRouter });
+    expect(within(await tile('Monday 19')).getByText(/^Low: veg & fruit, healthy fats, fibre$/)).toBeInTheDocument();
+  });
+
+  test('with no estimates yet, tiles say nothing about balance and there is no week strip', async () => {
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await tile('Monday 19');
+    expect(screen.queryByText(/^Low:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: "This week's balance" })).not.toBeInTheDocument();
+  });
+
+  test("the day sheet shows the day's markers and its snacks", async () => {
+    estimated();
+    const week = await h.repo.getWeek('h1', '2026-10-19');
+    const dinner = week.slots.find((s: MealSlot) => s.slot === 'dinner')!;
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19'
+      ? { ...week, slots: [...week.slots, { ...dinner, date: '2026-10-19', slot: 'snack_am', recipe_id: TACOS.id, mode: 'cook', portions: 6 } as MealSlot] }
+      : { week: null, slots: [] }));
+    render(<WeekView />, { wrapper: MemoryRouter });
+    await openDay('Monday 19');
+    const balance = within(screen.getByRole('dialog')).getByRole('region', { name: 'Balance' });
+    expect(within(balance).getByText(/Morning snack:/)).toHaveTextContent(TACOS.title);
+    expect(within(balance).getByText('Breakfast protein').closest('li')).toHaveTextContent('OK');
+    expect(within(balance).getByText('Fibre').closest('li')).toHaveTextContent('Low');
+  });
+
+  test("the week strip counts oily fish, beans or lentils, and red meat", async () => {
+    estimated();
+    render(<WeekView />, { wrapper: MemoryRouter });
+    const strip = await screen.findByRole('region', { name: "This week's balance" });
+    expect(strip).toHaveTextContent('Oily fish 0 of 2');
+    expect(strip).toHaveTextContent('Beans or lentils 0 of 3 days');
+    expect(strip).toHaveTextContent('Red meat 0 (2 at most)');
+  });
+});

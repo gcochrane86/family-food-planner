@@ -14,6 +14,7 @@ import {
 import { londonParts, nextMonday } from '../../../supabase/functions/_shared/schedule.ts';
 import { mergePlan as merge, toProposed } from '../../../supabase/functions/_shared/slotMerge.ts';
 import { useAsync } from '../settings/useAsync';
+import { dayBalance, parseNutrition, weekBalance, type DayBalance, type WeekBalance } from '../../../supabase/functions/_shared/balance.ts';
 
 export function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -55,6 +56,8 @@ export function useWeek() {
   const current = data ? (shown === 'next' ? data.nextWeek : data.thisWeek) : null;
   const weekStart = shown === 'next' ? starts.nextWeek : starts.thisWeek;
   const recipes = useMemo(() => new Map((data?.recipes ?? []).map((r) => [r.id, r])), [data]);
+  const routines = (data?.settings?.routine_nutrition ?? {}) as Record<string, unknown>;
+  const hasEstimates = useMemo(() => (data?.recipes ?? []).some((r) => parseNutrition(r.nutrition)), [data]);
   const mealOptions = useMemo(() => ({
     breakfast: data?.settings?.breakfasts?.length ? data.settings.breakfasts : DEFAULT_BREAKFASTS,
     lunch: data?.settings?.lunches?.length ? data.settings.lunches : HOME_LUNCHES,
@@ -165,6 +168,10 @@ export function useWeek() {
       })
       : [],
     officeDays: input?.officeDays ?? [],
+    /** Daily balance: how a day measures up (null until any recipe has an estimate, so nothing shows before then). */
+    balance: (date: string): DayBalance | null => (hasEstimates ? dayBalance(date, current?.slots ?? [], recipes, routines) : null),
+    /** The week's oily fish, beans or lentils, and red meat (null until any recipe has an estimate). */
+    weekBalance: (dates: string[]): WeekBalance | null => (hasEstimates ? weekBalance(dates, current?.slots ?? [], recipes, routines) : null),
     alternatives: (date: string, n = 3) => (current && input ? plannerAlternatives(current.slots.map(toProposed), date, input, n) : []),
     swap: (date: string, recipeId: string) => input && change((p) => applySwap(p, date, recipeId, input)),
     /** Trades two days' dinners (recipe, portions, guests, batch and roast plans), and keeps both where you put them. */

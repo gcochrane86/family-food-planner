@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DayCard, { dayLabel } from './DayCard';
 import SwapStack from './SwapStack';
+import { DayBalanceCard } from './Balance';
 import type { WeekState } from './useWeek';
 
 /** A day's full options, over the week grid: a bottom sheet on the phone, a centred card on the iPad. */
@@ -27,6 +28,7 @@ export default function DaySheet({ date, w, onClose }: { date: string; w: WeekSt
           <button ref={close} type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg">×</button>
         </div>
         <DayCard date={date} w={w} hideTitle onSwap={() => setSwapping(true)} />
+        <DayBalanceCard date={date} w={w} />
         {swapping && <SwapStack date={date} dayName={dayLabel(date).split(' ')[0]} w={w} onClose={() => setSwapping(false)} />}
       </div>
     </div>,
