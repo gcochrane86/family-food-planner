@@ -2,6 +2,7 @@
 // a Mediterranean pattern with protein-first breakfasts, from estimates per serving (each person eats their portion share). Estimates spot patterns;
 // they're never shown as precise figures. Pure: shared by the app and the connector.
 import type { Eat } from './snackEats.ts';
+import { snackFactor } from './snackRules.ts';
 
 export interface Nutrition {
   protein_g: number;
@@ -41,7 +42,8 @@ export interface BalanceSlot {
   date: string; slot: string; mode: string; recipe_id: string | null;
   routine_choice?: string | null; reason?: string | null; source_date?: string | null;
 }
-type Recipes = Map<string, { nutrition?: unknown; reheats_well?: boolean; toddler_ok?: boolean }>;
+type Recipes = Map<string, { nutrition?: unknown; reheats_well?: boolean; toddler_ok?: boolean; title?: string; kind?: string; snack_ok?: boolean | null;
+  base_portions?: number | string; snack_portions?: number | null }>;
 /** The household's home lunches, first one the default (settings.lunches, or the app's list). */
 export interface BalanceOptions {
   homeLunches?: string[];
@@ -80,6 +82,17 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 
 function recipeEstimate(recipes: Recipes, id: string | null | undefined): Nutrition | null {
   return id ? parseNutrition(recipes.get(id)?.nutrition) : null;
+}
+/** One eat's estimate: the recipe's (or, for a breakfast recipe without one, the breakfast's by name), for one snack of
+ *  it (snackFactor: a square of baked oats is its share of a serving). */
+function eatEstimate(recipes: Recipes, routines: Record<string, unknown>, id: string): Nutrition | null {
+  const r = recipes.get(id);
+  const n = recipeEstimate(recipes, id) ?? routineEstimate(routines, r?.title);
+  const f = snackFactor(r as never);
+  if (!n || f === 1) return n;
+  const out = { ...n } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(n)) if (typeof v === 'number') out[k] = v * f;
+  return out as unknown as Nutrition;
 }
 function routineEstimate(routines: Record<string, unknown>, name: string | null | undefined): Nutrition | null {
   const n = routineName(name);
@@ -128,7 +141,7 @@ export function mealEstimates(date: string, slots: BalanceSlot[], recipes: Recip
 export function dayBalance(date: string, slots: BalanceSlot[], recipes: Recipes, routines: Record<string, unknown>, opts: BalanceOptions = {}): DayBalance {
   const p = parts(date, slots, recipes, routines, opts);
   const share = opts.share ?? 1;
-  const extra = (opts.eats ?? []).filter((e) => e.date === date).map((e) => ({ e, n: recipeEstimate(recipes, e.recipe_id) }));
+  const extra = (opts.eats ?? []).filter((e) => e.date === date).map((e) => ({ e, n: eatEstimate(recipes, routines, e.recipe_id) }));
   const morning = extra.filter((x) => x.e.slot === 'breakfast').reduce((t, x) => t + (x.n?.protein_g ?? 0) * x.e.qty, 0);
   const breakfastProtein: Mark = p.breakfast ? (p.breakfast.protein_g * share + morning >= BREAKFAST_PROTEIN_G ? 'ok' : 'low') : 'unknown';
   const all = [p.breakfast, p.lunch, p.dinner, ...p.snacks];
@@ -159,7 +172,7 @@ export function weekBalance(dates: string[], slots: BalanceSlot[], recipes: Reci
   const legumes = dates.filter((d) => {
     const p = parts(d, slots, recipes, routines, opts);
     return [p.breakfast, p.lunch, p.dinner, ...p.snacks].some((n) => n?.legumes)
-      || (opts.eats ?? []).some((e) => e.date === d && recipeEstimate(recipes, e.recipe_id)?.legumes);
+      || (opts.eats ?? []).some((e) => e.date === d && eatEstimate(recipes, routines, e.recipe_id)?.legumes);
   }).length;
   const atLeast = (n: number, min: number): Mark => (n >= min ? 'ok' : 'low');
   const atMost = (n: number, max: number): Mark => (n <= max ? 'ok' : 'low');
@@ -192,7 +205,7 @@ export function personDay(date: string, slots: BalanceSlot[], recipes: Recipes, 
     eats.push([recipeEstimate(recipes, s.recipe_id), Math.min(1, share)]);
   }
   // Their own snacks and meal partners, by the portion.
-  for (const e of opts.eats ?? []) if (e.date === date && e.member_id === member.id) eats.push([recipeEstimate(recipes, e.recipe_id), e.qty]);
+  for (const e of opts.eats ?? []) if (e.date === date && e.member_id === member.id) eats.push([eatEstimate(recipes, routines, e.recipe_id), e.qty]);
   const totals: Partial<Record<Macro, number>> = {};
   const unknown = new Set<Macro>(p.out ? MACROS : []);
   for (const k of MACROS) {

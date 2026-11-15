@@ -19,7 +19,7 @@ export interface Eat {
 }
 /** Routine name → member id → that person's partners for it. */
 export type Partners = Record<string, Record<string, { recipe: string; qty: number }[]>>;
-export interface SnackInfo { id: string; keeps_days: number | null; toddler_ok: boolean }
+export interface SnackInfo { id: string; keeps_days: number | null; toddler_ok: boolean; /** Bought, never made. */ quick?: boolean }
 
 type Slot = { date: string; slot: string; mode: string; recipe_id: string | null; routine_choice?: string | null; reason?: string | null; source_date?: string | null };
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
@@ -77,13 +77,14 @@ export function placeEat(eat: Omit<Eat, 'make_date'>, existing: Eat[], keeps: nu
   return { ...eat, make_date: joins.length ? joins[joins.length - 1] : makeDayFor(eat.date, keeps, makeDates) };
 }
 
-/** The makes: eats added up by make day and recipe, as slots that shopping and Today's cooking read. */
-export function makeSlots(eats: Eat[]): { date: string; slot: 'snack'; mode: 'cook'; recipe_id: string; portions: number; reason: string; source_date: null }[] {
+/** The makes: eats added up by make day and recipe, as slots that shopping and Today's cooking read. `factor` gives
+ *  servings of the recipe per snack (snackRules.snackFactor), so the make's portions are the recipe's. */
+export function makeSlots(eats: Eat[], factor: (recipeId: string) => number = () => 1): { date: string; slot: 'snack'; mode: 'cook'; recipe_id: string; portions: number; reason: string; source_date: null }[] {
   const by = new Map<string, { date: string; slot: 'snack'; mode: 'cook'; recipe_id: string; portions: number; reason: string; source_date: null }>();
   for (const e of eats) {
     const key = `${e.make_date}|${e.recipe_id}`;
     const m = by.get(key) ?? { date: e.make_date, slot: 'snack' as const, mode: 'cook' as const, recipe_id: e.recipe_id, portions: 0, reason: 'Snack', source_date: null };
-    m.portions = Math.round((m.portions + e.qty) * 100) / 100;
+    m.portions = Math.round((m.portions + e.qty * factor(e.recipe_id)) * 100) / 100;
     by.set(key, m);
   }
   return [...by.values()].sort((a, b) => a.date.localeCompare(b.date) || a.recipe_id.localeCompare(b.recipe_id));
@@ -121,8 +122,9 @@ export function parseEats(raw: unknown, ctx: { dates: string[]; makeDates: strin
     if (!ctx.dates.includes(date)) throw new Error(`${date || 'A snack with no date'} isn't in the week`);
     if (s.slot !== 'am' && s.slot !== 'pm') throw new Error(`${r.slug}: slot must be am or pm`);
     const slot = s.slot === 'am' ? 'snack_am' : 'snack_pm';
-    const make = String(s?.make_date ?? '');
-    if (!ctx.makeDates.includes(make)) throw new Error(`${make || 'A snack with no make_date'} isn't a snack-making day. Use one of ${ctx.makeDates.join(', ')}.`);
+    // A quick snack isn't made: it's bought for the day it's eaten.
+    const make = r.quick ? date : String(s?.make_date ?? '');
+    if (!r.quick && !ctx.makeDates.includes(make)) throw new Error(`${make || 'A snack with no make_date'} isn't a snack-making day. Use one of ${ctx.makeDates.join(', ')}.`);
     if (date < make) throw new Error(`${r.slug} on ${date} is before it's made (${make})`);
     const keeps = r.keeps_days ?? 1;
     if (daysBetween(make, date) > keeps - 1) throw new Error(`${r.slug} keeps ${keeps} days from ${make}, so not until ${date}`);

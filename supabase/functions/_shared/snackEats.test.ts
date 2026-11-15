@@ -119,3 +119,17 @@ describe("Claude's snacks and partners", () => {
       .toThrow(/"Toast" isn't one of the breakfasts or lunches/);
   });
 });
+
+describe('snacks from recipes that can be snacks, and quick snacks', () => {
+  test("a make covers the recipe's share: 8 squares of a 4-serving tray is 4 servings", () => {
+    const eat = { date: '2026-11-17', slot: 'snack_pm' as const, member_id: 'a', recipe_id: 'oats', qty: 8, make_date: '2026-11-15' };
+    expect(makeSlots([eat], (id) => (id === 'oats' ? 0.5 : 1))[0].portions).toBe(4);
+  });
+
+  test("Claude's quick snack needs no make day: it's bought for the day", () => {
+    const pool = new Map([['apple-almonds', { id: 'apple', slug: 'apple-almonds', keeps_days: null, toddler_ok: true, quick: true }]]);
+    const [e] = parseEats([{ person: 'A', date: '2026-11-18', slot: 'pm', recipe: 'apple-almonds' }],
+      { dates: ['2026-11-18'], makeDates: ['2026-11-15'], members: [{ id: 'a', name: 'A', kind: 'adult' }], snacks: pool });
+    expect(e.make_date).toBe('2026-11-18');
+  });
+});

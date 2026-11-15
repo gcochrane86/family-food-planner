@@ -230,3 +230,12 @@ describe("each person's snacks and partners", () => {
     expect(nudge(person, both, snacks)).toBeNull();
   });
 });
+
+test("a square of baked oats as a snack counts its share of a serving; a breakfast recipe with no estimate uses the breakfast's", () => {
+  const oats = { nutrition: null, title: 'Baked oats', kind: 'component', snack_ok: true, base_portions: 4, snack_portions: 8 };
+  const rs = new Map<string, Record<string, unknown>>([['salmon', { nutrition: N({ protein_g: 30 }) }], ['oats', oats]]);
+  const rt = { 'Eggs & porridge': N({ protein_g: 20 }), 'Packed lunch': N({ protein_g: 30 }), 'Baked oats': N({ protein_g: 12 }) };
+  const eats = [{ date: D, slot: 'snack_pm' as const, member_id: 'a', recipe_id: 'oats', qty: 2, make_date: '2026-11-15' }];
+  const p = personDay(D, day(), rs as never, rt, { id: 'a', kind: 'adult', portion_weight: 1 }, { eats });
+  expect(p.totals.protein_g).toBe(20 + 30 + 30 + 2 * 12 * 0.5);
+});
