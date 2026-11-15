@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { dayBalance, parseNutrition, routineName, weekBalance } from './balance.ts';
+import { compareTargets, dayBalance, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
 
 const N = (o: Partial<Record<string, unknown>> = {}) => ({
   protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, ...o,
@@ -118,5 +118,55 @@ describe('home lunches the planner left as a default', () => {
   });
   test("otherwise it's the first home lunch on the list", () => {
     expect(dayBalance(D, home('salad'), r2, { 'Chicken sandwich': N({ fibre_g: 4 }) }, { homeLunches: ['Chicken sandwich'] }).totals.fibre_g).toBe(4);
+  });
+});
+
+describe('each person’s day', () => {
+  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1, ...o });
+  const rs = new Map<string, { nutrition?: unknown; toddler_ok?: boolean }>([
+    ['salmon', { nutrition: full({ protein_g: 30 }) }],
+    ['hummus', { nutrition: full({ kcal: 150, protein_g: 6, sugars_g: 2 }), toddler_ok: true }],
+    ['nuts', { nutrition: full({ kcal: 200, protein_g: 7 }), toddler_ok: false }],
+  ]);
+  const rt = { 'Eggs & porridge': full({ protein_g: 20 }), 'Packed lunch': full({ protein_g: 30 }) };
+  const slots = [...day({ snacks: ['hummus', 'nuts'] })];
+  const adult = { kind: 'adult', portion_weight: 1.25 };
+  const toddler = { kind: 'child', portion_weight: 0.5 };
+
+  test('an adult eats their share of each meal and one of each snack', () => {
+    const p = personDay(D, slots, rs, rt, adult);
+    expect(p.totals.kcal).toBe(1.25 * 1500 + 150 + 200);
+    expect(p.totals.protein_g).toBe(1.25 * 80 + 13);
+    expect(p.unknown).toEqual([]);
+  });
+
+  test('the toddler eats their share, and only the toddler-friendly snacks, scaled to them', () => {
+    const p = personDay(D, slots, rs, rt, toddler);
+    expect(p.totals.kcal).toBe(0.5 * 1500 + 0.5 * 150);
+  });
+
+  test('an estimate without calories leaves calories unknown, the rest still added', () => {
+    const p = personDay(D, day(), new Map([['salmon', { nutrition: N({ protein_g: 30 }) }]]), rt, adult);
+    expect(p.unknown).toContain('kcal');
+    expect(p.totals.protein_g).toBe(1.25 * 80);
+  });
+
+  test('a night out leaves every total unknown', () => {
+    expect(personDay(D, day({ dinner: null, dinnerMode: 'out' }), rs, rt, adult).unknown).toContain('protein_g');
+  });
+
+  test('targets: at least, at most, and about (within 10%)', () => {
+    const totals = { kcal: 2300, protein_g: 80, fat_g: 70, sat_fat_g: 25, carbs_g: 250, sugars_g: 40, fibre_g: 31 };
+    expect(compareTargets(totals, { kcal: 2000, protein_g: 90, fat_g: 70, sat_fat_g: 20, carbs_g: 260, sugars_g: 50, fibre_g: 30 }, [])).toEqual({
+      kcal: 'over', protein_g: 'under', fat_g: 'ok', sat_fat_g: 'over', carbs_g: 'ok', sugars_g: 'ok', fibre_g: 'ok',
+    });
+  });
+
+  test('with part of the day unknown, a total short of its target is unknown, but one already over is over', () => {
+    expect(compareTargets({ protein_g: 40, sugars_g: 60 }, { protein_g: 90, sugars_g: 50 }, ['protein_g', 'sugars_g'])).toEqual({ protein_g: 'unknown', sugars_g: 'over' });
+  });
+
+  test('a number with no target is left out', () => {
+    expect(compareTargets({ kcal: 2000 }, {}, [])).toEqual({});
   });
 });
