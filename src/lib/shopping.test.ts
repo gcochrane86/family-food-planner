@@ -1,4 +1,4 @@
-import { buildShoppingList, pickShoppingWeek, tickKey } from './shopping';
+import { buildShoppingList, deliveryFor, pickShoppingWeek, tickKey } from './shopping';
 import type { MealSlot, RecipeDetail, Staple } from './types';
 
 const recipe = (id: string, base: number, ingredients: [string, number | null, string][]): RecipeDetail => ({
@@ -304,4 +304,11 @@ test("each person's snacks and partners are bought once, as the family's make", 
   const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), make], new Map([...recipes, ['boiled-egg', egg]]), [], 2);
   expect(list.sun.find((i) => i.name === 'eggs')?.qty).toBe(9);
   expect(list.tue.find((i) => i.name === 'eggs')).toBeUndefined();
+});
+
+test('which delivery brings a day: Sunday for the Sunday before to Wednesday, Tuesday after; one shop is always Sunday', () => {
+  expect(deliveryFor('2026-11-15', '2026-11-16', 2)).toBe('sun');
+  expect(deliveryFor('2026-11-18', '2026-11-16', 2)).toBe('sun');
+  expect(deliveryFor('2026-11-19', '2026-11-16', 2)).toBe('tue');
+  expect(deliveryFor('2026-11-19', '2026-11-16', 1)).toBe('sun');
 });

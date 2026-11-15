@@ -133,3 +133,12 @@ test('meal partners are saved on their own, over the latest settings', async () 
   await repo.saveMealPartners('h1', partners);
   expect(h.upserts.at(-1)).toMatchObject({ household_id: 'h1', data: { breakfasts: ['Toast'], meal_partners: partners } });
 });
+
+test('a quick snack is a snack recipe with its items, no steps, and its nutrition worked out', async () => {
+  h.results.recipes = [{ data: null, error: null }, { data: { id: 'r-q', slug: 'apple-almonds', title: 'Apple & almonds', kind: 'snack', quick: true, base_portions: 1, tags: [], equipment: [] }, error: null }];
+  await repo.addQuickSnack('h1', { title: 'Apple & almonds', items: [{ name: 'apple', qty: 1, unit: '' }, { name: 'almonds', qty: 30, unit: 'g' }], toddler_ok: false });
+  expect(h.inserts.at(-1)).toMatchObject({ table: 'recipes', row: { household_id: 'h1', slug: 'apple-almonds', kind: 'snack', quick: true, base_portions: 1, toddler_ok: false,
+    nutrition: expect.objectContaining({ kcal: 268 }) } });
+  expect(h.rpcs.at(-1)).toMatchObject({ fn: 'replace_recipe_contents', args: { p_recipe_id: 'r-q', p_steps: [],
+    p_ingredients: [expect.objectContaining({ position: 1, name: 'apple', qty: 1 }), expect.objectContaining({ position: 2, name: 'almonds', qty: 30, unit: 'g' })] } });
+});

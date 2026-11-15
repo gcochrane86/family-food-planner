@@ -163,3 +163,9 @@ export function buildShoppingList(
   }
   return { sun, tue, others: others.filter((o) => o.items.length) };
 }
+
+/** The delivery that brings what's needed on a day: with two shops a week, Sunday's for the Sunday before the week to
+ *  Wednesday, Tuesday's for Thursday on; with one shop, Sunday's. */
+export function deliveryFor(date: string, weekStart: string, shopsPerWeek: number): 'sun' | 'tue' {
+  return shopsPerWeek === 2 && date >= weekStart && weekdayIndex(date) >= 3 ? 'tue' : 'sun';
+}

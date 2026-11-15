@@ -159,6 +159,11 @@ export interface Recipe {
   kind: 'meal' | 'component' | 'snack';
   /** Per serving: the recipe divided by the number it serves (migration 0023; balance.ts Nutrition). */
   nutrition?: Nutrition | null;
+  /** Can also be eaten as a snack, and how many snacks one batch makes (migration 0026). */
+  snack_ok?: boolean;
+  snack_portions?: number | null;
+  /** A quick snack: items and nutrition, no steps; bought, never made. */
+  quick?: boolean;
   /** A snack's keeping time in days, from the day it's made. */
   keeps_days?: number | null;
   component_role: 'sauce' | 'protein' | 'veg' | 'carb' | 'bread' | null;

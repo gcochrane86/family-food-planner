@@ -4,6 +4,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { householdPortions, parseWeight } from '../../lib/household';
 import { INVITE_LENGTH, joinErrorMessage, normaliseCode } from '../../lib/invite';
 import { repo } from '../../lib/repo';
+import { isSnack } from '../../../supabase/functions/_shared/snackRules.ts';
 import type { Member, MemberKind, Partners, Recipe } from '../../lib/types';
 import { button, card, copyText, input, Page, primary } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
@@ -161,7 +162,7 @@ export default function Household() {
             }} />
             {data?.settings && <MealPartners m={m} partners={data.settings.meal_partners ?? {}}
               meals={[...new Set([...(data.settings.breakfasts ?? []), ...(data.settings.lunches ?? []), 'Packed lunch'])]}
-              snacks={data.recipes.filter((r) => r.kind === 'snack' && r.status !== 'archived' && (m.kind !== 'child' || r.toddler_ok !== false))}
+              snacks={data.recipes.filter((r) => isSnack(r) && !r.quick && (m.kind !== 'child' || r.toddler_ok !== false))}
               onSave={async (next) => {
                 setBanner(null);
                 try {

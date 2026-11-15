@@ -1,6 +1,7 @@
 // A week's snacks and meal partners for each person (docs/superpowers/specs/2026-11-15-person-snacks-design.md): the
 // stored snacks plus the partners that come with its planned breakfasts and lunches, and the family's makes from them.
 import { makeSlots, partnerEats, type SnackInfo } from '../../supabase/functions/_shared/snackEats.ts';
+import { isSnack, snackFactor } from '../../supabase/functions/_shared/snackRules.ts';
 import { snackMakeDates } from '../../supabase/functions/_shared/snackPlan.ts';
 import { addDays } from '../../supabase/functions/_shared/planner.ts';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from './mealPhotos';
@@ -25,8 +26,8 @@ function partnersFor(week: PlanWeek, settings: Settings | null | undefined, memb
 /** Everyone's eats this week: the stored snacks and the partners worked out from the planned breakfasts and lunches. */
 export function weekEats(w: Week, settings: Settings | null | undefined, recipes: Recipe[], memberIds?: string[]): Eat[] {
   if (!w.week) return [];
-  const snacks = new Map<string, SnackInfo>(recipes.filter((r) => r.kind === 'snack')
-    .map((r) => [r.slug, { id: r.id, keeps_days: r.keeps_days ?? null, toddler_ok: r.toddler_ok !== false }]));
+  const snacks = new Map<string, SnackInfo>(recipes.filter((r) => isSnack(r))
+    .map((r) => [r.slug, { id: r.id, keeps_days: r.keeps_days ?? null, toddler_ok: r.toddler_ok !== false, quick: r.quick === true }]));
   const dates = Array.from({ length: w.week.days }, (_, i) => addDays(w.week!.week_start, i));
   const partners = partnerEats(dates, w.slots, partnersFor(w.week, settings, memberIds), snacks, weekMakeDates(w.week, settings), new Map(recipes.map((r) => [r.id, r])), {
     breakfasts: settings?.breakfasts?.length ? settings.breakfasts : DEFAULT_BREAKFASTS,
@@ -38,7 +39,8 @@ export function weekEats(w: Week, settings: Settings | null | undefined, recipes
 /** The family's snack makes for the week, as slots that shopping and Today's cooking read. */
 export function weekMakes(w: Week, settings: Settings | null | undefined, recipes: Recipe[]): MealSlot[] {
   if (!w.week) return [];
-  return makeSlots(weekEats(w, settings, recipes)).map((m) => ({ ...m, plan_week_id: w.week!.id, guests: 0, locked: false }) as unknown as MealSlot);
+  const byId = new Map(recipes.map((r) => [r.id, r]));
+  return makeSlots(weekEats(w, settings, recipes), (id) => snackFactor(byId.get(id))).map((m) => ({ ...m, plan_week_id: w.week!.id, guests: 0, locked: false }) as unknown as MealSlot);
 }
 
 /** Makes of the same recipe on the same day (one for each week they feed) as one make, portions added up. */
@@ -50,4 +52,10 @@ export function mergeMakes(makes: MealSlot[]): MealSlot[] {
     by.set(key, seen ? { ...seen, portions: (seen.portions ?? 0) + (m.portions ?? 0) } : { ...m });
   }
   return [...by.values()];
+}
+
+/** The makes that are cooked: quick snacks are bought for the day, never made, so they stay out of Today's cooking. */
+export function cookedMakes(makes: MealSlot[], recipes: Recipe[]): MealSlot[] {
+  const quick = new Set(recipes.filter((r) => r.quick).map((r) => r.id));
+  return makes.filter((m) => !quick.has(m.recipe_id ?? ''));
 }

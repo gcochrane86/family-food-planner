@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { mergeMakes, weekEats, weekMakes } from './weekEats';
+import { cookedMakes, mergeMakes, weekEats, weekMakes } from './weekEats';
 import type { MealSlot, PlanWeek, Recipe, Settings } from './types';
 
 const week = { id: 'w', week_start: '2026-11-16', days: 7, prep_days: [6] } as PlanWeek;
@@ -40,4 +40,18 @@ describe('review fixes', () => {
 test("a recipe made on a day for two weeks is one make in Today's cooking", () => {
   const slot = (portions: number, wk: string) => ({ plan_week_id: wk, date: '2026-11-15', slot: 'snack', mode: 'cook', recipe_id: 'egg', portions } as MealSlot);
   expect(mergeMakes([slot(4, 'a'), slot(5, 'b'), { ...slot(2, 'b'), recipe_id: 'balls' }]).map((m) => [m.recipe_id, m.portions])).toEqual([['egg', 9], ['balls', 2]]);
+});
+
+describe('snacks from any recipe, and quick snacks', () => {
+  const oats = { id: 'oats', slug: 'baked-oats', kind: 'component', snack_ok: true, snack_portions: 8, base_portions: 4, keeps_days: 3 } as unknown as Recipe;
+  const apple = { id: 'apple', slug: 'apple-almonds', kind: 'snack', quick: true, base_portions: 1 } as unknown as Recipe;
+  const stored = [
+    { id: 'e1', date: '2026-11-17', slot: 'snack_pm' as const, member_id: 'a', recipe_id: 'oats', qty: 8, make_date: '2026-11-15' },
+    { id: 'e2', date: '2026-11-18', slot: 'snack_am' as const, member_id: 'a', recipe_id: 'apple', qty: 2, make_date: '2026-11-18' },
+  ];
+  test("a recipe that can be a snack is made in recipe portions; a quick snack is bought but never made", () => {
+    const makes = weekMakes({ week, slots: [], eats: stored }, {} as Settings, [...recipes, oats, apple]);
+    expect(makes.map((m) => [m.recipe_id, m.portions])).toEqual([['oats', 4], ['apple', 2]]);
+    expect(cookedMakes(makes, [...recipes, oats, apple]).map((m) => m.recipe_id)).toEqual(['oats']);
+  });
 });

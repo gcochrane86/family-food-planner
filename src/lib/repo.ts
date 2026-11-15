@@ -3,6 +3,7 @@ import { validateSettings } from './household';
 import { recipeSavePayload } from './recipeEdit';
 import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
+import { quickNutrition } from '../../supabase/functions/_shared/quickNutrition.ts';
 import type { PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat, Partners } from './types';
@@ -212,19 +213,41 @@ export const repo = {
     const [slots, eats] = await Promise.all([
       db().from('meal_slots').select('*').eq('plan_week_id', week.id).order('date'),
       // Each person's snacks (none before migration 0025).
-      db().from('snack_eats').select('id, date, slot, member_id, recipe_id, qty, make_date').eq('plan_week_id', week.id),
+      db().from('snack_eats').select('*').eq('plan_week_id', week.id),
     ]);
     return {
       week, slots: must<MealSlot[]>(slots).map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })),
-      eats: eats.error ? [] : ((eats.data ?? []) as Eat[]).map((e) => ({ ...e, qty: Number(e.qty) })),
+      eats: eats.error ? [] : ((eats.data ?? []) as (Eat & { plan_week_id?: string })[]).map(({ plan_week_id: _w, ...e }) => ({ ...e, qty: Number(e.qty) })),
     };
   },
 
   /** One person's snack on a day (a nudge's yes), made on `make_date` with the rest of the family's. */
   async addSnackEat(weekId: string, eat: Eat): Promise<Eat> {
     const { partner: _p, id: _i, ...row } = eat;
-    const saved = must<Eat>(await db().from('snack_eats').insert({ ...row, plan_week_id: weekId }).select('id, date, slot, member_id, recipe_id, qty, make_date').single());
+    const saved = must<Eat>(await db().from('snack_eats').insert({ ...row, plan_week_id: weekId, added_by: 'household' })
+      .select('id, date, slot, member_id, recipe_id, qty, make_date, added_by').single());
     return { ...saved, qty: Number(saved.qty) };
+  },
+  async removeSnackEat(id: string): Promise<void> {
+    must(await db().from('snack_eats').delete().eq('id', id));
+  },
+  /** A quick snack: a snack recipe with one portion's items, no steps and no photo; its nutrition from the food table
+   *  (or left for Claude when an item isn't in it). */
+  async addQuickSnack(householdId: string, q: { title: string; items: { name: string; qty: number | null; unit: string }[]; toddler_ok: boolean }): Promise<Recipe> {
+    const title = q.title.trim();
+    let slug = slugify(title);
+    if (must<{ id: string } | null>(await db().from('recipes').select('id').eq('household_id', householdId).eq('slug', slug).maybeSingle())) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+    const recipe = toRecipe(must<Recipe>(await db().from('recipes').insert({
+      household_id: householdId, slug, title, kind: 'snack', quick: true, source: 'own_doc', base_portions: 1, keeps_days: 1, status: 'active',
+      toddler_ok: q.toddler_ok, finish_minutes: 0, prep_minutes: 0, tags: ['Quick snack'], nutrition: quickNutrition(q.items),
+    }).select('*').single()));
+    must(await db().rpc('replace_recipe_contents', { p_recipe_id: recipe.id, p_steps: [],
+      p_ingredients: q.items.map((it, i) => ({ position: i + 1, group_name: null, name: it.name.trim(), qty: it.qty, unit: it.unit, note: null, qty_approx: false })) }));
+    return recipe;
+  },
+  /** "Can be a snack": how many snacks a batch makes, how long it keeps, and whether it's fine for the toddler. */
+  async setSnackOptions(recipeId: string, o: { snack_ok: boolean; snack_portions: number | null; keeps_days: number | null; toddler_ok: boolean }): Promise<void> {
+    must(await db().from('recipes').update(o).eq('id', recipeId));
   },
 
   /** Saves changed slots (matched on week, date and slot). Which My Week entry Claude made is only ever written by

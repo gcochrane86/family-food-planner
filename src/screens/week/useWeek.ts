@@ -1,12 +1,14 @@
 import { weekEats, weekMakeDates } from '../../lib/weekEats';
 import { placeEat } from '../../../supabase/functions/_shared/snackEats.ts';
+import { isSnack, snackFactor } from '../../../supabase/functions/_shared/snackRules.ts';
+import { deliveryFor } from '../../lib/shopping';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { dayMinutes } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { useAuth } from '../../auth/AuthProvider';
 import { repo } from '../../lib/repo';
 import { CANCELLED } from '../../lib/types';
 import { DEFAULT_BREAKFASTS, HOME_LUNCHES } from '../../lib/mealPhotos';
-import type { BasketRun, BatchPlan, MealSlot, Member, PlanWeek, PreparedItem, PrepAhead, Recipe } from '../../lib/types';
+import type { BasketRun, BatchPlan, Eat, MealSlot, Member, PlanWeek, PreparedItem, PrepAhead, Recipe } from '../../lib/types';
 import { availablePortions, parseBatch } from '../../lib/batch';
 import { buildPlannerInput } from '../../../supabase/functions/_shared/planInput.ts';
 import {
@@ -199,7 +201,7 @@ export function useWeek() {
     nudge(date: string): { memberId: string; name: string; macro: Macro; gap: number; recipe_id: string; title: string; slot: 'snack_am' | 'snack_pm' } | null {
       // Only for today and the days ahead.
       if (!hasEstimates || !current?.week || date < starts.london.date) return null;
-      const snacks = (data?.recipes ?? []).filter((r) => r.kind === 'snack' && r.status !== 'archived');
+      const snacks = (data?.recipes ?? []).filter((r) => isSnack(r));
       for (const m of members) {
         const p = personDay(date, current.slots, recipes, routines, m, { homeLunches: mealOptions.lunch, eats });
         const states = compareTargets(p.totals, m.targets, p.unknown);
@@ -210,21 +212,69 @@ export function useWeek() {
     },
     /** Adds one person's snack on a day (a nudge's yes), made with the family's makes. */
     async addSnack(date: string, memberId: string, recipeId: string, slot: 'snack_am' | 'snack_pm'): Promise<boolean> {
+      return (await this.addSnacks(date, [memberId], recipeId, slot, 1)) === null;
+    },
+    /** Snacks a day can have: snack recipes, recipes that can be snacks and quick snacks. */
+    snackRecipes: (data?.recipes ?? []).filter((r) => isSnack(r)),
+    /** Adds a snack for each of these people on a day (morning or afternoon), made with the family's makes or, for a
+     *  quick snack, bought for the day. After that delivery's basket is filled, its items go on the Spar list. Returns
+     *  what's wrong in words, or null once saved. */
+    async addSnacks(date: string, memberIds: string[], recipeId: string, slot: 'snack_am' | 'snack_pm', qty: number): Promise<string | null> {
       const week = current?.week;
       const r = recipes.get(recipeId);
-      if (!week || !r) return false;
+      if (!week || !r || !memberIds.length || !(qty > 0)) return 'Choose who, which snack and how many.';
+      const child = members.find((m) => memberIds.includes(m.id) && m.kind === 'child');
+      if (child && r.toddler_ok === false) return `${r.title} isn't marked OK for ${child.name}.`;
+      const taken = memberIds.filter((id) => eats.some((e) => e.date === date && e.slot === slot && e.member_id === id));
+      if (taken.length) return `${taken.map((id) => members.find((m) => m.id === id)?.name ?? 'Someone').join(' and ')} already ${taken.length === 1 ? 'has' : 'have'} a ${slot === 'snack_am' ? 'morning' : 'afternoon'} snack that day. Remove it first.`;
       setSaveError(null);
+      const added: Eat[] = [];
       try {
-        const eat = placeEat({ date, slot, member_id: memberId, recipe_id: recipeId, qty: 1 }, eats, r.keeps_days ?? 1, weekMakeDates(week, data?.settings));
-        const saved = await repo.addSnackEat(week.id, eat);
+        for (const id of memberIds) {
+          const base = { date, slot, member_id: id, recipe_id: recipeId, qty };
+          const eat = r.quick ? { ...base, make_date: date } : placeEat(base, [...eats, ...added], r.keeps_days ?? 1, weekMakeDates(week, data?.settings));
+          added.push(await repo.addSnackEat(week.id, eat));
+        }
+      } catch {
+        setSaveError("Couldn't add the snack. Try again.");
+      }
+      if (added.length) {
         setData((d) => {
           if (!d) return d;
           const key = shown === 'next' ? 'nextWeek' : 'thisWeek';
-          return { ...d, [key]: { ...d[key], eats: [...(d[key].eats ?? []), saved] } };
+          return { ...d, [key]: { ...d[key], eats: [...(d[key].eats ?? []), ...added] } };
+        });
+        // Bought after the order went in: the Spar list instead of the basket.
+        const buy = added[0].make_date;
+        const delivery = deliveryFor(buy, week.week_start, data?.settings?.shops_per_week === 1 ? 1 : 2);
+        const run = ((shown === 'next' ? data?.nextBaskets : data?.thisBaskets) ?? []).find((b) => b.delivery === delivery);
+        if (week.status !== 'draft' && run?.status === 'done') {
+          try {
+            const detail = await repo.getRecipe(recipeId);
+            const servings = added.reduce((t, e) => t + e.qty, 0) * snackFactor(r);
+            const day = new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
+            for (const ing of detail?.ingredients ?? []) {
+              const amount = ing.qty == null ? '' : `${Math.round(((ing.qty * servings) / (detail!.base_portions || 1)) * 10) / 10}${ing.unit ? ` ${ing.unit}` : ''} `;
+              await repo.addQuick(hid, `${amount}${ing.name}`.slice(0, 80), `For ${day}'s snack`);
+            }
+          } catch { setSaveError("The snack's saved, but its things couldn't go on the Spar list. Add them yourself."); }
+        }
+      }
+      return added.length === memberIds.length ? null : "Couldn't add the snack for everyone. Try again.";
+    },
+    /** Takes a snack off a day. */
+    async removeSnack(id: string): Promise<boolean> {
+      setSaveError(null);
+      try {
+        await repo.removeSnackEat(id);
+        setData((d) => {
+          if (!d) return d;
+          const key = shown === 'next' ? 'nextWeek' : 'thisWeek';
+          return { ...d, [key]: { ...d[key], eats: (d[key].eats ?? []).filter((e: Eat) => e.id !== id) } };
         });
         return true;
       } catch {
-        setSaveError("Couldn't add the snack. Try again.");
+        setSaveError("Couldn't remove the snack. Try again.");
         return false;
       }
     },
