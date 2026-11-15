@@ -742,3 +742,43 @@ test("0024: each member's daily targets", async () => {
   const mid = await one(OWNER, `insert into members (household_id, name, kind, portion_weight, targets) values ('${hid}', 'A', 'adult', 1.25, '{"kcal": 2000, "protein_g": 90}') returning id`);
   expect(await one(OWNER, `select targets from members where id = '${mid}'`)).toEqual({ kcal: 2000, protein_g: 90 });
 });
+
+test("0025: each person's snack eats are saved with Claude's week, replaced with it, and its partners kept on approval", async () => {
+  const { hid, rid, req } = await weekRequest(OWNER);
+  const a = await one(OWNER, `insert into members (household_id, name, kind, portion_weight) values ('${hid}', 'A', 'adult', 1.25) returning id`);
+  const b = await one(OWNER, `insert into members (household_id, name, kind, portion_weight) values ('${hid}', 'B', 'adult', 1.25) returning id`);
+  const egg = await one(OWNER, `insert into recipes (household_id, slug, title, kind, status, source, base_portions, keeps_days) values ('${hid}', 'boiled-egg', 'Boiled egg', 'snack', 'active', 'claude', 1, 4) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req}'`);
+  const eats = JSON.stringify([
+    { date: '2026-10-26', slot: 'snack_pm', member_id: a, recipe_id: egg, qty: 2, make_date: '2026-10-25' },
+    { date: '2026-10-27', slot: 'snack_pm', member_id: b, recipe_id: egg, qty: 1, make_date: '2026-10-25' },
+  ]);
+  const partners = JSON.stringify({ 'Overnight oats': { [a]: [{ recipe: 'boiled-egg', qty: 2 }] } });
+  await svc(`select save_claude_week('${req}', 7, '${claudeSlots(rid)}', 'S', null, null, null, '${eats}', '${partners}')`);
+  expect(await one(OWNER, `select count(*)::int from snack_eats`)).toBe(2);
+  expect(await one(STRANGER, `select count(*)::int from snack_eats`)).toBe(0);
+  expect(await one(OWNER, `select new_partners from plan_weeks where week_start = '2026-10-26'`)).toEqual(JSON.parse(partners));
+  // Someone else's member can't be put in a week.
+  const other = await weekRequest(PARTNER, '2026-11-02');
+  const stranger = await one(PARTNER, `insert into members (household_id, name, kind, portion_weight) values ('${other.hid}', 'C', 'adult', 1) returning id`);
+  const req2 = await one(OWNER, `insert into week_plan_requests (household_id, week_start, replace) values ('${hid}', '2026-10-26', true) returning id`);
+  await svc(`update week_plan_requests set status = 'planning' where id = '${req2}'`);
+  const bad = JSON.stringify([{ date: '2026-10-26', slot: 'snack_am', member_id: stranger, recipe_id: egg, qty: 1, make_date: '2026-10-25' }]);
+  await expect(svc(`select save_claude_week('${req2}', 7, '${claudeSlots(rid)}', 'S', null, null, null, '${bad}', null)`)).rejects.toThrow(/unknown_member/);
+  // A replan with no eats clears them, and its (no) partners replace the draft's.
+  await svc(`select save_claude_week('${req2}', 7, '${claudeSlots(rid)}', 'S')`);
+  expect(await one(OWNER, `select count(*)::int from snack_eats`)).toBe(0);
+  expect(await one(OWNER, `select new_partners from plan_weeks where week_start = '2026-10-26'`)).toBeNull();
+  // Approval keeps the proposed partners, merged per meal and per person.
+  const wid = await one(OWNER, `select id from plan_weeks where week_start = '2026-10-26'`);
+  await svc(`update settings set data = '{"meal_partners": {"Overnight oats": {"${b}": [{"recipe": "boiled-egg", "qty": 1}]}, "Baked oats": {"${a}": []}}}' where household_id = '${hid}'`);
+  await svc(`update plan_weeks set new_partners = '${partners}' where id = '${wid}'`);
+  await as(OWNER, `select approve_week('${wid}')`);
+  expect(await one(OWNER, `select data->'meal_partners' from settings where household_id = '${hid}'`)).toEqual({
+    'Overnight oats': { [a]: [{ recipe: 'boiled-egg', qty: 2 }], [b]: [{ recipe: 'boiled-egg', qty: 1 }] }, 'Baked oats': { [a]: [] },
+  });
+  expect(await one(OWNER, `select new_partners from plan_weeks where id = '${wid}'`)).toBeNull();
+  // The household can add an eat themselves (a nudge's yes).
+  await as(OWNER, `insert into snack_eats (plan_week_id, date, slot, member_id, recipe_id, qty, make_date) values ('${wid}', '2026-10-28', 'snack_am', '${a}', '${egg}', 1, '2026-10-27')`);
+  expect(await one(OWNER, `select count(*)::int from snack_eats`)).toBe(1);
+});
