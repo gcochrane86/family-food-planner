@@ -70,3 +70,31 @@ describe('nextMake: the make a snack recipe is opened at', () => {
     expect(nextMake(makes, 'balls', '2026-11-20')).toBeNull();
   });
 });
+
+describe('snacks are made in whole batches', () => {
+  const w = { ...week, prep_days: [0] } as PlanWeek;
+  const eat = (n: number, recipe_id = 'balls') => ({ id: `e${n}${recipe_id}`, date: '2026-11-17', slot: 'snack_am' as const, member_id: `m${n}`, recipe_id, qty: 1, make_date: '2026-11-16' });
+  const lib = [
+    { id: 'balls', slug: 'balls', kind: 'snack', base_portions: 20, keeps_days: 7, toddler_ok: true },
+    { id: 'quick', slug: 'quick', kind: 'snack', quick: true, base_portions: 1, keeps_days: 1, toddler_ok: true },
+    { id: 'oats', slug: 'oats', kind: 'meal', snack_ok: true, base_portions: 4, keeps_days: 3, toddler_ok: true },
+  ] as Recipe[];
+  const makesFor = (eats: ReturnType<typeof eat>[]) => weekMakes({ week: w, slots: [], eats }, {} as Settings, lib);
+
+  test('14 balls needed makes the whole 20', () => {
+    expect(makesFor(Array.from({ length: 14 }, (_, i) => eat(i)))[0]).toMatchObject({ recipe_id: 'balls', portions: 20 });
+  });
+  test('more than a batch makes two', () => {
+    expect(makesFor(Array.from({ length: 26 }, (_, i) => eat(i)))[0].portions).toBe(40);
+  });
+  test('quick snacks and meals that can be snacks are not rounded', () => {
+    const m = makesFor([eat(1, 'quick'), eat(2, 'oats')]);
+    expect(m.find((x) => x.recipe_id === 'quick')!.portions).toBe(1);
+    expect(m.find((x) => x.recipe_id === 'oats')!.portions).toBeLessThan(4);
+  });
+  test('one make feeding two weeks is still one batch when merged', () => {
+    const a = makesFor(Array.from({ length: 3 }, (_, i) => eat(i)));
+    const b = makesFor(Array.from({ length: 4 }, (_, i) => eat(i + 10)));
+    expect(mergeMakes([...a, ...b])[0].portions).toBe(20);
+  });
+});

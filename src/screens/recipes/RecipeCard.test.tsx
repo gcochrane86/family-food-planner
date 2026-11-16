@@ -457,10 +457,9 @@ describe('a snack recipe opens at its planned make', () => {
       ? { week: { id: 'w', week_start: '2026-11-16', days: 7, status: 'approved', prep_days: [0] }, slots: [], eats: ['2026-11-17', '2026-11-18'].flatMap((d) => [eat(d, 'a'), eat(d, 'b')]) }
       : { week: null, slots: [] }) as unknown as Awaited<ReturnType<FakeRepo['getWeek']>>);
     open('r-balls');
-    const nuts = await screen.findByText('pistachios');
-    await vi.waitFor(() => expect(nuts.closest('li')).toHaveTextContent('34g'));
-    expect(screen.getByRole('tab', { name: "Mon's make · 4" })).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(screen.getByRole('tab', { name: 'Whole batch · 20' }));
+    // 4 needed, made as the whole batch of 20.
+    await screen.findByRole('tab', { name: "Mon's make · 20" });
+    expect(screen.getByRole('tab', { name: "Mon's make · 20" })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('pistachios').closest('li')).toHaveTextContent('170g');
   });
 

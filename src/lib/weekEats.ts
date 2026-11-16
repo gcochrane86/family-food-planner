@@ -40,8 +40,18 @@ export function weekEats(w: Week, settings: Settings | null | undefined, recipes
 export function weekMakes(w: Week, settings: Settings | null | undefined, recipes: Recipe[]): MealSlot[] {
   if (!w.week) return [];
   const byId = new Map(recipes.map((r) => [r.id, r]));
-  return makeSlots(weekEats(w, settings, recipes), (id) => snackFactor(byId.get(id))).map((m) => ({ ...m, plan_week_id: w.week!.id, guests: 0, locked: false }) as unknown as MealSlot);
+  return makeSlots(weekEats(w, settings, recipes), (id) => snackFactor(byId.get(id))).map((m) => {
+    // A snack recipe is always made as whole batches (14 balls needed → the recipe's 20); the rest are spare.
+    const r = byId.get(m.recipe_id);
+    const batch = r?.kind === 'snack' && !r.quick && r.base_portions > 0 ? r.base_portions : null;
+    const sized = batch ? { needed: m.portions, batch_size: batch, portions: wholeBatches(m.portions, batch) } : {};
+    return { ...m, ...sized, plan_week_id: w.week!.id, guests: 0, locked: false } as unknown as MealSlot;
+  });
 }
+
+/** Portions made as whole batches of `batch`. */
+const wholeBatches = (needed: number, batch: number) => Math.max(1, Math.ceil(needed / batch - 1e-9)) * batch;
+type Make = MealSlot & { needed?: number; batch_size?: number };
 
 /** Makes of the same recipe on the same day (one for each week they feed) as one make, portions added up. */
 export function mergeMakes(makes: MealSlot[]): MealSlot[] {
@@ -49,7 +59,12 @@ export function mergeMakes(makes: MealSlot[]): MealSlot[] {
   for (const m of makes) {
     const key = `${m.date}|${m.recipe_id}`;
     const seen = by.get(key);
-    by.set(key, seen ? { ...seen, portions: (seen.portions ?? 0) + (m.portions ?? 0) } : { ...m });
+    if (!seen) { by.set(key, { ...m }); continue; }
+    // Whole-batch snacks: what both weeks need, made as whole batches (not a batch for each week).
+    const a = seen as Make, b = m as Make;
+    by.set(key, a.batch_size && b.batch_size
+      ? { ...a, needed: (a.needed ?? 0) + (b.needed ?? 0), portions: wholeBatches((a.needed ?? 0) + (b.needed ?? 0), a.batch_size) } as Make
+      : { ...seen, portions: (seen.portions ?? 0) + (m.portions ?? 0) });
   }
   return [...by.values()];
 }
