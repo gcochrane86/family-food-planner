@@ -233,7 +233,8 @@ export default function RecipeCard() {
   const { make } = data;
   const batchSnack = recipe.kind === 'snack' && !recipe.quick;
   const household = make?.portions ?? (batchSnack ? recipe.base_portions : householdPortions(members) || recipe.base_portions);
-  const presets = [household, 6, 9].filter((v, i, a) => a.indexOf(v) === i);
+  // A snack's tabs: its make and the whole batch the recipe makes; anything else, the household and bigger batches.
+  const presets = (batchSnack ? [household, recipe.base_portions] : [household, 6, 9]).filter((v, i, a) => a.indexOf(v) === i);
   const target = portions ?? household;
   const factor = scaleFactor(target, recipe.base_portions);
   const toddler = members.find((m) => m.kind === 'child');
@@ -255,7 +256,7 @@ export default function RecipeCard() {
     setPhotoPanel(mode);
   }
   const makeDay = make ? new Date(`${make.date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }) : '';
-  const tabLabel = (n: number) => (n === household ? (make ? `${makeDay}'s make · ${Math.round(n * 10) / 10}` : batchSnack ? `Batch · ${n}` : `Household · ${formatPortions(n)}`) : n === 9 ? '9 · big batch' : `${n} portions`);
+  const tabLabel = (n: number) => (make && n === household ? `${makeDay}'s make · ${Math.round(n * 10) / 10}` : batchSnack && n === recipe.base_portions ? `Whole batch · ${n}` : n === household ? `Household · ${formatPortions(n)}` : n === 9 ? '9 · big batch' : `${n} portions`);
 
   return (
     <article className="grid gap-4 py-4">

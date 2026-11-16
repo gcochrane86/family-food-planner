@@ -460,11 +460,14 @@ describe('a snack recipe opens at its planned make', () => {
     const nuts = await screen.findByText('pistachios');
     await vi.waitFor(() => expect(nuts.closest('li')).toHaveTextContent('34g'));
     expect(screen.getByRole('tab', { name: "Mon's make · 4" })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.click(screen.getByRole('tab', { name: 'Whole batch · 20' }));
+    expect(screen.getByText('pistachios').closest('li')).toHaveTextContent('170g');
   });
 
   test('with no make planned, the whole batch', async () => {
     h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
     open('r-balls');
     expect((await screen.findByText('pistachios')).closest('li')).toHaveTextContent('170g');
+    expect(screen.getByRole('tab', { name: 'Whole batch · 20' })).toHaveAttribute('aria-selected', 'true');
   });
 });
