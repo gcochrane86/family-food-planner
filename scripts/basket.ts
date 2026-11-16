@@ -54,7 +54,7 @@ async function list() {
   const eats = must<Eat[]>(await db.from('snack_eats').select('date, slot, member_id, recipe_id, qty, make_date').eq('plan_week_id', week.id), 'Reading snacks')
     .map((e) => ({ ...e, qty: Number(e.qty) }));
   const prefs = must<{ data: Settings } | null>(await db.from('settings').select('data').eq('household_id', householdId).maybeSingle(), 'Reading settings')?.data ?? null;
-  const library = must<Recipe[]>((await db.from('recipes').select('id, slug, kind, keeps_days, toddler_ok, reheats_well').eq('household_id', householdId)) as never, 'Reading recipes');
+  const library = must<Recipe[]>((await db.from('recipes').select('id, slug, kind, status, quick, snack_ok, snack_portions, base_portions, keeps_days, toddler_ok, reheats_well').eq('household_id', householdId)) as never, 'Reading recipes');
   const slots = [...menu, ...weekMakes({ week, slots: menu, eats }, prefs, library)];
   const ids = [...new Set(slots.filter((s) => (s.slot === 'dinner' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
   // A roast's sides are recipes of their own, found by slug.

@@ -43,7 +43,8 @@ export function weekMakes(w: Week, settings: Settings | null | undefined, recipe
   return makeSlots(weekEats(w, settings, recipes), (id) => snackFactor(byId.get(id))).map((m) => {
     // A snack recipe is always made as whole batches (14 balls needed → the recipe's 20); the rest are spare.
     const r = byId.get(m.recipe_id);
-    const batch = r?.kind === 'snack' && !r.quick && r.base_portions > 0 ? r.base_portions : null;
+    const base = Number(r?.base_portions);
+    const batch = r?.kind === 'snack' && !r.quick && base > 0 ? base : null;
     const sized = batch ? { needed: m.portions, batch_size: batch, portions: wholeBatches(m.portions, batch) } : {};
     return { ...m, ...sized, plan_week_id: w.week!.id, guests: 0, locked: false } as unknown as MealSlot;
   });

@@ -84,6 +84,10 @@ describe('snacks are made in whole batches', () => {
   test('14 balls needed makes the whole 20', () => {
     expect(makesFor(Array.from({ length: 14 }, (_, i) => eat(i)))[0]).toMatchObject({ recipe_id: 'balls', portions: 20 });
   });
+  test('a batch size read as text still counts', () => {
+    const textLib = lib.map((r) => (r.id === 'balls' ? { ...r, base_portions: '20' as unknown as number } : r));
+    expect(weekMakes({ week: w, slots: [], eats: [eat(1)] }, {} as Settings, textLib)[0].portions).toBe(20);
+  });
   test('more than a batch makes two', () => {
     expect(makesFor(Array.from({ length: 26 }, (_, i) => eat(i)))[0].portions).toBe(40);
   });
