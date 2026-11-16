@@ -1,4 +1,4 @@
-import { buildShoppingList, deliveryFor, pickShoppingWeek, tickKey } from './shopping';
+import { aisle, buildShoppingList, deliveryFor, pickShoppingWeek, tickKey } from './shopping';
 import type { MealSlot, RecipeDetail, Staple } from './types';
 
 const recipe = (id: string, base: number, ingredients: [string, number | null, string][]): RecipeDetail => ({
@@ -311,4 +311,58 @@ test('which delivery brings a day: Sunday for the Sunday before to Wednesday, Tu
   expect(deliveryFor('2026-11-18', '2026-11-16', 2)).toBe('sun');
   expect(deliveryFor('2026-11-19', '2026-11-16', 2)).toBe('tue');
   expect(deliveryFor('2026-11-19', '2026-11-16', 1)).toBe('sun');
+});
+
+describe('tidying the list', () => {
+  const basic = (name: string, qty: number | null, unit: string) => ({ household_id: 'h1', position: 0, name, qty, unit, approx: false, delivery: 'sun' as const });
+
+  test('water from the tap is never bought, but things in water still are', () => {
+    const r = recipe('soup', 4, [['water', 500, 'g'], ['boiling water', 400, 'ml'], ['cold water', 1, 'tbsp'], ['tinned tuna in water', 160, 'g'], ['coconut water', 250, 'ml']]);
+    const names = buildShoppingList([dinner('2026-10-19', 'soup', 4)], new Map([['soup', r]]), [], 1).sun.map((i) => i.name);
+    expect(names).toEqual(expect.arrayContaining(['tinned tuna in water', 'coconut water']));
+    expect(names).not.toEqual(expect.arrayContaining(['water']));
+    expect(names.filter((n) => /^(boiling |cold )?water$/.test(n))).toEqual([]);
+  });
+
+  test('milk in ml, milk in tablespoons and the whole-milk basic are one line, under the basic', () => {
+    const r = recipe('bake', 4, [['milk', 300, 'ml'], ['milk', 2, 'tbsp']]);
+    const list = buildShoppingList([dinner('2026-10-19', 'bake', 4)], new Map([['bake', r]]), [], 1, [basic('Whole milk', 1500, 'ml')]);
+    const milk = list.sun.filter((i) => /milk/i.test(i.name));
+    expect(milk).toHaveLength(1);
+    expect(milk[0]).toMatchObject({ key: 'whole milk|ml', name: 'Whole milk', qty: 1830, unit: 'ml' });
+    expect(milk[0].forMeals).toEqual(['Breakfasts & lunches', 'Mon bake']);
+  });
+
+  test('kilos and grams of the same thing add up; coconut milk and a whole chicken stay apart', () => {
+    const r = recipe('a', 4, [['potatoes', 1, 'kg'], ['potato', 450, 'g'], ['coconut milk', 400, 'ml'], ['milk', 100, 'ml'], ['chicken thighs', 500, 'g']]);
+    const list = buildShoppingList([dinner('2026-10-19', 'a', 4)], new Map([['a', r]]), [], 1, [basic('Whole chicken', 1, '')]);
+    expect(list.sun.filter((i) => /potato/.test(i.name))).toEqual([expect.objectContaining({ qty: 1.45, unit: 'kg' })]);
+    expect(list.sun.filter((i) => /milk/.test(i.name)).map((i) => i.name).sort()).toEqual(['coconut milk', 'milk']);
+    expect(list.sun.filter((i) => /chicken/i.test(i.name))).toHaveLength(2);
+  });
+
+  test('things that can\'t be added up (2 lemons and 1 tbsp lemon) stay as two lines', () => {
+    const r = recipe('a', 4, [['lemons', 2, ''], ['lemon', 1, 'tbsp']]);
+    expect(buildShoppingList([dinner('2026-10-19', 'a', 4)], new Map([['a', r]]), [], 1).sun.filter((i) => /lemon/.test(i.name))).toHaveLength(2);
+  });
+});
+
+describe('the walking order', () => {
+  test('fresh, meat and nuts first; then cheese, pasta and dairy; then sauces and seasoning; then frozen', () => {
+    const names = ['frozen peas', 'olive oil', 'cheddar', 'chicken thighs', 'spaghetti', 'red onion', 'ground cumin', 'almonds', 'Greek yoghurt',
+      'tinned tomatoes', 'salmon fillets', 'fresh coriander', 'coriander seeds', 'bell pepper', 'black pepper', 'eggs', 'Whole milk', 'chicken stock',
+      'frozen raspberries', 'peanut butter', 'basmati rice', 'sourdough loaf'];
+    expect(names.map((n) => [n, aisle(n)])).toEqual([
+      ['frozen peas', 4], ['olive oil', 2], ['cheddar', 1], ['chicken thighs', 0], ['spaghetti', 1], ['red onion', 0], ['ground cumin', 2],
+      ['almonds', 0], ['Greek yoghurt', 1], ['tinned tomatoes', 2], ['salmon fillets', 0], ['fresh coriander', 0], ['coriander seeds', 2],
+      ['bell pepper', 0], ['black pepper', 2], ['eggs', 1], ['Whole milk', 1], ['chicken stock', 2], ['frozen raspberries', 4], ['peanut butter', 0],
+      ['basmati rice', 1], ['sourdough loaf', 3],
+    ]);
+  });
+
+  test('a delivery comes back in walking order, keeping the order within each part', () => {
+    const r = recipe('a', 4, [['frozen peas', 200, 'g'], ['olive oil', 1, 'tbsp'], ['cheddar', 90, 'g'], ['onion', 1, ''], ['beef mince', 500, 'g']]);
+    expect(buildShoppingList([dinner('2026-10-19', 'a', 4)], new Map([['a', r]]), [], 1).sun.map((i) => i.name))
+      .toEqual(['onion', 'beef mince', 'cheddar', 'olive oil', 'frozen peas']);
+  });
 });

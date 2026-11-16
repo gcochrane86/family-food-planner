@@ -263,3 +263,19 @@ test("a snack make's ingredients are on the list for the day it's made", async (
   const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
   expect(within(sunday).getByText(/for Wed snack: /)).toBeInTheDocument();
 });
+
+test('a delivery runs in walking order under headings, and ticked things move to the bottom', async () => {
+  h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+  render(<ShopList />, { wrapper: MemoryRouter });
+  const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+  const headings = within(sunday).getAllByRole('heading', { level: 3 }).map((x) => x.textContent);
+  expect(headings[0]).toBe('Fruit, veg, meat & nuts');
+  expect(headings).not.toContain('In the trolley');
+  const first = within(sunday).getAllByRole('checkbox')[0];
+  const name = first.getAttribute('aria-label')!;
+  await user().click(first);
+  const boxes = within(sunday).getAllByRole('checkbox');
+  expect(boxes[boxes.length - 1]).toHaveAccessibleName(name);
+  expect(boxes[boxes.length - 1]).toBeChecked();
+  expect(within(sunday).getAllByRole('heading', { level: 3 }).map((x) => x.textContent).at(-1)).toBe('In the trolley');
+});

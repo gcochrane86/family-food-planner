@@ -3,6 +3,7 @@ import { parseRoastChoice, roastPartSlugs } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { pantryLabel, words } from './recipes';
+import { aisle, isTapWater, measure, sameThing } from './aisles';
 import type { OtherShop, MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
 export interface ShopItem {
@@ -61,7 +62,7 @@ export function buildShoppingList(
   const add = (recipe: RecipeDetail, factor: number, meal: string, slot: MealSlot) => {
     const batch = parseBatch(recipe.batch);
     for (const ing of recipe.ingredients) {
-      if (pantryLabel(ing.name, have) === 'In pantry') continue;
+      if (pantryLabel(ing.name, have) === 'In pantry' || isTapWater(ing.name)) continue;
       // The batch part comes from the freezer, or is made several times over to freeze the rest.
       const inBatch = !!batch && isBatchIngredient(recipe, ing);
       if (inBatch && (slot.batch === 'frozen' || slot.batch === 'frozen_ok')) continue;
@@ -151,6 +152,8 @@ export function buildShoppingList(
       forMeals: [note], neededBy: '',
     });
   }
+  // The same thing twice (milk in ml and in tbsp, and the whole-milk basic) becomes one line.
+  for (const list of [sun, tue]) list.splice(0, list.length, ...mergeSame(list));
   // Shops with no fixed day (the farm shop) take their things from either delivery, basics and staples included.
   const others = shops.map((shop) => ({ name: shop.name, day: shop.day, items: [] as ShopItem[] }));
   for (const list of [sun, tue]) {
@@ -161,7 +164,35 @@ export function buildShoppingList(
       others.find((o) => o.name === shop.name)!.items.push({ ...item, shop: shop.name });
     }
   }
-  return { sun, tue, others: others.filter((o) => o.items.length) };
+  // In the order you walk the shop (a stable sort, so each part keeps the order the dinners came in).
+  const walk = (list: ShopItem[]) => list.sort((a, b) => aisle(a.name) - aisle(b.name));
+  return { sun: walk(sun), tue: walk(tue), others: others.filter((o) => o.items.length).map((o) => ({ ...o, items: walk(o.items) })) };
+}
+
+export { aisle };
+
+/** Lines for the same thing (by sameThing, and the same shop) whose units add up become one line. It keeps the
+ *  weekly basic's line when there is one (its saved Sainsbury's product is under that key), else the biggest. */
+function mergeSame(list: ShopItem[]): ShopItem[] {
+  const groups = new Map<string, ShopItem[]>();
+  for (const item of list) {
+    const k = `${item.shop ?? ''}|${sameThing(item.name)}|${measure(item.unit)[0]}`;
+    groups.set(k, [...(groups.get(k) ?? []), item]);
+  }
+  const merged = new Map<ShopItem, ShopItem>();
+  for (const group of groups.values()) {
+    if (group.length < 2 || group.some((i) => i.key.startsWith('staple|'))) continue;
+    const base = (i: ShopItem) => (i.qty ?? 0) * measure(i.unit)[1];
+    const keep = group.find((i) => i.forMeals.includes('Breakfasts & lunches')) ?? [...group].sort((a, b) => base(b) - base(a))[0];
+    const total = group.some((i) => i.qty !== null) ? group.reduce((n, i) => n + base(i), 0) / measure(keep.unit)[1] : null;
+    const line: ShopItem = {
+      ...keep, qty: total === null ? null : Math.round(total * 1000) / 1000, approx: group.some((i) => i.approx),
+      forMeals: [...new Set([keep, ...group.filter((i) => i !== keep)].flatMap((i) => i.forMeals))],
+      neededBy: group.map((i) => i.neededBy).filter(Boolean).sort()[0] ?? '',
+    };
+    for (const i of group) merged.set(i, line);
+  }
+  return [...new Set(list.map((i) => merged.get(i) ?? i))];
 }
 
 /** The delivery that brings what's needed on a day: with two shops a week, Sunday's for the Sunday before the week to

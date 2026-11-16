@@ -6,6 +6,7 @@ import { repo } from '../../lib/repo';
 import { weekMakes } from '../../lib/weekEats';
 import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../../lib/shopping';
 import { packsNeeded } from '../../lib/packs';
+import { AISLES, aisle } from '../../lib/aisles';
 import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
 import { switchClasses } from '../../lib/switchClasses';
 import { parseBatch } from '../../lib/batch';
@@ -289,27 +290,34 @@ function Section({ d, title, items, isTicked, toggle, run, onReady, products, bl
       </div>
       {showRun && <RunStatus run={run} onReady={(emptyFirst) => onReady(d, emptyFirst)} blocked={blocked} />}
       {items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
-        <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
-          {items.map((item) => {
-            const done = isTicked(d, item);
-            const amount = formatQty(item.qty, item.unit, item.approx);
-            const product = products.get(item.key);
-            const packs = product?.pack_size ? packsNeeded(item.qty, item.unit, Number(product.pack_size), product.pack_unit) : null;
-            return (
-              <li key={item.key}>
-                <label className="flex cursor-pointer items-start gap-3 px-4 py-2.5">
-                  <input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--accent)]" checked={done} onChange={() => void toggle(d, item)}
-                    aria-label={`${amount} ${item.name}`.trim()} />
-                  <span className="min-w-0">
-                    <span className={`block font-semibold ${done ? 'text-muted line-through' : ''}`}>{amount ? `${amount} ${item.name}` : item.name}</span>
-                    <span className="block text-[12.5px] text-muted">{item.forMeals[0]?.startsWith('Cupboard') ? item.forMeals[0] : `for ${item.forMeals.join(', ')}`}</span>
-                    {product && <span className="block text-[12.5px] text-teal">{product.product_name}{packs ? ` × ${packs}` : ''}</span>}
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
+        // In the order you walk the shop, a heading per part; what's in the trolley drops to the bottom.
+        [...AISLES.map((label, n) => ({ label, list: items.filter((i) => !isTicked(d, i) && aisle(i.name) === n) })),
+          { label: 'In the trolley', list: items.filter((i) => isTicked(d, i)) }].filter((g) => g.list.length).map((g) => (
+          <div key={g.label} className="grid gap-1">
+            <h3 className="m-0 mt-1 text-sm font-semibold text-muted">{g.label}</h3>
+            <ul className="m-0 divide-y divide-line rounded-2xl border border-line bg-surface p-0">
+              {g.list.map((item) => {
+                const done = isTicked(d, item);
+                const amount = formatQty(item.qty, item.unit, item.approx);
+                const product = products.get(item.key);
+                const packs = product?.pack_size ? packsNeeded(item.qty, item.unit, Number(product.pack_size), product.pack_unit) : null;
+                return (
+                  <li key={item.key}>
+                    <label className="flex cursor-pointer items-start gap-3 px-4 py-2.5">
+                      <input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--accent)]" checked={done} onChange={() => void toggle(d, item)}
+                        aria-label={`${amount} ${item.name}`.trim()} />
+                      <span className="min-w-0">
+                        <span className={`block font-semibold ${done ? 'text-muted line-through' : ''}`}>{amount ? `${amount} ${item.name}` : item.name}</span>
+                        <span className="block text-[12.5px] text-muted">{item.forMeals[0]?.startsWith('Cupboard') ? item.forMeals[0] : `for ${item.forMeals.join(', ')}`}</span>
+                        {product && <span className="block text-[12.5px] text-teal">{product.product_name}{packs ? ` × ${packs}` : ''}</span>}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
       )}
     </section>
   );
