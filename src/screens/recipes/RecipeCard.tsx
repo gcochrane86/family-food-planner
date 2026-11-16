@@ -145,6 +145,26 @@ export default function RecipeCard() {
     setStepProgress(null);
   }
 
+  /** Add step photos: the main photo first if there isn't one (step photos copy its style), then the missing steps. */
+  async function addStepPhotos(stepHints: Record<string, string>) {
+    if (!data?.recipe) return;
+    const r = data.recipe;
+    if (!r.hero_image_path) {
+      setPhotoBusy(true);
+      try {
+        const path = await repo.generateHero(r.id);
+        setData((d) => d && d.recipe ? { ...d, recipe: { ...d.recipe, hero_image_path: path, hero_image_source: 'generated' } } : d);
+      } catch (e) {
+        setPhotoError(`Couldn't make the main photo: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      } finally {
+        setPhotoBusy(false);
+      }
+    }
+    started.current = r.id;
+    runStepPhotos(r, true, stepHints);
+  }
+
   async function undoNotForUs() {
     if (!data?.recipe) return;
     try {
@@ -216,6 +236,9 @@ export default function RecipeCard() {
   const split = prep.length > 0;
   const settings = recipe.steps.filter((s) => s.machine && s.settings);
   const missingPhotos = recipe.steps.filter((s) => s.id && !s.image_path).length;
+  // Step photos are drawn in the style of the main photo, so a recipe without one gets it first (as in Today's hour).
+  const needHero = !recipe.hero_image_path;
+  const addCount = missingPhotos + (needHero ? 1 : 0);
   const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
   const ordered = [...recipe.steps].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position);
   const panelSteps = ordered.filter((st) => st.id && (photoPanel === 'add' ? !st.image_path : st.image_source === 'generated'));
@@ -258,7 +281,7 @@ export default function RecipeCard() {
       {photoPanel && (
         <section aria-label={photoPanel === 'add' ? 'Add step photos' : 'New step photos'} className="grid gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
           <p className="m-0 font-semibold">
-            {photoPanel === 'add' ? 'Make' : 'Remake'} {panelSteps.length} step photo{panelSteps.length === 1 ? '' : 's'}? About {photoCost(panelSteps.length)}.
+            {photoPanel === 'add' ? (needHero ? 'Make the main photo and' : 'Make') : 'Remake'} {panelSteps.length} step photo{panelSteps.length === 1 ? '' : 's'}? About {photoCost(panelSteps.length + (photoPanel === 'add' && needHero ? 1 : 0))}.
           </p>
           <p className="m-0 text-sm text-muted">Optional: say in one sentence what each photo should show. Leave it blank to let the recipe decide.</p>
           <div className="grid gap-2">
@@ -275,7 +298,7 @@ export default function RecipeCard() {
             <button type="button" onClick={() => setPhotoPanel(null)} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Cancel</button>
             <button type="button" onClick={() => {
               const mode = photoPanel; setPhotoPanel(null); setPhotoError(null);
-              if (mode === 'add') { started.current = recipe.id; runStepPhotos(recipe, true, hints); } else void newStepPhotos(hints);
+              if (mode === 'add') void addStepPhotos(hints); else void newStepPhotos(hints);
             }} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Make photos</button>
           </div>
         </section>
@@ -390,6 +413,11 @@ export default function RecipeCard() {
         </div>
 
         <div>
+          {missingPhotos > 0 && !photoPanel && !stepProgress && !photoBusy && (
+            <button type="button" onClick={() => openPanel('add')} className="mb-3 rounded-xl bg-surface-2 px-4 py-2 text-sm font-semibold print:hidden">
+              Add step photos ✨ ({addCount} photo{addCount === 1 ? '' : 's'}, about {photoCost(addCount)})
+            </button>
+          )}
           <Steps steps={[...prep, ...finish]} label="Method" markAhead batch={parseBatch(recipe.batch)} />
           {settings.length > 0 && (
             <div className="mt-6 rounded-2xl border border-line bg-surface p-4">

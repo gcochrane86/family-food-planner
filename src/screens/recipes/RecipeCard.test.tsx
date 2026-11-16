@@ -164,7 +164,44 @@ test('new step photos come from the settings menu and leave your own photos alon
   expect(h.repo.generateStepPhoto).toHaveBeenCalledWith(HONEY.id, steps[0].id, true, true);
 });
 
+test('the method shows an Add step photos button with the cost, and makes the main photo first when there is none', async () => {
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Add step photos ✨ (4 photos, about 12p)' }));
+  expect(screen.getByText('Make the main photo and 3 step photos? About 12p.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
+  expect(h.repo.generateHero).toHaveBeenCalledWith('r-honey');
+  expect(h.repo.generateHero.mock.invocationCallOrder[0]).toBeLessThan(h.repo.generateStepPhoto.mock.invocationCallOrder[0]);
+  expect(await screen.findByRole('img', { name: HONEY.title })).toBeInTheDocument();
+});
+
+test('with a main photo already, the button only counts the steps', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', hero_image_source: 'generated' });
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Add step photos ✨ (3 photos, about 9p)' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
+  expect(h.repo.generateHero).not.toHaveBeenCalled();
+});
+
+test('a failed main photo stops before any step photos', async () => {
+  h.repo.generateHero.mockRejectedValueOnce(new Error('quota'));
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: /Add step photos ✨/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make the main photo: quota");
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+});
+
+test('a recipe with no steps has no Add step photos button', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, steps: [] });
+  open('r-honey');
+  await screen.findByRole('heading', { name: HONEY.title });
+  expect(screen.queryByRole('button', { name: /Add step photos/ })).not.toBeInTheDocument();
+});
+
 test('add step photos asks first with a rough cost, then makes them without needing a 👍', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', hero_image_source: 'generated' });
   open('r-honey');
   await fromSettings('Add step photos ✨');
   expect(screen.getByText('Make 3 step photos? About 9p.')).toBeInTheDocument();
