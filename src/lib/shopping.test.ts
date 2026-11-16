@@ -366,3 +366,29 @@ describe('the walking order', () => {
       .toEqual(['onion', 'beef mince', 'cheddar', 'olive oil', 'frozen peas']);
   });
 });
+
+describe('cupboard lines know their cupboard item, so ticking one can restock it', () => {
+  test('a low or run-out staple line names its cupboard item and status', () => {
+    const list = buildShoppingList([], recipes, [{ id: 'st-pap', ingredient_id: 'i', name: 'Paprika', status: 'out' }], 2);
+    expect(list.sun.find((i) => i.key === 'staple|st-pap')!.staples).toEqual([{ id: 'st-pap', status: 'out' }]);
+  });
+
+  test('a line that covers a low staple names it too', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6)], recipes, [{ id: 's1', ingredient_id: 'i1', name: 'Tinned tomatoes', status: 'low' }], 2);
+    expect(list.sun.find((i) => i.name === 'tinned tomatoes')!.staples).toEqual([{ id: 's1', status: 'low' }]);
+  });
+
+  test('a recipe line with no staple behind it names none', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6)], recipes, staples, 2);
+    expect(list.sun.find((i) => i.name === 'onions')!.staples).toBeUndefined();
+  });
+
+  test('merged lines keep the staple', () => {
+    const milky = recipe('custard', 4, [['milk', 500, 'ml'], ['whole milk', 2, 'tbsp']]);
+    const list = buildShoppingList([dinner('2026-10-19', 'custard', 4)], new Map([['custard', milky]]),
+      [{ id: 'st-milk', ingredient_id: 'i', name: 'Whole milk', status: 'low' }], 2);
+    const milk = list.sun.filter((i) => /milk/i.test(i.name));
+    expect(milk).toHaveLength(1);
+    expect(milk[0].staples).toEqual([{ id: 'st-milk', status: 'low' }]);
+  });
+});

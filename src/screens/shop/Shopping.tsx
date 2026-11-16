@@ -122,6 +122,13 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     setBanner(null);
     try {
       await repo.setTick(data.chosen.week.id, d, tickKey(item), value);
+      // A cupboard item in the trolley is back in the cupboard; untick it and it's low (or out) again.
+      try {
+        await Promise.all((item.staples ?? []).map((s) => repo.setStaple(s.id, value ? 'have' : s.status)));
+      } catch (e) {
+        await repo.setTick(data.chosen.week.id, d, tickKey(item), !value).catch(() => {});
+        throw e;
+      }
     } catch {
       setTicked((m) => new Map(m).set(id, !value));
       setBanner(SAVE_ERROR);

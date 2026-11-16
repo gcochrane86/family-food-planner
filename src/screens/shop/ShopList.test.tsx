@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -278,4 +278,37 @@ test('a delivery runs in walking order under headings, and ticked things move to
   expect(boxes[boxes.length - 1]).toHaveAccessibleName(name);
   expect(boxes[boxes.length - 1]).toBeChecked();
   expect(within(sunday).getAllByRole('heading', { level: 3 }).map((x) => x.textContent).at(-1)).toBe('In the trolley');
+});
+
+describe('ticking a cupboard item restocks the cupboard', () => {
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+    h.repo.listStaples.mockResolvedValue([{ id: 'p-cumin', ingredient_id: 'i9', name: 'Cumin', status: 'low' }]);
+  });
+
+  test('ticking it marks it "have"; unticking puts it back to low', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const box = () => screen.getByRole('checkbox', { name: 'Cumin' });
+    await user().click(await screen.findByRole('checkbox', { name: 'Cumin' }));
+    await waitFor(() => expect(h.repo.setStaple).toHaveBeenCalledWith('p-cumin', 'have'));
+    expect(box()).toBeChecked();
+    await user().click(box());
+    await waitFor(() => expect(h.repo.setStaple).toHaveBeenLastCalledWith('p-cumin', 'low'));
+    expect(box()).not.toBeChecked();
+  });
+
+  test('ticking an ordinary item leaves the cupboard alone', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('checkbox', { name: /chicken breast or thigh/ }));
+    expect(h.repo.setStaple).not.toHaveBeenCalled();
+  });
+
+  test('if the cupboard can\'t be saved, the tick is undone and you are told', async () => {
+    h.repo.setStaple.mockRejectedValueOnce(new Error('offline'));
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await user().click(await screen.findByRole('checkbox', { name: 'Cumin' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Cumin' })).not.toBeChecked();
+    expect(h.repo.setTick).toHaveBeenLastCalledWith('w-next', 'sun', 'staple|p-cumin', false);
+  });
 });

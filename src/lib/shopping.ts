@@ -16,6 +16,8 @@ export interface ShopItem {
   neededBy: string;
   /** Bought at another shop (the fishmonger, the farm shop) rather than Sainsbury's. */
   shop?: string;
+  /** The cupboard items (low or run out) this line restocks: ticking it marks them "have". */
+  staples?: { id: string; status: 'low' | 'out' }[];
 }
 
 /** Whether an item is one of a shop's: every word of one of its "buys" is in the item's name. */
@@ -143,13 +145,15 @@ export function buildShoppingList(
     const note = s.status === 'low' ? 'Cupboard: running low' : 'Cupboard: run out';
     // Already on the list (from a recipe or a basic)? Note it there rather than adding a second line.
     const covered = [...sun, ...tue].find((i) => pantryLabel(i.name, [{ ...s, status: 'have' }]) === 'In pantry');
+    const staple = { id: s.id, status: s.status as 'low' | 'out' };
     if (covered) {
       covered.forMeals.push(note);
+      covered.staples = [...(covered.staples ?? []), staple];
       continue;
     }
     sun.push({
       key: `staple|${s.id}`, name: s.name, qty: null, unit: '', approx: false,
-      forMeals: [note], neededBy: '',
+      forMeals: [note], neededBy: '', staples: [staple],
     });
   }
   // The same thing twice (milk in ml and in tbsp, and the whole-milk basic) becomes one line.
@@ -190,6 +194,8 @@ function mergeSame(list: ShopItem[]): ShopItem[] {
       forMeals: [...new Set([keep, ...group.filter((i) => i !== keep)].flatMap((i) => i.forMeals))],
       neededBy: group.map((i) => i.neededBy).filter(Boolean).sort()[0] ?? '',
     };
+    const staples = group.flatMap((i) => i.staples ?? []);
+    if (staples.length) line.staples = staples; else delete line.staples;
     for (const i of group) merged.set(i, line);
   }
   return [...new Set(list.map((i) => merged.get(i) ?? i))];
