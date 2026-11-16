@@ -9,7 +9,9 @@ import { formatQty, groupIngredients, machineLabel, scaleFactor, toddlerSaltNote
 import { repo } from '../../lib/repo';
 import { dayParams, dayQuery, loadDayRecipe } from '../../lib/dayRecipe';
 import { makeStepPhotos } from '../../lib/stepPhotos';
-import type { Machine, RecipeBatch, RecipeStep } from '../../lib/types';
+import type { Machine, RecipeBatch, RecipeDetail, RecipeStep } from '../../lib/types';
+import { parseNutrition, type Nutrition } from '../../../supabase/functions/_shared/balance.ts';
+import { snackFactor } from '../../../supabase/functions/_shared/snackRules.ts';
 import { formatPortions } from '../settings/Household';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
@@ -440,9 +442,61 @@ export default function RecipeCard() {
               <p className="m-0">{recipe.reheat}</p>
             </div>
           )}
+          <NutritionTable recipe={recipe} adultShare={Number(members.find((m) => m.kind === 'adult')?.portion_weight) || 1.25} />
         </div>
       </div>
     </article>
+  );
+}
+
+const NUTRITION_ROWS: { key: keyof Nutrition; label: string; unit: string; sub?: boolean }[] = [
+  { key: 'kcal', label: 'Calories', unit: ' kcal' },
+  { key: 'protein_g', label: 'Protein', unit: 'g' },
+  { key: 'fat_g', label: 'Fat', unit: 'g' },
+  { key: 'sat_fat_g', label: 'of which saturates', unit: 'g', sub: true },
+  { key: 'carbs_g', label: 'Carbs', unit: 'g' },
+  { key: 'sugars_g', label: 'of which sugars', unit: 'g', sub: true },
+  { key: 'fibre_g', label: 'Fibre', unit: 'g' },
+  { key: 'salt_g', label: 'Salt', unit: 'g' },
+  { key: 'veg_portions', label: 'Veg portions', unit: '' },
+  { key: 'fruit_portions', label: 'Fruit portions', unit: '' },
+];
+/** Whole numbers from 10 up, one decimal below (7.5g, 1.2g salt). */
+const amount = (v: number) => (v >= 10 ? String(Math.round(v)) : String(Math.round(v * 10) / 10));
+
+/** The recipe's nutrition at the bottom of the page: per serving and an adult's share, plus one snack for a recipe
+ *  that can be a snack; a snack recipe's estimate is already per snack. */
+function NutritionTable({ recipe, adultShare }: { recipe: RecipeDetail; adultShare: number }) {
+  const n = parseNutrition(recipe.nutrition);
+  const cols: { label: string; share: number }[] = recipe.kind === 'snack' ? [{ label: 'Per snack', share: 1 }] : [
+    { label: 'Per serving', share: 1 }, { label: 'Each adult', share: adultShare },
+    ...(recipe.snack_ok ? [{ label: 'One snack', share: snackFactor(recipe) }] : []),
+  ];
+  return (
+    <section aria-label="Nutrition" className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <h2 className="mb-1 text-base font-bold">Nutrition</h2>
+      {!n ? <p className="m-0 text-muted">No estimate yet.</p> : (
+        <>
+          <table className="w-full border-collapse text-sm tabular-nums">
+            <thead>
+              <tr className="text-left text-muted">
+                <th scope="col" className="py-1 pr-3 font-semibold"><span className="sr-only">Nutrient</span></th>
+                {cols.map((c) => <th key={c.label} scope="col" className="py-1 pl-3 text-right font-semibold">{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {NUTRITION_ROWS.filter((r) => typeof n[r.key] === 'number').map((r) => (
+                <tr key={r.key} className="border-t border-line">
+                  <th scope="row" className={`py-1.5 pr-3 text-left ${r.sub ? 'pl-3 font-normal text-muted' : 'font-semibold'}`}>{r.label}</th>
+                  {cols.map((c) => <td key={c.label} className="py-1.5 pl-3 text-right">{amount((n[r.key] as number) * c.share)}{r.unit}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="m-0 mt-2 text-xs text-muted">Claude's estimate from the ingredients.</p>
+        </>
+      )}
+    </section>
   );
 }
 
