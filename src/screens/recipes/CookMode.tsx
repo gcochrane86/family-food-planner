@@ -20,6 +20,7 @@ import ListenSwitch from '../../components/ListenSwitch';
 import CutGuideView from '../../components/CutGuide';
 import { cutGuide } from '../../lib/cutGuide';
 import { speakable } from '../../lib/voice';
+import { textAmountsNote } from '../../lib/stepAmounts';
 
 export default function CookMode() {
   const { id = '' } = useParams();
@@ -168,6 +169,10 @@ export default function CookMode() {
               </div>
             )}
             <p className="text-[clamp(19px,2.8vw,28px)] leading-snug text-[#1B211D] [&_b]:text-[#1B211D]"><StepText text={step.body} /></p>
+            {(() => {
+              const note = textAmountsNote(step.body, portions > 0 ? portions / recipe.base_portions : 1, recipe.base_portions);
+              return note && <p className="m-0 self-start rounded-xl bg-[#FBEFD0] px-3 py-1.5 text-sm text-[#7A4F00]">{note}</p>;
+            })()}
             {(() => {
               // What this step uses, as the same cards as Today's hour, scaled to the portions picked on the recipe.
               const factor = portions > 0 ? portions / recipe.base_portions : 1;

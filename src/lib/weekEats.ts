@@ -59,3 +59,9 @@ export function cookedMakes(makes: MealSlot[], recipes: Recipe[]): MealSlot[] {
   const quick = new Set(recipes.filter((r) => r.quick).map((r) => r.id));
   return makes.filter((m) => !quick.has(m.recipe_id ?? ''));
 }
+
+/** The make a snack recipe is cooked at: today's (all of it), else the next one planned; null when none is left. */
+export function nextMake(makes: MealSlot[], recipeId: string, today: string): MealSlot | null {
+  const ahead = mergeMakes(makes.filter((m) => m.recipe_id === recipeId && m.date >= today)).sort((a, b) => a.date.localeCompare(b.date));
+  return ahead[0] ?? null;
+}

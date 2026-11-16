@@ -27,6 +27,7 @@ import { cutGuide } from '../../lib/cutGuide';
 import { speakable } from '../../lib/voice';
 import { todayInLondon, useTodayHour } from './useTodayHour';
 import { minutesInWords } from '../../../supabase/functions/_shared/cookingTime.ts';
+import { textAmountsNote } from '../../lib/stepAmounts';
 
 /** "Monday", for a YYYY-MM-DD date. */
 const weekdayName = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
@@ -241,7 +242,13 @@ export default function TodayHour() {
                 })()}
               </div>
             ) : (
-              <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#1B211D] [&_b]:text-[#1B211D]"><StepText text={step.body} /></p>
+              <>
+                <p className="m-0 text-[clamp(19px,2.6vw,26px)] leading-snug text-[#1B211D] [&_b]:text-[#1B211D]"><StepText text={step.body} /></p>
+                {(() => {
+                  const note = textAmountsNote(step.body, step.factor);
+                  return note && <p className="m-0 self-start rounded-xl bg-[#FBEFD0] px-3 py-1.5 text-sm text-[#7A4F00]">{note}</p>;
+                })()}
+              </>
             )}
             {step.ingredients.length > 0 && data && (
               <ul aria-label="For this step" className="m-0 grid list-none grid-cols-3 gap-3 p-0 sm:grid-cols-4">

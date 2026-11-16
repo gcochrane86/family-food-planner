@@ -438,3 +438,33 @@ test('no estimate yet says so', async () => {
   const box = await screen.findByRole('region', { name: 'Nutrition' });
   expect(box).toHaveTextContent('No estimate yet');
 });
+
+describe('a snack recipe opens at its planned make', () => {
+  const BALLS = { ...HONEY, id: 'r-balls', slug: 'balls', title: 'Energy Balls', kind: 'snack' as const, base_portions: 20, keeps_days: 7, toddler_ok: true,
+    ingredients: [{ ...HONEY.ingredients[0], name: 'pistachios', qty: 170, unit: 'g', note: null }] };
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-11-16T17:00:00Z'));
+    h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-balls' ? BALLS : null));
+    h.repo.listRecipes.mockResolvedValue([BALLS]);
+    h.repo.getSettings.mockResolvedValue({ prep_days: [0] });
+  });
+  afterEach(() => { vi.useRealTimers(); });
+  const eat = (date: string, member_id: string) => ({ id: `${date}${member_id}`, date, slot: 'snack_am', member_id, recipe_id: 'r-balls', qty: 1, make_date: '2026-11-16' });
+
+  test("today's make sets the amounts and the first tab", async () => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-11-16'
+      ? { week: { id: 'w', week_start: '2026-11-16', days: 7, status: 'approved', prep_days: [0] }, slots: [], eats: ['2026-11-17', '2026-11-18'].flatMap((d) => [eat(d, 'a'), eat(d, 'b')]) }
+      : { week: null, slots: [] }) as unknown as Awaited<ReturnType<FakeRepo['getWeek']>>);
+    open('r-balls');
+    const nuts = await screen.findByText('pistachios');
+    await vi.waitFor(() => expect(nuts.closest('li')).toHaveTextContent('34g'));
+    expect(screen.getByRole('tab', { name: "Mon's make · 4" })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  test('with no make planned, the whole batch', async () => {
+    h.repo.getWeek.mockResolvedValue({ week: null, slots: [] });
+    open('r-balls');
+    expect((await screen.findByText('pistachios')).closest('li')).toHaveTextContent('170g');
+  });
+});

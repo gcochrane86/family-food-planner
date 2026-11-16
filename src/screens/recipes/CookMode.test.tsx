@@ -236,3 +236,18 @@ test('tapping an ingredient that says how to prepare it opens how to cut it', as
   await userEvent.click(within(view).getByRole('button', { name: 'Make the picture' }));
   expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'basmati rice', 'roughly chopped');
 });
+
+describe('amounts written in a step', () => {
+  const withAmount = { ...ON_THE_DAY, base_portions: 4, steps: [{ ...ON_THE_DAY.steps[0], body: 'Add 150g of the **chicken breast or thigh** to the pan.' }] };
+  beforeEach(() => { h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? withAmount : null)); });
+
+  test('scaled, the step says its written amounts are for the full recipe', async () => {
+    open('?portions=2');
+    expect(await screen.findByText('Amounts in the words are for the full recipe (4). The cards are for yours.')).toBeInTheDocument();
+  });
+  test('at the full recipe, no note', async () => {
+    open('?portions=4');
+    await screen.findByText(/Step 1 of 1/);
+    expect(screen.queryByText(/Amounts in the words/)).not.toBeInTheDocument();
+  });
+});

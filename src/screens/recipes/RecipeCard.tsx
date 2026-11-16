@@ -13,6 +13,8 @@ import type { Machine, RecipeBatch, RecipeDetail, RecipeStep } from '../../lib/t
 import { parseNutrition, type Nutrition } from '../../../supabase/functions/_shared/balance.ts';
 import { snackFactor } from '../../../supabase/functions/_shared/snackRules.ts';
 import { formatPortions } from '../settings/Household';
+import { nextMake, weekMakes } from '../../lib/weekEats';
+import { weekStarts } from '../week/useWeek';
 import { useAsync } from '../settings/useAsync';
 import HeroImage from './HeroImage';
 import MachineBadge, { StepText } from './MachineBadge';
@@ -92,7 +94,9 @@ export default function RecipeCard() {
   const at = dayParams(params);
   const { data, setData, error, loading, reload } = useAsync(async () => {
     const [recipe, members] = await Promise.all([loadDayRecipe(id, householdId, at), repo.listMembers(householdId!)]);
-    return { recipe, members };
+    // A snack recipe is cooked for its make (everyone's snacks added up), not for the household at one sitting.
+    const make = recipe?.kind === 'snack' && !recipe.quick ? await plannedMake(householdId!, recipe.id) : null;
+    return { recipe, members, make };
   }, [id, householdId, at?.day, at?.slot]);
   const [portions, setPortions] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -226,7 +230,9 @@ export default function RecipeCard() {
     );
   }
 
-  const household = householdPortions(members) || recipe.base_portions;
+  const { make } = data;
+  const batchSnack = recipe.kind === 'snack' && !recipe.quick;
+  const household = make?.portions ?? (batchSnack ? recipe.base_portions : householdPortions(members) || recipe.base_portions);
   const presets = [household, 6, 9].filter((v, i, a) => a.indexOf(v) === i);
   const target = portions ?? household;
   const factor = scaleFactor(target, recipe.base_portions);
@@ -248,7 +254,8 @@ export default function RecipeCard() {
     setHints(Object.fromEntries(recipe!.steps.filter((st) => st.id && st.photo_hint).map((st) => [st.id!, st.photo_hint!])));
     setPhotoPanel(mode);
   }
-  const tabLabel = (n: number) => (n === household ? `Household · ${formatPortions(n)}` : n === 9 ? '9 · big batch' : `${n} portions`);
+  const makeDay = make ? new Date(`${make.date}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' }) : '';
+  const tabLabel = (n: number) => (n === household ? (make ? `${makeDay}'s make · ${Math.round(n * 10) / 10}` : batchSnack ? `Batch · ${n}` : `Household · ${formatPortions(n)}`) : n === 9 ? '9 · big batch' : `${n} portions`);
 
   return (
     <article className="grid gap-4 py-4">
@@ -529,4 +536,16 @@ function SnackDetails({ recipe, onSave, onCancel }: { recipe: { snack_portions?:
       </span>
     </div>
   );
+}
+
+/** The snack make this recipe is cooked for: today's, else the next one planned (this week or next); null if none. */
+async function plannedMake(householdId: string, recipeId: string) {
+  try {
+    const { thisWeek, nextWeek, london } = weekStarts();
+    const [weeks, settings, recipes] = await Promise.all([
+      Promise.all([thisWeek, nextWeek].map((ws) => repo.getWeek(householdId, ws))), repo.getSettings(householdId), repo.listRecipes(householdId)]);
+    return nextMake(weeks.flatMap((w) => weekMakes(w, settings, recipes)), recipeId, london.date);
+  } catch {
+    return null;
+  }
 }

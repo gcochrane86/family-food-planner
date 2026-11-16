@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { cookedMakes, mergeMakes, weekEats, weekMakes } from './weekEats';
+import { cookedMakes, mergeMakes, nextMake, weekEats, weekMakes } from './weekEats';
 import type { MealSlot, PlanWeek, Recipe, Settings } from './types';
 
 const week = { id: 'w', week_start: '2026-11-16', days: 7, prep_days: [6] } as PlanWeek;
@@ -53,5 +53,20 @@ describe('snacks from any recipe, and quick snacks', () => {
     const makes = weekMakes({ week, slots: [], eats: stored }, {} as Settings, [...recipes, oats, apple]);
     expect(makes.map((m) => [m.recipe_id, m.portions])).toEqual([['oats', 4], ['apple', 2]]);
     expect(cookedMakes(makes, [...recipes, oats, apple]).map((m) => m.recipe_id)).toEqual(['oats']);
+  });
+});
+
+describe('nextMake: the make a snack recipe is opened at', () => {
+  const make = (date: string, recipe_id: string, portions: number) => ({ date, slot: 'snack', mode: 'cook', recipe_id, portions }) as MealSlot;
+  const makes = [make('2026-11-15', 'balls', 3), make('2026-11-16', 'balls', 14), make('2026-11-16', 'balls', 2), make('2026-11-19', 'balls', 6), make('2026-11-16', 'oat', 8)];
+
+  test("today's make (all of it, both weeks it feeds) when there is one", () => {
+    expect(nextMake(makes, 'balls', '2026-11-16')).toMatchObject({ date: '2026-11-16', portions: 16 });
+  });
+  test('else the next one', () => {
+    expect(nextMake(makes, 'balls', '2026-11-17')).toMatchObject({ date: '2026-11-19', portions: 6 });
+  });
+  test('none left', () => {
+    expect(nextMake(makes, 'balls', '2026-11-20')).toBeNull();
   });
 });
