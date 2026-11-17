@@ -643,8 +643,9 @@ test("0018: prep ahead goes back to ahead when the dinner's recipe changes or it
   const { hid, rid } = await recipeFor(OWNER, 'a');
   const other = await one(OWNER, `insert into recipes (household_id, slug, title, kind, source, base_portions)
     values ('${hid}', 'b', 'Other', 'meal', 'own_doc', 4) returning id`);
-  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2026-11-16') returning id`);
-  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, prep_ahead) values ('${wid}', '2026-11-17', 'dinner', 'cook', '${rid}', 'on_the_day')`);
+  const wid = await one(OWNER, `insert into plan_weeks (household_id, week_start) values ('${hid}', '2099-01-05') returning id`);
+  // A day still to come: a dinner swapped on its own day (or after) is missed instead (the test below).
+  await as(OWNER, `insert into meal_slots (plan_week_id, date, slot, mode, recipe_id, prep_ahead) values ('${wid}', '2099-01-06', 'dinner', 'cook', '${rid}', 'on_the_day')`);
   await as(OWNER, `update meal_slots set portions = 4`);
   expect(await one(OWNER, `select prep_ahead from meal_slots`)).toBe('on_the_day');
   await as(OWNER, `update meal_slots set recipe_id = '${other}'`);
