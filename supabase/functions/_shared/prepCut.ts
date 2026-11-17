@@ -73,7 +73,9 @@ export function iconKey(name: string): { key: string; ingredient: string; label:
 
 /** Words that don't change how a thing looks out of the cupboard ("fine sea salt" is salt, "mature cheddar" is
  *  cheddar), so a new recipe's wording finds the picture already made without anyone listing it. */
-const LOOKS_THE_SAME = ['extra virgin', 'free-range', 'organic', 'fine', 'flaky', 'coarse', 'mature', 'flat leaf'];
+const LOOKS_THE_SAME = ['extra virgin', 'free-range', 'organic', 'fine', 'flaky', 'coarse', 'mature', 'flat leaf',
+  // How it was trimmed, salted or packed (17 Nov 2026): "skinless chicken breasts" is chicken breast.
+  'skinless', 'boneless', 'shelled', 'unsalted', 'salted', 'pitted', 'low-salt', 'low-sodium', 'reduced-salt', 'smooth', 'crunchy'];
 
 /** The picture an ingredient shares: the first of "x or y", without words that don't change its look, then any
  *  name listed as the same thing. */
@@ -99,6 +101,10 @@ const SAME_PICTURE: Record<string, string> = {
   'cider vinegar': 'apple cider vinegar', 'sourdough breadcrumb': 'breadcrumb', 'gluten-free breadcrumb': 'breadcrumb',
   'rolled beef brisket': 'beef brisket', 'roasting potato': 'potato', 'peanut butter': 'nut butter',
   'lemon juice': 'lemon', 'lime juice': 'lime', 'egg white': 'egg', 'egg yolk': 'egg', 'walnut half': 'walnut',
+  // 17 Nov 2026: plain "oil" is the olive oil the house cooks with; the rest look the same out of the cupboard.
+  oil: 'olive oil', 'cooking oil': 'olive oil', 'ground cinnamon': 'cinnamon', 'sugar snap peas': 'snap peas', 'sugar snap pea': 'snap peas',
+  'natural yoghurt': 'greek yoghurt', 'plain yoghurt': 'greek yoghurt', 'boiling water': 'water', 'hot water': 'water', 'cold water': 'water',
+  'vine tomato': 'tomato', 'baby gem lettuce': 'little gem lettuce', 'boneless chicken thigh fillet': 'chicken thigh fillet',
 };
 
 /** A small cartoon of the ingredient as it comes out of the fridge or cupboard, like a picture-vocabulary card. */

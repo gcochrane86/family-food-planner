@@ -9,7 +9,8 @@ const h = vi.hoisted(() => ({ repo: null as unknown as FakeRepo }));
 vi.mock('../../lib/repo', () => ({ get repo() { return h.repo; } }));
 vi.mock('../../auth/AuthProvider', () => ({ useAuth: () => ({ householdId: 'h1' }) }));
 
-beforeEach(() => { h.repo = fakeRepo(); localStorage.clear(); });
+const HAVE_ICONS = ['icon:chicken breast', 'icon:basmati rice'].map((key) => ({ key, label: key, path: `h1/prep/${key}.png`, source: 'generated' as const }));
+beforeEach(() => { h.repo = fakeRepo(); h.repo.listPrepPhotos.mockResolvedValue(HAVE_ICONS); localStorage.clear(); });
 
 function open(id: string) {
   return render(
@@ -190,6 +191,33 @@ test('a failed main photo stops before any step photos', async () => {
   await userEvent.click(await screen.findByRole('button', { name: /Add step photos ✨/ }));
   await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
   expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't make the main photo: quota");
+  expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
+});
+
+test('Add step photos also makes the missing ingredient pictures, sharing ones already made (oil is olive oil)', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', hero_image_source: 'generated',
+    ingredients: [...HONEY.ingredients, { position: 3, group_name: null, name: 'oil', qty: 1, unit: 'tbsp', note: null, qty_approx: false },
+      { position: 4, group_name: null, name: 'Leeks', qty: 2, unit: '', note: 'sliced', qty_approx: false },
+      { position: 5, group_name: null, name: 'leek', qty: 1, unit: '', note: null, qty_approx: false }] });
+  h.repo.listPrepPhotos.mockResolvedValue([...HAVE_ICONS, { key: 'icon:olive oil', label: 'olive oil', path: 'h1/prep/oil.png', source: 'generated' }]);
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Add step photos ✨ (4 photos, about 12p)' }));
+  expect(screen.getByText('Make 3 step photos and 1 ingredient picture? About 12p.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generateStepPhoto).toHaveBeenCalledTimes(3));
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledTimes(1);
+  expect(h.repo.generatePrepPhoto).toHaveBeenCalledWith('h1', 'Leeks', null, false, undefined, true);
+});
+
+test('a recipe with every step photo but a missing ingredient picture still offers to add it', async () => {
+  h.repo.getRecipe.mockResolvedValue({ ...HONEY, hero_image_path: 'h1/hero/r-honey.jpg', hero_image_source: 'generated',
+    steps: HONEY.steps.map((st) => ({ ...st, image_path: `h1/steps/${st.id}.jpg`, image_source: 'generated' as const })) });
+  h.repo.listPrepPhotos.mockResolvedValue([]);
+  open('r-honey');
+  await userEvent.click(await screen.findByRole('button', { name: 'Add ingredient pictures ✨ (2 photos, about 6p)' }));
+  expect(screen.getByText('Make 2 ingredient pictures? About 6p.')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Make photos' }));
+  await vi.waitFor(() => expect(h.repo.generatePrepPhoto).toHaveBeenCalledTimes(2));
   expect(h.repo.generateStepPhoto).not.toHaveBeenCalled();
 });
 

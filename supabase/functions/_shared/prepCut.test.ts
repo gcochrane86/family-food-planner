@@ -80,6 +80,22 @@ describe('ingredient icons', () => {
     for (const [name, picture] of same) expect([name, iconKey(name).key]).toEqual([name, `icon:${picture}`]);
     expect(iconKey('Sea salt').ingredient).toBe('sea salt'); // its own name stays
   });
+  test('words for how it was trimmed, salted or packed share the plain picture (17 Nov 2026)', async () => {
+    const { iconKey } = await import('./prepCut.ts');
+    const same: [string, string][] = [
+      ['oil', 'olive oil'], ['skinless chicken breasts', 'chicken breast'], ['boneless skinless chicken thighs', 'chicken thigh fillet'],
+      ['ground cinnamon', 'cinnamon'], ['smooth peanut butter', 'nut butter'], ['sugar snap peas', 'snap peas'],
+      ['low-salt soy sauce', 'soy sauce'], ['low-salt fish stock', 'fish stock'], ['natural yoghurt', 'greek yoghurt'],
+      ['shelled unsalted pistachios', 'pistachio'], ['pitted Medjool dates', 'medjool date'], ['boiling water', 'water'],
+      ['hot water', 'water'], ['vine tomatoes', 'tomato'], ['baby gem lettuce', 'little gem lettuce'], ['unsalted butter', 'butter'],
+    ];
+    for (const [name, picture] of same) expect([name, iconKey(name).key]).toEqual([name, `icon:${picture}`]);
+    // Still their own: a different oil, colour or form.
+    expect(iconKey('sesame oil').key).toBe('icon:sesame oil');
+    expect(iconKey('sunflower oil').key).toBe('icon:sunflower oil');
+    expect(iconKey('red pepper').key).toBe('icon:red pepper');
+    expect(iconKey('ground almonds').key).toBe('icon:ground almond');
+  });
   test('either-or names use the first one, and new names with a plain describing word match by themselves', async () => {
     const { iconKey } = await import('./prepCut.ts');
     expect(iconKey('chicken breast or thigh').key).toBe('icon:chicken breast');

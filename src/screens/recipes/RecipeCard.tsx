@@ -21,6 +21,7 @@ import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
 import { parseBatch } from '../../lib/batch';
 import ReworkRecipe from './ReworkRecipe';
+import { iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import StoredPhoto from '../../components/StoredPhoto';
 
 /** The original page's host for a web recipe, or null when there's no usable http(s) link. */
@@ -30,6 +31,26 @@ function linkHost(url: string | null | undefined): string | null {
 }
 
 const KNOWN_MACHINES = new Set(['tm7', 'apo', 'hy24', 'meater', 'hob', 'oven', 'kettle']);
+
+/** The ingredients with no picture yet (one per picture: "leeks" and "leek" share one), by name as the recipe says it. */
+export function missingIcons(r: { ingredients: { name: string }[] }, have: Set<string>): { name: string; key: string }[] {
+  const out = new Map<string, { name: string; key: string }>();
+  for (const i of r.ingredients) {
+    const { key } = iconKey(i.name);
+    if (!have.has(key) && !out.has(key)) out.set(key, { name: i.name, key });
+  }
+  return [...out.values()];
+}
+
+/** "Make the main photo, 3 step photos and 2 ingredient pictures". */
+function addSentence(steps: number, icons: number, needHero: boolean): string {
+  const parts = [
+    ...(steps && needHero ? ['the main photo'] : []),
+    ...(steps ? [`${steps} step photo${steps === 1 ? '' : 's'}`] : []),
+    ...(icons ? [`${icons} ingredient picture${icons === 1 ? '' : 's'}`] : []),
+  ];
+  return `Make ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}`;
+}
 
 /** A rough cost for n AI photos: about 3p each with Google's image model. */
 export function photoCost(n: number): string {
@@ -93,17 +114,18 @@ export default function RecipeCard() {
   const [params] = useSearchParams();
   const at = dayParams(params);
   const { data, setData, error, loading, reload } = useAsync(async () => {
-    const [recipe, members] = await Promise.all([loadDayRecipe(id, householdId, at), repo.listMembers(householdId!)]);
+    const [recipe, members, pictures] = await Promise.all([loadDayRecipe(id, householdId, at), repo.listMembers(householdId!),
+      repo.listPrepPhotos(householdId!).catch(() => [])]);
     // A snack recipe is cooked for its make (everyone's snacks added up), not for the household at one sitting.
     const make = recipe?.kind === 'snack' && !recipe.quick ? await plannedMake(householdId!, recipe.id) : null;
-    return { recipe, members, make };
+    return { recipe, members, make, icons: new Set(pictures.map((p) => p.key)) };
   }, [id, householdId, at?.day, at?.slot]);
   const [portions, setPortions] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [tickError, setTickError] = useState<string | null>(null);
   const [snackOpen, setSnackOpen] = useState(false);
-  const [stepProgress, setStepProgress] = useState<{ done: number; total: number } | null>(null);
+  const [stepProgress, setStepProgress] = useState<{ done: number; total: number; what?: string } | null>(null);
   const started = useRef<string | null>(null);
 
   const setStepPhoto = (stepId: string, path: string) => setData((d) => d && d.recipe ? {
@@ -155,7 +177,7 @@ export default function RecipeCard() {
   async function addStepPhotos(stepHints: Record<string, string>) {
     if (!data?.recipe) return;
     const r = data.recipe;
-    if (!r.hero_image_path) {
+    if (!r.hero_image_path && r.steps.some((st) => st.id && !st.image_path)) {
       setPhotoBusy(true);
       try {
         const path = await repo.generateHero(r.id);
@@ -167,6 +189,21 @@ export default function RecipeCard() {
         setPhotoBusy(false);
       }
     }
+    // The ingredient pictures (one per ingredient, shared by every recipe that uses it), then the step photos.
+    const icons = missingIcons(r, data.icons);
+    for (const [n, i] of icons.entries()) {
+      setStepProgress({ done: n, total: icons.length, what: 'ingredient pictures' });
+      try {
+        await repo.generatePrepPhoto(householdId!, i.name, null, false, undefined, true);
+        setData((d) => d ? { ...d, icons: new Set([...d.icons, i.key]) } : d);
+      } catch (e) {
+        setStepProgress(null);
+        setPhotoError(`Couldn't make the picture for ${i.name}: ${e instanceof Error ? e.message : String(e)}`);
+        return;
+      }
+    }
+    setStepProgress(null);
+    if (!r.steps.some((st) => st.id && !st.image_path)) return;
     started.current = r.id;
     runStepPhotos(r, true, stepHints);
   }
@@ -247,7 +284,10 @@ export default function RecipeCard() {
   const missingPhotos = recipe.steps.filter((s) => s.id && !s.image_path).length;
   // Step photos are drawn in the style of the main photo, so a recipe without one gets it first (as in Today's hour).
   const needHero = !recipe.hero_image_path;
-  const addCount = missingPhotos + (needHero ? 1 : 0);
+  const iconsToMake = missingIcons(recipe, data.icons).length;
+  // The main photo is only needed for step photos (they copy its style).
+  const addCount = missingPhotos + iconsToMake + (needHero && missingPhotos > 0 ? 1 : 0);
+  const addLabel = missingPhotos > 0 ? 'Add step photos ✨' : 'Add ingredient pictures ✨';
   const PHASE_ORDER: Record<string, number> = { prep_8pm: 0, finish: 1, reheat: 2 };
   const ordered = [...recipe.steps].sort((a, b) => (PHASE_ORDER[a.phase] ?? 9) - (PHASE_ORDER[b.phase] ?? 9) || a.position - b.position);
   const panelSteps = ordered.filter((st) => st.id && (photoPanel === 'add' ? !st.image_path : st.image_source === 'generated'));
@@ -266,8 +306,8 @@ export default function RecipeCard() {
           {photoBusy && <span role="status" className="grid w-28 gap-1 text-sm font-semibold text-muted">Making photo…<ProgressLine className="bg-line" bar="bg-accent" /></span>}
           <RecipeMenu items={[
             { label: 'New main photo ✨', onSelect: () => void newPhoto(), disabled: photoBusy },
-            ...(missingPhotos > 0
-              ? [{ label: 'Add step photos ✨', onSelect: () => openPanel('add'), disabled: stepProgress !== null }] : []),
+            ...(missingPhotos + iconsToMake > 0
+              ? [{ label: addLabel, onSelect: () => openPanel('add'), disabled: stepProgress !== null }] : []),
             ...(recipe.steps.some((s) => s.image_source === 'generated')
               ? [{ label: 'New step photos ✨', onSelect: () => openPanel('redo'), disabled: stepProgress !== null }] : []),
             { label: 'Edit recipe', onSelect: () => navigate(`/recipes/${recipe.id}/edit`) },
@@ -291,9 +331,10 @@ export default function RecipeCard() {
       {photoPanel && (
         <section aria-label={photoPanel === 'add' ? 'Add step photos' : 'New step photos'} className="grid gap-3 rounded-2xl bg-accent-soft px-4 py-3 print:hidden">
           <p className="m-0 font-semibold">
-            {photoPanel === 'add' ? (needHero ? 'Make the main photo and' : 'Make') : 'Remake'} {panelSteps.length} step photo{panelSteps.length === 1 ? '' : 's'}? About {photoCost(panelSteps.length + (photoPanel === 'add' && needHero ? 1 : 0))}.
+            {photoPanel === 'add' ? `${addSentence(panelSteps.length, iconsToMake, needHero)}? About ${photoCost(addCount)}.`
+              : `Remake ${panelSteps.length} step photo${panelSteps.length === 1 ? '' : 's'}? About ${photoCost(panelSteps.length)}.`}
           </p>
-          <p className="m-0 text-sm text-muted">Optional: say in one sentence what each photo should show. Leave it blank to let the recipe decide.</p>
+          {panelSteps.length > 0 && <p className="m-0 text-sm text-muted">Optional: say in one sentence what each photo should show. Leave it blank to let the recipe decide.</p>}
           <div className="grid gap-2">
             {panelSteps.map((st) => (
               <label key={st.id} className="grid gap-1 text-sm font-semibold">
@@ -333,7 +374,7 @@ export default function RecipeCard() {
             <span>Not for us</span> · <button type="button" onClick={() => void undoNotForUs()} className="font-semibold underline">Undo</button>
           </p>
         )}
-        {stepProgress && <p className="mt-1 text-sm font-semibold text-accent">Making step photos… {stepProgress.done} of {stepProgress.total}</p>}
+        {stepProgress && <p className="mt-1 text-sm font-semibold text-accent">Making {stepProgress.what ?? 'step photos'}… {stepProgress.done} of {stepProgress.total}</p>}
         <div className="mt-2 flex flex-wrap gap-1.5">
           {recipe.equipment.filter((e) => KNOWN_MACHINES.has(e)).map((e) => (
             <span key={e} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-muted">{machineLabel(e as Machine)}</span>
@@ -423,9 +464,9 @@ export default function RecipeCard() {
         </div>
 
         <div>
-          {missingPhotos > 0 && !photoPanel && !stepProgress && !photoBusy && (
+          {missingPhotos + iconsToMake > 0 && !photoPanel && !stepProgress && !photoBusy && (
             <button type="button" onClick={() => openPanel('add')} className="mb-3 rounded-xl bg-surface-2 px-4 py-2 text-sm font-semibold print:hidden">
-              Add step photos ✨ ({addCount} photo{addCount === 1 ? '' : 's'}, about {photoCost(addCount)})
+              {addLabel} ({addCount} photo{addCount === 1 ? '' : 's'}, about {photoCost(addCount)})
             </button>
           )}
           <Steps steps={[...prep, ...finish]} label="Method" markAhead batch={parseBatch(recipe.batch)} />
