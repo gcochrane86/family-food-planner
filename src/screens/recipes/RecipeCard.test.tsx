@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { fakeRepo, type FakeRepo } from '../../test/fakeRepo';
@@ -301,22 +301,36 @@ test('the settings menu offers Edit recipe', async () => {
 });
 
 describe('Rework with Claude', () => {
-  test('asks for what should change, sends it, then says it is waiting', async () => {
+  test('asks for what should change, opens the Claude app with it, and saves the request', async () => {
+    const opened: string[] = [];
+    const spy = vi.spyOn(window, 'open').mockImplementation((url) => { opened.push(String(url)); return null; });
     open('r-honey');
     await userEvent.click(await screen.findByRole('button', { name: 'Recipe settings' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Rework with Claude ✨' }));
     const dialog = screen.getByRole('dialog', { name: 'Rework this recipe' });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Send to Claude' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Open the Claude app' }));
     expect(h.repo.requestRework).not.toHaveBeenCalled();
+    expect(opened).toEqual([]);
     await userEvent.type(within(dialog).getByRole('textbox', { name: 'What should change?' }), 'Use the Anova for the chicken instead of the TM7');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Send to Claude' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Open the Claude app' }));
+    expect(opened).toHaveLength(1);
+    const ask = new URL(opened[0]).searchParams.get('q')!;
+    expect(opened[0]).toMatch(/^https:\/\/claude\.ai\/new\?q=/);
+    expect(ask).toMatch(/Rework my recipe .* in the Family Food Planner/);
+    expect(ask).toContain('Use the Anova for the chicken instead of the TM7');
     expect(h.repo.requestRework).toHaveBeenCalledWith('h1', 'r-honey', 'Use the Anova for the chicken instead of the TM7');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(await screen.findByRole('status', { name: 'Rework' })).toHaveTextContent('Waiting for Claude');
+    const status = await screen.findByRole('status', { name: 'Rework' });
+    expect(status).toHaveTextContent(/Claude app/);
+    expect(status).not.toHaveTextContent(/Mac/);
+    expect(within(status).getByRole('link', { name: 'Open Claude again' })).toHaveAttribute('href', opened[0]);
+    spy.mockRestore();
   });
 
-  test('a finished rework shows what changed and can be dismissed; a failed one can be tried again', async () => {
-    const rework = { id: 'w1', household_id: 'h1', recipe_id: 'r-honey', request: 'x', requested_at: '', started_at: null, finished_at: null };
+  test('a finished rework shows what changed and can be dismissed; a failed one opens Claude again', async () => {
+    const opened: string[] = [];
+    const spy = vi.spyOn(window, 'open').mockImplementation((url) => { opened.push(String(url)); return null; });
+    const rework = { id: 'w1', household_id: 'h1', recipe_id: 'r-honey', request: 'Less honey', requested_at: '', started_at: null, finished_at: null };
     h.repo.getRework.mockResolvedValueOnce({ ...rework, status: 'done', summary: 'Chicken now roasts in the Anova at 200°C.' });
     const first = open('r-honey');
     const done = await screen.findByRole('status', { name: 'Rework' });
@@ -329,8 +343,22 @@ describe('Rework with Claude', () => {
     open('r-honey');
     const failed = await screen.findByRole('status', { name: 'Rework' });
     await userEvent.click(within(failed).getByRole('button', { name: 'Try again' }));
+    expect(new URL(opened[0]).searchParams.get('q')).toContain('Less honey');
     expect(h.repo.retryRework).toHaveBeenCalledWith('w1');
-    expect(failed).toHaveTextContent('Waiting for Claude');
+    expect(failed).toHaveTextContent(/Claude app/);
+    spy.mockRestore();
+  });
+
+  test('coming back to the app picks up a finished rework and reloads the recipe', async () => {
+    const rework = { id: 'w1', household_id: 'h1', recipe_id: 'r-honey', request: 'x', requested_at: '', started_at: null, finished_at: null };
+    h.repo.getRework.mockResolvedValueOnce({ ...rework, status: 'requested', summary: null });
+    open('r-honey');
+    await screen.findByRole('status', { name: 'Rework' });
+    const loads = h.repo.getRecipe.mock.calls.length;
+    h.repo.getRework.mockResolvedValue({ ...rework, status: 'done', summary: 'Less honey now.' });
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByText(/Less honey now/)).toBeInTheDocument();
+    await waitFor(() => expect(h.repo.getRecipe.mock.calls.length).toBeGreaterThan(loads));
   });
 });
 

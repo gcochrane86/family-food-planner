@@ -313,7 +313,7 @@ export default function RecipeCard() {
           </div>
         </section>
       )}
-      <ReworkRecipe recipeId={recipe.id} householdId={householdId!} asking={reworking} onClose={closeRework} />
+      <ReworkRecipe recipeId={recipe.id} title={recipe.title} householdId={householdId!} asking={reworking} onClose={closeRework} onReworked={reload} />
       <HeroImage key={recipe.hero_image_path ?? 'none'} recipe={recipe} width={PHOTO_LARGE} className="aspect-[2/1] w-full rounded-2xl print:aspect-[3/1]" />
       <header>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>

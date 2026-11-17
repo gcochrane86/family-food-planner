@@ -347,7 +347,7 @@ export interface RecipeImport {
   summary: string | null;
 }
 
-/** "Rework with Claude": a request to rewrite one recipe, done by the scheduled task on the owner's Mac. */
+/** "Rework with Claude": a request to rewrite one recipe, done in the Claude app through the connector (rework_recipe closes it). */
 export interface RecipeRework {
   id: string;
   household_id: string;

@@ -2,7 +2,8 @@
 // custom connector with the secret link …/functions/v1/ask-claude-connector/<key>; Claude then looks up recipes,
 // plans, the pantry and saved products while they chat, and (each call approved by the household in Claude) saves
 // tonight's version of a day's recipe, swaps a dinner, marks a staple, or plans a week's dinners as a draft (adding
-// any new recipes for it), or adds a recipe from a link or video (add only, with its main photo). It never edits saved recipes.
+// any new recipes for it), adds a recipe from a link or video (add only, with its main photo), or reworks a saved recipe
+// the household asked to change (Rework with Claude: the whole recipe saved over it, slug, source and status kept).
 // Deployed with --no-verify-jwt (Claude has no app login); the key in the path is the lock. A missing or wrong key
 // gets a bare 404. Secrets: CONNECTOR_KEY, CONNECTOR_HOUSEHOLD_ID, GOOGLE_AI_API_KEY (photos and videos).
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -61,6 +62,25 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
     },
     annotations: changes,
     handler: (args: Record<string, unknown>) => safely(() => recipes.add(args ?? {}), 'add the recipe'),
+  });
+  mcp.tool('get_recipe_to_rework', {
+    description: "Call this when the household asks to rework (change) one of their saved recipes, e.g. from Rework with Claude in the app: how to rework one, what they asked in the app, the recipe format and rules, the household, and the recipe as saved in that format. Read-only.",
+    inputSchema: { type: 'object', required: ['recipe'], properties: { recipe: { type: 'string', description: "The recipe's title or slug" } } },
+    annotations: readOnly,
+    handler: (args: Record<string, unknown>) => safely(() => recipes.reworkContext(args ?? {}), 'read the recipe'),
+  });
+  mcp.tool('rework_recipe', {
+    description: "Changes the library (the household approves each call in Claude): saves the whole changed recipe (in the format from get_recipe_to_rework) over the saved one; its slug, source and status stay. Change only what the household asked. Show them the changes and get their go-ahead first.",
+    inputSchema: {
+      type: 'object', required: ['recipe', 'changed', 'summary'],
+      properties: {
+        recipe: { type: 'string', description: "The saved recipe's title or slug" },
+        changed: { type: 'object', description: 'The whole changed recipe in the seed format' },
+        summary: { type: 'string', description: 'One line on what changed, shown on the recipe in the app' },
+      },
+    },
+    annotations: changes,
+    handler: (args: Record<string, unknown>) => safely(() => recipes.rework(args ?? {}), 'rework the recipe'),
   });
   mcp.tool('get_household', {
     description: "Call this first. How to answer, then the household's members and portions, house rules and private rules, what makes a meal, kit (TM7s and bowls, oven, APO, air fryer), each day's cooking time and the breakfast and lunch options.",

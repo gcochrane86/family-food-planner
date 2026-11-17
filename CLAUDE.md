@@ -20,7 +20,8 @@ Storage, Edge Functions) behind it. The product spec is `docs/spec.md`, and each
 
 ## Playbooks (tasks done in the owner's Chrome)
 - Fill the Sainsbury's basket: `docs/playbooks/sainsburys-basket.md`
-- Add a recipe from a link or YouTube video: done in the Claude app through the connector (`get_recipe_rules`, `read_youtube`, `add_recipe`); `docs/playbooks/recipe-import.md` stays for manual use and Rework with Claude
+- Add a recipe from a link or YouTube video: done in the Claude app through the connector (`get_recipe_rules`, `read_youtube`, `add_recipe`); `docs/playbooks/recipe-import.md` stays for manual use
+- Rework with Claude: the recipe's menu opens the Claude app, which uses the connector (`get_recipe_to_rework`, `rework_recipe`)
 - Sync approved menus to Cookidoo, and import Cookidoo recipes: `docs/playbooks/cookidoo.md`
 - Plan the week: done in the Claude app through the connector (`get_plan_context`, `save_week_plan`); the CLI route in `docs/playbooks/week-plan.md` stays for manual use
 - Always ask before acting on Sainsbury's, Cookidoo or email. Never check out, book slots or enter payment details.
