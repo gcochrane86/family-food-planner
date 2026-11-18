@@ -9,6 +9,7 @@ import { repo } from '../../lib/repo';
 import { resizeImage } from '../../lib/image';
 import type { HourInput, HourPlan, HourStep } from '../../lib/todayHour';
 import type { MealSlot, PrepAhead, RecipeDetail } from '../../lib/types';
+import HourTimeline from './HourTimeline';
 import { changeStepForDay, isDay, type StepChange } from '../../lib/dayVersion';
 import { parseVersion, type SlotVersion } from '../../../supabase/functions/_shared/slotVersion.ts';
 import { photoCost } from '../recipes/RecipeCard';
@@ -177,6 +178,7 @@ export default function TodayHour() {
               if (v === 'missed') setPrepBefore(plan.doneLastNight!.state);
               setPrep(tonightSlot?.id, v === 'missed' ? v : prepBefore);
             }} />}
+            {steps.length > 1 && <HourTimeline steps={steps} onPick={setIndex} />}
             {plan.getOut.length > 0 && <GetOut groups={plan.getOut} got={got} onTick={tick} onHold={(it) => setMenu({ prep: { name: it.name, note: null, key: it.key, label: it.name, icon: true } })} />}
             {plan.forTomorrow && !isPast && <ForTomorrow prep={plan.forTomorrow} onChange={(on) => setPrep(tomorrowSlot?.id, on ? 'ahead' : 'on_the_day')} />}
             {plan.roastAhead && <RoastTomorrow roast={plan.roastAhead} />}
@@ -204,6 +206,7 @@ export default function TodayHour() {
                 {step.running.map((r) => <li key={r.title} className="rounded-full bg-[#E9ECE4] px-3 py-1 text-sm font-semibold text-[#3F4A43]">⏱ {r.title}: about {r.left} min left</li>)}
               </ul>
             )}
+            {(step.handsOff || (step.running?.length ?? 0) > 0) && <HourTimeline steps={steps} current={Math.min(index, steps.length - 1)} />}
             {step.handsOff && (
               <section aria-label="Runs on its own" className="grid gap-1 rounded-xl bg-[#E4F0E6] px-3 py-2 text-base text-[#1B211D]">
                 {step.meanwhile && step.meanwhile.length > 0

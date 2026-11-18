@@ -668,3 +668,12 @@ test('a step that cooks on its own with nothing to do meanwhile says so', async 
   while (!screen.queryByRole('heading', { name: 'The bulk sauce' })) await user().click(screen.getByRole('button', { name: 'Next' }));
   expect(screen.getByRole('region', { name: 'Runs on its own' })).toHaveTextContent("It cooks on its own for 12 min; nothing else needs doing until it's done.");
 });
+
+test('the first page shows the timeline, and tapping a step there goes to it', async () => {
+  open();
+  const line = await screen.findByRole('list', { name: 'Timeline' });
+  expect(within(line).getByRole('listitem', { name: /^Rice on: minutes \d+ to \d+, cooks on its own$/ })).toBeInTheDocument();
+  await user().click(within(line).getByRole('button', { name: /^Rice on/ }));
+  expect(screen.getByRole('heading', { name: 'Rice on' })).toBeInTheDocument();
+  expect(within(screen.getByRole('list', { name: 'Timeline' })).getByRole('listitem', { current: 'step' })).toHaveAccessibleName(/^Rice on/);
+});
