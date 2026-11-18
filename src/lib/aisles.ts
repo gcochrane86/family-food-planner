@@ -39,9 +39,11 @@ const WATERY = set('water boiling boiled hot cold warm lukewarm tap ice iced fre
 export const isTapWater = (name: string) => { const w = words(name); return w.includes('water') && w.every((x) => WATERY.has(x)); };
 
 const MILKS = new Set(['whole milk', 'semi skimmed milk', 'skimmed milk', 'full fat milk']);
-/** The name lines are matched on: "fresh mint" is mint, and any plain cow's milk is milk. */
+/** Words that say how it's sold or got ready, not what it is: "pitted dates" are dates. */
+const SAME_ANYWAY = new Set(['fresh', 'pitted', 'stoned']);
+/** The name lines are matched on: "fresh mint" is mint, pitted dates are dates, and any plain cow's milk is milk. */
 export function sameThing(name: string): string {
-  const n = words(name).filter((x) => x !== 'fresh').join(' ');
+  const n = words(name).filter((x) => !SAME_ANYWAY.has(x)).join(' ');
   return MILKS.has(n) ? 'milk' : n;
 }
 
@@ -50,3 +52,14 @@ const UNITS: Record<string, [string, number]> = {
   g: ['g', 1], kg: ['g', 1000], ml: ['ml', 1], l: ['ml', 1000], litre: ['ml', 1000], litres: ['ml', 1000], tbsp: ['ml', 15], tsp: ['ml', 5],
 };
 export const measure = (unit: string): [string, number] => UNITS[unit] ?? [`unit:${unit}`, 1];
+
+/** About what one weighs, for things a recipe counts that another weighs (4 dates, 200g dates). */
+const GRAMS_EACH: Record<string, number> = {
+  'medjool date': 20, date: 8, carrot: 80, courgette: 200, 'cherry tomato': 15,
+  'chicken breast': 160, 'boneless skinless chicken thigh': 100, 'whole chicken': 1600,
+};
+/** Like `measure`, but a count of something with a known weight each is in grams, so it adds up with grams. */
+export function measureOf(name: string, unit: string): [string, number] {
+  const each = unit === '' ? GRAMS_EACH[sameThing(name)] : undefined;
+  return each ? ['g', each] : measure(unit);
+}

@@ -3,7 +3,7 @@ import { parseRoastChoice, roastPartSlugs } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
 import { coveringStaple, pantryLabel, words } from './recipes';
-import { aisle, isTapWater, measure, sameThing } from './aisles';
+import { aisle, isTapWater, measureOf, sameThing } from './aisles';
 import type { OtherShop, MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
 export interface ShopItem {
@@ -207,15 +207,15 @@ export { aisle };
 function mergeSame(list: ShopItem[]): ShopItem[] {
   const groups = new Map<string, ShopItem[]>();
   for (const item of list) {
-    const k = `${item.shop ?? ''}|${sameThing(item.name)}|${measure(item.unit)[0]}`;
+    const k = `${item.shop ?? ''}|${sameThing(item.name)}|${measureOf(item.name, item.unit)[0]}`;
     groups.set(k, [...(groups.get(k) ?? []), item]);
   }
   const merged = new Map<ShopItem, ShopItem>();
   for (const group of groups.values()) {
     if (group.length < 2 || group.some((i) => i.key.startsWith('staple|'))) continue;
-    const base = (i: ShopItem) => (i.qty ?? 0) * measure(i.unit)[1];
+    const base = (i: ShopItem) => (i.qty ?? 0) * measureOf(i.name, i.unit)[1];
     const keep = group.find((i) => i.forMeals.includes('Breakfasts & lunches')) ?? [...group].sort((a, b) => base(b) - base(a))[0];
-    const total = group.some((i) => i.qty !== null) ? group.reduce((n, i) => n + base(i), 0) / measure(keep.unit)[1] : null;
+    const total = group.some((i) => i.qty !== null) ? group.reduce((n, i) => n + base(i), 0) / measureOf(keep.name, keep.unit)[1] : null;
     const line: ShopItem = {
       ...keep, qty: total === null ? null : Math.round(total * 1000) / 1000, approx: group.some((i) => i.approx),
       forMeals: [...new Set([keep, ...group.filter((i) => i !== keep)].flatMap((i) => i.forMeals))],

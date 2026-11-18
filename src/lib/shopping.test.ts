@@ -316,6 +316,23 @@ test('which delivery brings a day: Sunday for the Sunday before to Wednesday, Tu
 describe('tidying the list', () => {
   const basic = (name: string, qty: number | null, unit: string) => ({ household_id: 'h1', position: 0, name, qty, unit, approx: false, delivery: 'sun' as const });
 
+  test('dates by count, in grams and pitted are one line, in grams', () => {
+    const a = recipe('caramelitas', 12, [['Medjool dates', 4, ''], ['Medjool dates', 200, 'g']]);
+    const b = recipe('balls', 12, [['pitted Medjool dates', 200, 'g']]);
+    const list = buildShoppingList([{ ...dinner('2026-10-19', 'caramelitas', 12), slot: 'snack' }, { ...dinner('2026-10-19', 'balls', 12), slot: 'snack' }],
+      new Map([['caramelitas', a], ['balls', b]]), [{ id: 'st-d', ingredient_id: 'i', name: 'Medjool dates', status: 'out' }], 1);
+    const dates = list.sun.filter((i) => /date/i.test(i.name));
+    expect(dates).toHaveLength(1);
+    expect(dates[0]).toMatchObject({ name: 'Medjool dates', qty: 480, unit: 'g' });
+    expect(dates[0].staples).toEqual([{ id: 'st-d', status: 'out' }]);
+  });
+
+  test('carrots by count and in grams add up, in grams', () => {
+    const r = recipe('stew', 4, [['carrots', 2, ''], ['carrot', 300, 'g']]);
+    const carrots = buildShoppingList([dinner('2026-10-19', 'stew', 4)], new Map([['stew', r]]), [], 1).sun.filter((i) => /carrot/.test(i.name));
+    expect(carrots).toEqual([expect.objectContaining({ qty: 460, unit: 'g' })]);
+  });
+
   test('water from the tap is never bought, but things in water still are', () => {
     const r = recipe('soup', 4, [['water', 500, 'g'], ['boiling water', 400, 'ml'], ['cold water', 1, 'tbsp'], ['tinned tuna in water', 160, 'g'], ['coconut water', 250, 'ml']]);
     const names = buildShoppingList([dinner('2026-10-19', 'soup', 4)], new Map([['soup', r]]), [], 1).sun.map((i) => i.name);
