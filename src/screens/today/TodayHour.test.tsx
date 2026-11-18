@@ -115,6 +115,35 @@ test.each(['Close', 'Done'])('leaving from the last step (%s) starts from the fi
   expect(await screen.findByRole('button', { name: 'Start' })).toBeInTheDocument();
 });
 
+test('Done on the last step marks the kept-one-in tins tonight used as run out, once; Close leaves the pantry be', async () => {
+  localStorage.clear();
+  const chickpeas = { position: 9, group_name: null, name: 'chickpeas', qty: 1, unit: 'x 400g tin', note: null, qty_approx: false };
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, ingredients: [...HONEY.ingredients, chickpeas] } : null));
+  h.repo.listStaples.mockResolvedValue([
+    { id: 'p-chick', ingredient_id: 'i9', name: 'Canned chickpeas', status: 'have' },
+    { id: 'p-rice', ingredient_id: 'i2', name: 'Basmati rice', status: 'have' },
+  ]);
+  const toEnd = async () => {
+    await user().click(await screen.findByRole('button', { name: 'Start' }));
+    while (screen.queryByRole('button', { name: 'Next' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  };
+  let shown = open();
+  await toEnd();
+  await user().click(screen.getByRole('link', { name: 'Close' }));
+  expect(h.repo.setStaple).not.toHaveBeenCalled();
+  shown.unmount();
+  shown = open();
+  await toEnd();
+  await user().click(screen.getByRole('link', { name: 'Done' }));
+  await vi.waitFor(() => expect(h.repo.setStaple).toHaveBeenCalledWith('p-chick', 'out'));
+  expect(h.repo.setStaple).toHaveBeenCalledTimes(1);
+  shown.unmount();
+  open();
+  await toEnd();
+  await user().click(screen.getByRole('link', { name: 'Done' }));
+  expect(h.repo.setStaple).toHaveBeenCalledTimes(1);
+});
+
 test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
   open();
   const list = await screen.findByRole('region', { name: 'Get it out' });

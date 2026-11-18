@@ -29,6 +29,7 @@ import { speakable } from '../../lib/voice';
 import { todayInLondon, useTodayHour } from './useTodayHour';
 import { minutesInWords } from '../../../supabase/functions/_shared/cookingTime.ts';
 import { textAmountsNote } from '../../lib/stepAmounts';
+import { usedUp } from '../../lib/easyTonight';
 
 /** "Monday", for a YYYY-MM-DD date. */
 const weekdayName = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
@@ -58,6 +59,16 @@ export default function TodayHour() {
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
   // Leaving from the last step: the cooking is done, so next time opens on the first page.
   const leave = () => { if (steps.length > 0 && index >= steps.length - 1) try { sessionStorage.setItem(key, '-1'); } catch { /* private mode */ } };
+  // Done: tonight's dinner has used up its kept-one-in tins, so they go on the next shop (once a day, on this device).
+  const finish = () => {
+    leave();
+    const dinner = data?.input.tonight?.recipe;
+    const usedKey = `today-used:${day}`;
+    try { if (preview || !dinner || localStorage.getItem(usedKey)) return; localStorage.setItem(usedKey, '1'); } catch { return; }
+    void repo.listStaples(householdId!)
+      .then((staples) => Promise.all(usedUp(dinner.ingredients, staples).map((s) => repo.setStaple(s.id, 'out'))))
+      .catch(() => { /* the cupboard check catches it next shop */ });
+  };
   const [menu, setMenu] = useState<Held | null>(null);
   // The ingredient whose cut guide is open (tap a card); `made`: a chopping picture was made from it.
   const [cutting, setCutting] = useState<{ name: string; qty: string; note: string | null; made?: boolean } | null>(null);
@@ -286,7 +297,7 @@ export default function TodayHour() {
             className="rounded-xl bg-[#E9ECE4] px-6 py-3.5 text-base font-semibold text-[#1B211D]">Back</button>
           {index < steps.length - 1
             ? <button type="button" onClick={() => setIndex((i) => i + 1)} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white">Next</button>
-            : <Link to={back} onClick={leave} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
+            : <Link to={back} onClick={finish} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
         </div>
       )}
       {cutting && (

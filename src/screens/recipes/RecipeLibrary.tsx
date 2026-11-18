@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
@@ -9,6 +9,9 @@ import AddRecipe from './AddRecipe';
 import QuickSnack from './QuickSnack';
 import { GROUPS, isOnePan, recipeGroups, type RecipeGroup } from '../../lib/recipeGroups';
 import HeroImage from './HeroImage';
+import { easyTonight, type EasyTonight } from '../../lib/easyTonight';
+import type { Staple } from '../../lib/types';
+import { SAVE_ERROR } from '../settings/useAsync';
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
@@ -45,14 +48,47 @@ export default function RecipeLibrary() {
 
   const all = data ?? [];
   const inGroup = (r: Recipe, g: RecipeGroup) => recipeGroups(r).includes(g);
-  const pick = (g: RecipeGroup | null) => { setGroup(g); setOnePan(false); };
+  // Easy tonight: weeknight dinners the cupboard and a walk to the Spar can cover.
+  const [easy, setEasy] = useState(false);
+  const [cupboard, setCupboard] = useState<{ names: Record<string, string[]>; staples: Staple[] } | null>(null);
+  const [onSpar, setOnSpar] = useState<string[]>([]);
+  const [sparError, setSparError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    Promise.all([repo.listIngredientNames(householdId!), repo.listStaples(householdId!)])
+      .then(([names, staples]) => { if (live) setCupboard({ names, staples }); })
+      .catch(() => { /* Easy tonight just shows no count */ });
+    return () => { live = false; };
+  }, [householdId]);
+  const fits = new Map<string, EasyTonight>();
+  let bigShop = 0;
+  if (cupboard) for (const r of all.filter((x) => inGroup(x, 'weeknight'))) {
+    const f = easyTonight((cupboard.names[r.id] ?? []).map((name) => ({ name })), cupboard.staples);
+    if (f.bigShop.length === 0) fits.set(r.id, f); else bigShop++;
+  }
+  async function addToSpar(r: Recipe, items: string[]) {
+    setSparError(null);
+    try {
+      for (const name of items) await repo.addQuick(householdId!, name, `For ${r.title}`);
+      setOnSpar((x) => [...x, r.id]);
+    } catch {
+      setSparError(SAVE_ERROR);
+    }
+  }
+
+  const pick = (g: RecipeGroup | null) => { setGroup(g); setOnePan(false); setEasy(false); };
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = all.filter((r) => {
+  const matched = all.filter((r) => {
     const text = [r.title, r.subtitle ?? '', ...r.tags].join(' ').toLowerCase();
-    return words.every((w) => text.includes(w)) && (!group || inGroup(r, group)) && (!onePan || isOnePan(r));
+    return words.every((w) => text.includes(w)) && (!group || inGroup(r, group)) && (!onePan || isOnePan(r)) && (!easy || fits.has(r.id));
   });
-  const chips: { key: string; label: string; count: number; on: boolean; tap: () => void; sub?: boolean }[] = [
-    { key: 'all', label: 'All', count: all.length, on: !group, tap: () => pick(null) },
+  // One-pan and foil-bag dinners first, then the fewest things to fetch.
+  const shown = easy
+    ? [...matched].sort((a, b) => Number(isOnePan(b)) - Number(isOnePan(a)) || fits.get(a.id)!.spar.length - fits.get(b.id)!.spar.length)
+    : matched;
+  const chips: { key: string; label: string; count: number | null; on: boolean; tap: () => void; sub?: boolean }[] = [
+    { key: 'all', label: 'All', count: all.length, on: !group && !easy, tap: () => pick(null) },
+    { key: 'easy', label: 'Easy tonight', count: cupboard ? fits.size : null, on: easy, tap: () => { pick(null); setEasy(true); } },
     ...GROUPS.flatMap((g) => {
       const mine = all.filter((r) => inGroup(r, g.key));
       const chip = { key: g.key, label: g.label, count: mine.length, on: group === g.key, tap: () => pick(g.key) };
@@ -61,7 +97,7 @@ export default function RecipeLibrary() {
         : [chip];
     }),
   ];
-  const narrowed = !!group || words.length > 0;
+  const narrowed = !!group || easy || words.length > 0;
 
   return (
     <section className="grid gap-4 py-4">
@@ -80,12 +116,15 @@ export default function RecipeLibrary() {
         {chips.map((c) => (
           <button key={c.key} type="button" aria-pressed={c.on} onClick={c.tap}
             className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold ${c.sub ? 'border-dashed' : ''} ${c.on ? 'border-ink bg-ink text-bg' : 'border-line bg-surface'}`}>
-            {c.sub && <span aria-hidden="true">↳ </span>}{c.label} <span className={c.on ? 'opacity-70' : 'text-muted'}>{c.count}</span>
+            {c.sub && <span aria-hidden="true">↳ </span>}{c.label} {c.count !== null && <span className={c.on ? 'opacity-70' : 'text-muted'}>{c.count}</span>}
           </button>
         ))}
       </div>
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {photoError && <ErrorBanner message={photoError} />}
+      {sparError && <ErrorBanner message={sparError} />}
+      {easy && <p className="m-0 text-sm text-muted">Dinners you can make from the cupboard plus a walk to the Spar for everyday things.
+        {bigShop > 0 && <> <span className="font-semibold text-ink">{bigShop} more {bigShop === 1 ? 'needs' : 'need'} the big shop</span></>}</p>}
       {photos === 'done' && missing.length === 0 && <p className="text-sm font-semibold text-accent">All recipes have photos.</p>}
       {missing.length > 0 && photos !== 'done' && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 text-sm">
@@ -117,8 +156,8 @@ export default function RecipeLibrary() {
       {!loading && data && data.length > 0 && shown.length === 0 && <p className="text-muted">No recipes match.</p>}
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
         {shown.map((r) => (
-          <li key={r.id}>
-            <Link to={`/recipes/${r.id}`} className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface no-underline">
+          <li key={r.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+            <Link to={`/recipes/${r.id}`} className="flex flex-1 flex-col no-underline">
               <HeroImage recipe={r} className="aspect-[4/3] w-full" />
               <span className="grid gap-1 p-3">
                 <span className="font-display text-[17px] font-semibold leading-tight">{r.title}</span>
@@ -128,9 +167,25 @@ export default function RecipeLibrary() {
                 </span>
               </span>
             </Link>
+            {easy && fits.has(r.id) && <EasyLine fit={fits.get(r.id)!} added={onSpar.includes(r.id)} onAdd={() => void addToSpar(r, fits.get(r.id)!.spar)} />}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+/** On an Easy tonight card: what to fetch from the Spar, what can be skipped, and a tap to put it on the Spar list. */
+function EasyLine({ fit, added, onAdd }: { fit: EasyTonight; added: boolean; onAdd: () => void }) {
+  return (
+    <div className="grid justify-items-start gap-1.5 border-t border-line px-3 py-2.5 text-[13px]">
+      {fit.spar.length === 0
+        ? <span className="font-semibold text-accent">All in the cupboard</span>
+        : <span>From the Spar: {fit.spar.join(', ')}</span>}
+      {fit.skip.length > 0 && <span className="text-muted">Skip if they've none: {fit.skip.join(', ')}</span>}
+      {fit.spar.length > 0 && (added
+        ? <span className="font-semibold text-accent">On the Spar list</span>
+        : <button type="button" onClick={onAdd} className="rounded-lg border border-line bg-surface-2 px-2.5 py-1 font-semibold">Add {fit.spar.length} to the Spar list</button>)}
+    </div>
   );
 }

@@ -36,6 +36,7 @@ export function fakeRepo() {
     setStaple: vi.fn(async () => {}),
     addStaple: vi.fn(),
     listRecipes: vi.fn(async (): Promise<Recipe[]> => [HONEY, DONER, TACOS]),
+    listIngredientNames: vi.fn(async (): Promise<Record<string, string[]>> => ({})),
     getRecipe: vi.fn(async (id: string): Promise<RecipeDetail | null> => ({ 'r-honey': HONEY, 'r-doner': DONER } as Record<string, RecipeDetail>)[id] ?? null),
     heroUrl: vi.fn((path: string, _width?: number) => `https://img.test/${path}`),
     makeSmallCopy: vi.fn(async (_path: string) => {}),

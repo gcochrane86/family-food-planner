@@ -191,6 +191,17 @@ export const repo = {
     return rows.map(toRecipe);
   },
 
+  /** Every active recipe's ingredient names, by recipe id (Easy tonight on the Recipes tab). */
+  async listIngredientNames(householdId: string): Promise<Record<string, string[]>> {
+    const out: Record<string, string[]> = {};
+    for (let from = 0; ; from += 1000) {
+      const rows = must<{ recipe_id: string; name: string }[]>(await db().from('recipe_ingredients').select('recipe_id, name, recipes!inner(household_id)')
+        .eq('recipes.household_id', householdId).order('id').range(from, from + 999));
+      for (const r of rows) (out[r.recipe_id] ??= []).push(r.name);
+      if (rows.length < 1000) return out;
+    }
+  },
+
   /** A recipe with its ingredients and steps, or null when it isn't in the household's library. */
   async getRecipe(id: string): Promise<RecipeDetail | null> {
     const recipe = must<Recipe | null>(await db().from('recipes').select('*').eq('id', id).maybeSingle());

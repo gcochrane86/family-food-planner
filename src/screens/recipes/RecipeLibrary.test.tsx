@@ -177,3 +177,32 @@ test('a quick snack is a name, one portion of items and whether the toddler can 
     items: [{ name: 'apple', qty: 1, unit: '' }, { name: 'almonds', qty: 30, unit: 'g' }] });
   expect(await screen.findByRole('link', { name: /Apple & almonds/ })).toBeInTheDocument();
 });
+
+test('Easy tonight shows weeknight dinners the cupboard and the Spar can cover, and adds the Spar things to the Spar list', async () => {
+  await mix();
+  h.repo.listIngredientNames.mockResolvedValue({
+    'r-pesto': ['chicken breast', 'basil', 'paprika', 'water'],
+    'r-curry': ['halloumi', 'onion'],
+  });
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  await userEvent.click(screen.getByRole('button', { name: /^Easy tonight/ }));
+  expect(await screen.findByText('From the Spar: chicken breast')).toBeInTheDocument();
+  expect(shownTitles()).toEqual([expect.stringContaining('Pesto Chicken')]);
+  expect(screen.getByText("Skip if they've none: basil")).toBeInTheDocument();
+  expect(screen.getByText('1 more needs the big shop')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Add 1 to the Spar list' }));
+  expect(h.repo.addQuick).toHaveBeenCalledWith('h1', 'chicken breast', 'For Pesto Chicken');
+  expect(await screen.findByText('On the Spar list')).toBeInTheDocument();
+});
+
+test('Easy tonight says when a dinner is all in the cupboard', async () => {
+  await mix();
+  h.repo.listIngredientNames.mockResolvedValue({ 'r-pesto': ['paprika'], 'r-curry': ['paprika'] });
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  await userEvent.click(screen.getByRole('button', { name: /^Easy tonight/ }));
+  expect(await screen.findAllByText('All in the cupboard')).toHaveLength(2);
+  // One-pan dinners come first.
+  expect(shownTitles()[0]).toContain('Pesto Chicken');
+});
