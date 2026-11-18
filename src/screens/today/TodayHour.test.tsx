@@ -105,6 +105,16 @@ test('coming back mid-hour keeps your step', async () => {
   expect(await screen.findByRole('heading', { name: "The bulk sauce" })).toBeInTheDocument();
 });
 
+test.each(['Close', 'Done'])('leaving from the last step (%s) starts from the first page next time', async (name) => {
+  const first = open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (screen.queryByRole('button', { name: 'Next' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  await user().click(screen.getByRole('link', { name }));
+  first.unmount();
+  open();
+  expect(await screen.findByRole('button', { name: 'Start' })).toBeInTheDocument();
+});
+
 test("tonight's amounts include the portions for tomorrow's leftovers lunch", async () => {
   open();
   const list = await screen.findByRole('region', { name: 'Get it out' });

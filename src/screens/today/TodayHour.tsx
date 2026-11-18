@@ -56,6 +56,8 @@ export default function TodayHour() {
   });
   const [index, setIndex] = useState<number>(() => { try { return Number(sessionStorage.getItem(key) ?? -1); } catch { return -1; } });
   useEffect(() => { try { sessionStorage.setItem(key, String(index)); } catch { /* private mode */ } }, [key, index]);
+  // Leaving from the last step: the cooking is done, so next time opens on the first page.
+  const leave = () => { if (steps.length > 0 && index >= steps.length - 1) try { sessionStorage.setItem(key, '-1'); } catch { /* private mode */ } };
   const [menu, setMenu] = useState<Held | null>(null);
   // The ingredient whose cut guide is open (tap a card); `made`: a chopping picture was made from it.
   const [cutting, setCutting] = useState<{ name: string; qty: string; note: string | null; made?: boolean } | null>(null);
@@ -141,7 +143,7 @@ export default function TodayHour() {
             <ListenSwitch light onNext={() => setIndex((i) => Math.min(i + 1, steps.length - 1))} onBack={() => setIndex((i) => Math.max(i - 1, -1))}
               text={() => (step ? speakable(step.title, step.kind === 'chop' ? data.plan.chop.flatMap((g) => g.items.map((it) => `${chopInstruction(it.name, it.note)}${it.qty ? `, ${it.qty}` : ''}`)).join('. ') : step.body) : '')} />
           )}
-          <Link to={back} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl text-[#1B211D] no-underline">×</Link>
+          <Link to={back} onClick={leave} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full bg-[#E9ECE4] text-xl text-[#1B211D] no-underline">×</Link>
         </div>
       </div>
 
@@ -284,7 +286,7 @@ export default function TodayHour() {
             className="rounded-xl bg-[#E9ECE4] px-6 py-3.5 text-base font-semibold text-[#1B211D]">Back</button>
           {index < steps.length - 1
             ? <button type="button" onClick={() => setIndex((i) => i + 1)} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white">Next</button>
-            : <Link to={back} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
+            : <Link to={back} onClick={leave} className="rounded-xl bg-[#2D6A3E] px-6 py-3.5 text-base font-semibold text-white no-underline">Done</Link>}
         </div>
       )}
       {cutting && (
