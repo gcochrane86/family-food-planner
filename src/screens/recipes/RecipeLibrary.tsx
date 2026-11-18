@@ -7,19 +7,8 @@ import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import AddRecipe from './AddRecipe';
 import QuickSnack from './QuickSnack';
-import { isSnack } from '../../../supabase/functions/_shared/snackRules.ts';
+import { GROUPS, isOnePan, recipeGroups, type RecipeGroup } from '../../lib/recipeGroups';
 import HeroImage from './HeroImage';
-
-const FILTERS: { label: string; test: (r: Recipe) => boolean }[] = [
-  { label: 'All', test: () => true },
-  { label: 'TM7', test: (r) => r.equipment.includes('tm7') },
-  { label: '≤30 min', test: (r) => r.finish_minutes <= 30 },
-  { label: 'Make-ahead', test: (r) => r.prep_minutes > 0 },
-  { label: 'Reheats well', test: (r) => r.reheats_well },
-  { label: 'Toddler OK', test: (r) => r.toddler_ok },
-  { label: 'Components', test: (r) => r.kind === 'component' },
-  { label: 'Snacks', test: (r) => isSnack(r) },
-];
 
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
@@ -50,20 +39,36 @@ export default function RecipeLibrary() {
     }
     setPhotos('done');
   }
-  const [filters, setFilters] = useState<string[]>([]);
+  const [group, setGroup] = useState<RecipeGroup | null>(null);
+  const [onePan, setOnePan] = useState(false);
   const [query, setQuery] = useState('');
 
-  const toggle = (label: string) =>
-    setFilters((f) => (label === 'All' ? [] : f.includes(label) ? f.filter((x) => x !== label) : [...f, label]));
+  const all = data ?? [];
+  const inGroup = (r: Recipe, g: RecipeGroup) => recipeGroups(r).includes(g);
+  const pick = (g: RecipeGroup | null) => { setGroup(g); setOnePan(false); };
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = (data ?? []).filter((r) => {
+  const shown = all.filter((r) => {
     const text = [r.title, r.subtitle ?? '', ...r.tags].join(' ').toLowerCase();
-    return words.every((w) => text.includes(w)) && filters.every((f) => FILTERS.find((x) => x.label === f)!.test(r));
+    return words.every((w) => text.includes(w)) && (!group || inGroup(r, group)) && (!onePan || isOnePan(r));
   });
+  const chips: { key: string; label: string; count: number; on: boolean; tap: () => void; sub?: boolean }[] = [
+    { key: 'all', label: 'All', count: all.length, on: !group, tap: () => pick(null) },
+    ...GROUPS.flatMap((g) => {
+      const mine = all.filter((r) => inGroup(r, g.key));
+      const chip = { key: g.key, label: g.label, count: mine.length, on: group === g.key, tap: () => pick(g.key) };
+      return g.key === 'weeknight' && group === 'weeknight'
+        ? [chip, { key: 'one-pan', label: 'One-pan', count: mine.filter(isOnePan).length, on: onePan, tap: () => setOnePan((x) => !x), sub: true }]
+        : [chip];
+    }),
+  ];
+  const narrowed = !!group || words.length > 0;
 
   return (
     <section className="grid gap-4 py-4">
-      <h1 className="text-3xl font-bold">Recipes</h1>
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-3xl font-bold">Recipes</h1>
+        {data && data.length > 0 && <span className="text-sm font-semibold text-muted">{narrowed ? `${shown.length} of ${all.length} recipes` : `${all.length} recipes`}</span>}
+      </div>
       <div className="flex flex-wrap items-start gap-2">
         <AddRecipe householdId={householdId!} />
         <QuickSnack householdId={householdId!} onAdded={(r) => setData((list) => [...(list ?? []), r])} />
@@ -72,15 +77,12 @@ export default function RecipeLibrary() {
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
         className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {FILTERS.map((f) => {
-          const on = f.label === 'All' ? filters.length === 0 : filters.includes(f.label);
-          return (
-            <button key={f.label} type="button" aria-pressed={on} onClick={() => toggle(f.label)}
-              className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold ${on ? 'border-ink bg-ink text-bg' : 'border-line bg-surface'}`}>
-              {f.label}
-            </button>
-          );
-        })}
+        {chips.map((c) => (
+          <button key={c.key} type="button" aria-pressed={c.on} onClick={c.tap}
+            className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-semibold ${c.sub ? 'border-dashed' : ''} ${c.on ? 'border-ink bg-ink text-bg' : 'border-line bg-surface'}`}>
+            {c.sub && <span aria-hidden="true">↳ </span>}{c.label} <span className={c.on ? 'opacity-70' : 'text-muted'}>{c.count}</span>
+          </button>
+        ))}
       </div>
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {photoError && <ErrorBanner message={photoError} />}

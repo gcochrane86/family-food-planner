@@ -17,23 +17,61 @@ test('lists every recipe as a link to its card', async () => {
   expect(screen.getByRole('link', { name: /Miso Glazed Aubergine Tacos/ })).toBeInTheDocument();
 });
 
-test('filters narrow the list', async () => {
+const mix = async () => {
+  const base = (await h.repo.listRecipes())[0];
+  h.repo.listRecipes.mockResolvedValue([
+    { ...base, id: 'r-pesto', title: 'Pesto Chicken', kind: 'meal', tags: ['chicken', 'one-pot', 'weeknight'] },
+    { ...base, id: 'r-curry', title: 'Chickpea Curry', kind: 'meal', tags: ['Freezes well'] },
+    { ...base, id: 'r-lamb', title: 'Roast Leg of Lamb', kind: 'component', component_role: 'protein', tags: ['Roast'] },
+    { ...base, id: 'r-gravy', title: 'Proper Gravy', kind: 'component', component_role: 'sauce', tags: ['Roast'] },
+    { ...base, id: 'r-oats', title: 'Overnight Oats', kind: 'component', component_role: null, tags: ['Breakfast'] },
+    { ...base, id: 'r-poke', title: 'Salmon Poke Bowl', kind: 'component', component_role: null, tags: ['Lunch'] },
+    { ...base, id: 'r-balls', title: 'Energy Balls', kind: 'snack', tags: ['Snack'] },
+  ]);
+};
+const shownTitles = () => screen.queryAllByRole('link').filter((a) => a.getAttribute('href')?.startsWith('/recipes/r-')).map((a) => a.textContent ?? '');
+
+test('the total count shows at the top, and how many a group or search leaves', async () => {
+  await mix();
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
-  await screen.findByRole('link', { name: /Honey Chilli/ });
-  await userEvent.click(screen.getByRole('button', { name: '≤30 min' }));
-  expect(screen.getByRole('link', { name: /Honey Chilli/ })).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: /Lamb Doner/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Toddler OK' }));
-  expect(screen.queryByRole('link', { name: /Lamb Doner/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'All' }));
-  expect(screen.getByRole('link', { name: /Lamb Doner/ })).toBeInTheDocument();
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  expect(screen.getByText('7 recipes')).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /^Weeknight dinners/ }));
+  expect(screen.getByText('2 of 7 recipes')).toBeInTheDocument();
 });
 
-test('the TM7 filter keeps only recipes that use it', async () => {
+test('each group chip shows how many recipes it has', async () => {
+  await mix();
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
-  await screen.findByRole('link', { name: /Honey Chilli/ });
-  await userEvent.click(screen.getByRole('button', { name: 'TM7' }));
-  expect(screen.queryByRole('link', { name: /Aubergine Tacos/ })).not.toBeInTheDocument();
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  for (const [label, n] of [['All', 7], ['Weeknight dinners', 2], ['Roasts & centrepieces', 1], ['Sides & sauces', 1], ['Breakfasts', 1], ['Lunches', 1], ['Snacks & treats', 1]] as const)
+    expect(screen.getByRole('button', { name: `${label} ${n}` })).toBeInTheDocument();
+});
+
+test('a group shows only its recipes, one group at a time, and All shows everything again', async () => {
+  await mix();
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  await userEvent.click(screen.getByRole('button', { name: /^Roasts & centrepieces/ }));
+  expect(shownTitles()).toEqual([expect.stringMatching(/Roast Leg of Lamb/)]);
+  await userEvent.click(screen.getByRole('button', { name: /^Sides & sauces/ }));
+  expect(shownTitles()).toEqual([expect.stringMatching(/Proper Gravy/)]);
+  expect(screen.getByRole('button', { name: /^Roasts & centrepieces/ })).toHaveAttribute('aria-pressed', 'false');
+  await userEvent.click(screen.getByRole('button', { name: /^All/ }));
+  expect(shownTitles()).toHaveLength(7);
+});
+
+test('One-pan appears under Weeknight dinners and narrows it', async () => {
+  await mix();
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  await screen.findByRole('link', { name: /Pesto Chicken/ });
+  expect(screen.queryByRole('button', { name: /^One-pan/ })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /^Weeknight dinners/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'One-pan 1' }));
+  expect(shownTitles()).toEqual([expect.stringMatching(/Pesto Chicken/)]);
+  await userEvent.click(screen.getByRole('button', { name: /^Breakfasts/ }));
+  expect(screen.queryByRole('button', { name: /^One-pan/ })).not.toBeInTheDocument();
+  expect(shownTitles()).toEqual([expect.stringMatching(/Overnight Oats/)]);
 });
 
 test('missing photos are offered with the count and cost, and only made after confirming', async () => {
@@ -75,9 +113,9 @@ test('search narrows the list by title, ignoring case, and works with the filter
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'lamb');
   expect(screen.getByRole('link', { name: /Lamb Doner/ })).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /Honey Chilli/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: '≤30 min' }));
+  await userEvent.click(screen.getByRole('button', { name: /^Snacks & treats/ }));
   expect(screen.getByText('No recipes match.')).toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'All' }));
+  await userEvent.click(screen.getByRole('button', { name: /^All/ }));
   await userEvent.clear(screen.getByRole('searchbox', { name: 'Search recipes' }));
   await userEvent.type(screen.getByRole('searchbox', { name: 'Search recipes' }), 'TACOS');
   expect(screen.getByRole('link', { name: /Tacos/ })).toBeInTheDocument();
@@ -107,7 +145,7 @@ test('recipe cards show just the photo, title and times', async () => {
   expect(card).toHaveTextContent(/min dinner/);
 });
 
-test('Snacks lists snack recipes, recipes that can be snacks and quick snacks', async () => {
+test('Snacks & treats lists snack recipes, recipes that can be snacks and quick snacks', async () => {
   const base = (await h.repo.listRecipes())[0];
   h.repo.listRecipes.mockResolvedValue([
     { ...base, id: 'r-meal', title: 'Fish pie', kind: 'meal' },
@@ -117,7 +155,7 @@ test('Snacks lists snack recipes, recipes that can be snacks and quick snacks', 
   ]);
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
   await screen.findByRole('link', { name: /Fish pie/ });
-  await userEvent.click(screen.getByRole('button', { name: 'Snacks' }));
+  await userEvent.click(screen.getByRole('button', { name: /^Snacks & treats/ }));
   expect(screen.queryByRole('link', { name: /Fish pie/ })).not.toBeInTheDocument();
   for (const t of [/Baked oats/, /Beetroot hummus/, /Apple & almonds/]) expect(screen.getByRole('link', { name: t })).toBeInTheDocument();
 });
