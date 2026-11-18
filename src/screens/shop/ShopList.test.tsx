@@ -329,14 +329,32 @@ describe('Check the cupboard', () => {
     expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
   });
 
-  test('Got it saves the answer and leaves the pantry alone', async () => {
+  test('each one is guessed as there, from the pantry, and one tap confirms the rest; the pantry is left alone', async () => {
+    h.repo.listStaples.mockResolvedValue([
+      { id: 'p-rice', ingredient_id: 'i8', name: 'Basmati rice', status: 'have' },
+      { id: 'p-chicken', ingredient_id: 'i7', name: 'Chicken breast or thigh', status: 'have' },
+    ]);
     render(<ShopList />, { wrapper: MemoryRouter });
-    await screen.findByRole('region', { name: 'Check the cupboard' });
-    await user().click(within(rice()).getByRole('button', { name: 'Got it' }));
-    expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'cupboard-got|p-rice', true);
-    expect(rice()).toHaveTextContent('✓ Got it');
-    expect(screen.getByText('All checked')).toBeInTheDocument();
-    expect(h.repo.setStaple).not.toHaveBeenCalled();
+    const check = await screen.findByRole('region', { name: 'Check the cupboard' });
+    expect(rice()).toHaveTextContent('Pantry: got it');
+    await user().click(within(rice()).getByRole('button', { name: 'Need it' }));
+    await user().click(within(check).getByRole('button', { name: 'Confirm the rest are there (1)' }));
+    expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'cupboard-got|p-chicken', true);
+    expect(h.repo.setTick).not.toHaveBeenCalledWith('w-next', 'sun', 'cupboard-got|p-rice', true);
+    expect(within(check).getByRole('group', { name: 'Chicken breast or thigh' })).toHaveTextContent('✓ Got it');
+    expect(rice()).toHaveTextContent('On the list');
+    expect(within(check).getByText('All checked')).toBeInTheDocument();
+    expect(within(check).queryByRole('button', { name: /Confirm the rest/ })).not.toBeInTheDocument();
+    expect(h.repo.setStaple).not.toHaveBeenCalledWith('p-chicken', expect.anything());
+  });
+
+  test("if confirming can't be saved, they go back to unchecked and you are told", async () => {
+    h.repo.setTick.mockRejectedValueOnce(new Error('offline'));
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the cupboard' });
+    await user().click(within(check).getByRole('button', { name: 'Confirm the rest are there (1)' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(rice()).toHaveTextContent('Pantry: got it');
   });
 
   test('Need it marks it run out and puts it on the list; ticking it there restocks it, and it stays on the list', async () => {
@@ -366,7 +384,7 @@ describe('Check the cupboard', () => {
     expect(h.repo.setTick).toHaveBeenLastCalledWith('w-next', 'sun', 'cupboard-need|p-rice', false);
     expect(h.repo.setStaple).toHaveBeenLastCalledWith('p-rice', 'have');
     expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
-    expect(within(rice()).getByRole('button', { name: 'Got it' })).toBeInTheDocument();
+    expect(rice()).toHaveTextContent('Pantry: got it');
   });
 
   test("if an answer can't be saved, it is undone and you are told", async () => {

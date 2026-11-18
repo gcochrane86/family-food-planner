@@ -93,6 +93,21 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     }
   }
 
+  /** One tap for the ones you've looked over and left: they're there, as the pantry says. */
+  async function confirmRest(ids: string[]) {
+    const week = data?.chosen?.week;
+    if (!week || !ids.length) return;
+    setAnswers((m) => { const n = new Map(m); for (const id of ids) n.set(id, 'got'); return n; });
+    setBanner(null);
+    try {
+      await Promise.all(ids.map((id) => repo.setTick(week.id, 'sun', gotKey(id), true)));
+    } catch {
+      setAnswers((m) => { const n = new Map(m); for (const id of ids) n.set(id, null); return n; });
+      await Promise.all(ids.map((id) => repo.setTick(week.id, 'sun', gotKey(id), false))).catch(() => {});
+      setBanner(SAVE_ERROR);
+    }
+  }
+
   async function goingThisWeek(shop: OtherShop) {
     if (!data?.settings) return;
     const going = shop.weeks.includes(weekStart);
@@ -211,7 +226,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
           })}
         </section>
       )}
-      {checks.length > 0 && <CupboardCheckList checks={checks} answerOf={answerOf} onAnswer={(id, v) => void answer(id, v)} />}
+      {checks.length > 0 && <CupboardCheckList checks={checks} answerOf={answerOf} onAnswer={(id, v) => void answer(id, v)} onConfirmRest={(ids) => void confirmRest(ids)} />}
       {shopsNow.filter((s) => s.sometimes).map((shop) => {
         const on = shop.weeks.includes(weekStart);
         return list && (
@@ -270,9 +285,13 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
   );
 }
 
-/** What the week uses that the pantry says you have: check each before the shop. "Need it" puts it on the list. */
-function CupboardCheckList({ checks, answerOf, onAnswer }: { checks: CupboardCheck[]; answerOf: (id: string) => Answer; onAnswer: (id: string, value: Answer) => void }) {
-  const left = checks.filter((c) => answerOf(c.stapleId) === null).length;
+/** What the week uses that the pantry says you have, each guessed as there: look it over, tap Need it on what's
+ *  missing, then one tap confirms the rest. */
+function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }: {
+  checks: CupboardCheck[]; answerOf: (id: string) => Answer; onAnswer: (id: string, value: Answer) => void; onConfirmRest: (ids: string[]) => void;
+}) {
+  const rest = checks.filter((c) => answerOf(c.stapleId) === null).map((c) => c.stapleId);
+  const left = rest.length;
   const sorted = [...checks].sort((a, b) => Number(answerOf(a.stapleId) !== null) - Number(answerOf(b.stapleId) !== null) || a.neededBy.localeCompare(b.neededBy));
   return (
     <section aria-label="Check the cupboard" className="grid gap-2">
@@ -280,24 +299,24 @@ function CupboardCheckList({ checks, answerOf, onAnswer }: { checks: CupboardChe
         <h2 className="text-xl font-bold">Check the cupboard</h2>
         <span className="text-sm text-muted">{left ? `${left} to check` : 'All checked'}</span>
       </div>
-      <p className="m-0 text-sm text-muted">The pantry says you have these. Check you've enough before you shop: Need it puts it on the list.</p>
+      <p className="m-0 text-sm text-muted">The pantry says you have these. Look them over, tap Need it on anything missing or short, then confirm the rest.</p>
       <ul className="m-0 list-none divide-y divide-line rounded-2xl border border-line bg-surface p-0">
         {sorted.map((c) => {
           const a = answerOf(c.stapleId);
           const amount = c.amounts.map((x) => formatQty(x.qty, x.unit, x.approx)).filter(Boolean).join(' + ');
           return (
-            <li key={c.stapleId} role="group" aria-label={c.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-              <span className="min-w-0">
+            <li key={c.stapleId} role="group" aria-label={c.name} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <span className="min-w-0 flex-1">
                 <span className={`block font-semibold ${a ? 'text-muted' : ''}`}>{amount ? `${amount} ${c.name.toLowerCase()}` : c.name}</span>
                 <span className="block text-[12.5px] text-muted">for {c.forMeals.join(', ')}</span>
+                {a === null && <span className="block text-[12.5px] text-accent">Pantry: got it</span>}
               </span>
               {a === null ? (
-                <span className="flex gap-2">
-                  <button type="button" onClick={() => onAnswer(c.stapleId, 'got')} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Got it</button>
-                  <button type="button" onClick={() => onAnswer(c.stapleId, 'need')} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Need it</button>
+                <span className="flex shrink-0 items-center">
+                  <button type="button" onClick={() => onAnswer(c.stapleId, 'need')} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Need it</button>
                 </span>
               ) : (
-                <span className="flex items-center gap-3 text-sm">
+                <span className="flex shrink-0 items-center gap-3 text-sm">
                   <span className={a === 'got' ? 'text-accent' : 'font-semibold'}>{a === 'got' ? '✓ Got it' : 'On the list'}</span>
                   <button type="button" onClick={() => onAnswer(c.stapleId, null)} className="font-semibold text-muted underline">Undo</button>
                 </span>
@@ -306,6 +325,11 @@ function CupboardCheckList({ checks, answerOf, onAnswer }: { checks: CupboardChe
           );
         })}
       </ul>
+      {left > 0 && (
+        <button type="button" onClick={() => onConfirmRest(rest)} className="min-h-11 rounded-2xl bg-accent font-bold text-accent-ink">
+          Confirm the rest are there ({left})
+        </button>
+      )}
     </section>
   );
 }
