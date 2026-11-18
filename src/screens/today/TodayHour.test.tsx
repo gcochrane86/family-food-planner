@@ -647,3 +647,24 @@ test("a snack made today (each person's, added up) is one of the day's steps", a
   }
   expect(titles.some((t) => t.startsWith('Snack: '))).toBe(true);
 });
+
+test('a step that cooks on its own says what to do meanwhile, and those steps show it still cooking', async () => {
+  // The toss's sauce is warmed 5 minutes into the rice's 20, while the rice cooks.
+  const steps = HONEY.steps.map((st) => (st.title === 'Final toss' ? { ...st, at_minute: 5, title: 'Warm the sauce' } : st));
+  h.repo.getRecipe.mockImplementation(async (id: string) => (id === 'r-honey' ? { ...HONEY, steps } : null));
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (!screen.queryByRole('heading', { name: 'Rice on' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByText('20 min on its own')).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Runs on its own' })).toHaveTextContent('Start it and move on: it cooks on its own. Meanwhile: Warm the sauce.');
+  await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByRole('heading', { name: 'Warm the sauce' })).toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Still cooking' })).toHaveTextContent('Rice on: about 15 min left');
+});
+
+test('a step that cooks on its own with nothing to do meanwhile says so', async () => {
+  open();
+  await user().click(await screen.findByRole('button', { name: 'Start' }));
+  while (!screen.queryByRole('heading', { name: 'The bulk sauce' })) await user().click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByRole('region', { name: 'Runs on its own' })).toHaveTextContent("It cooks on its own for 12 min; nothing else needs doing until it's done.");
+});

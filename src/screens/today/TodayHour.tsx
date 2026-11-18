@@ -198,7 +198,19 @@ export default function TodayHour() {
               ? 'mx-auto grid w-full max-w-4xl flex-1 content-start justify-items-center gap-6 text-center'
               : 'mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 md:max-w-6xl md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:items-start md:gap-10'}>
             <div className="grid content-start gap-3">
-            <span className="font-mono text-3xl font-bold tabular-nums text-[#3F4A43]">{step.length} min</span>
+            <span className="font-mono text-3xl font-bold tabular-nums text-[#3F4A43]">{step.length} min{step.handsOff ? ' on its own' : ''}</span>
+            {step.running && step.running.length > 0 && (
+              <ul aria-label="Still cooking" className="m-0 flex list-none flex-wrap gap-2 p-0">
+                {step.running.map((r) => <li key={r.title} className="rounded-full bg-[#E9ECE4] px-3 py-1 text-sm font-semibold text-[#3F4A43]">⏱ {r.title}: about {r.left} min left</li>)}
+              </ul>
+            )}
+            {step.handsOff && (
+              <section aria-label="Runs on its own" className="grid gap-1 rounded-xl bg-[#E4F0E6] px-3 py-2 text-base text-[#1B211D]">
+                {step.meanwhile && step.meanwhile.length > 0
+                  ? <><b>Start it and move on: it cooks on its own.</b> <span>Meanwhile: {step.meanwhile.join(', then ')}.</span></>
+                  : <span>It cooks on its own for {step.length} min; nothing else needs doing until it's done.</span>}
+              </section>
+            )}
             {data && stepRecipeId(step, data.dinners) ? (<>
               <h1 className="m-0 text-[clamp(24px,3.4vw,36px)] font-bold leading-tight">
                 <button type="button" aria-expanded={showChanges} onClick={() => setShowChanges((v) => !v)} className="text-left">{step.title}</button>

@@ -411,3 +411,30 @@ describe('snack makes', () => {
     expect(titled(plan, 'Snack: Blend')).toBeTruthy();
   });
 });
+
+describe('planHour: doing things while something cooks', () => {
+  // Like tonight's chickpeas: a 12-minute simmer, and the couscous and beans started while it runs.
+  const CHICKPEAS = recipe('chickpeas', 'Smoky Chickpeas', [ing(1, 'chickpeas', 400, 'g', null), ing(2, 'couscous', 150, 'g', null), ing(3, 'green beans', 200, 'g', null)], [
+    step('finish', 1, 0, 'Soften', 'Soften the base.', 'tm7', '4 min', 4),
+    step('finish', 2, 5, 'Simmer', 'Add the **chickpeas** and simmer.', 'tm7', '12 min · 100°C', 12),
+    step('finish', 3, 6, 'Couscous', 'Pour boiling water over the **couscous**.', 'kettle', null, 5),
+    step('finish', 4, 7, 'Steam-roast the beans', 'Roast the **green beans**.', 'apo', '10 min · 200°C', 10),
+    step('finish', 5, 17, 'Serve', 'Serve.', null, null, null),
+  ]);
+  const plan = () => planHour(input({ tonight: { recipe: CHICKPEAS, portions: 4 }, tomorrow: null }));
+
+  it('a step that runs on its own says so, and lists what to get on with meanwhile', () => {
+    const simmer = titled(plan(), 'Simmer')!;
+    expect(simmer.handsOff).toBe(true);
+    expect(simmer.meanwhile).toEqual(['Couscous', 'Steam-roast the beans']);
+    expect(titled(plan(), 'Couscous')!.handsOff).toBeFalsy();
+    expect(titled(plan(), 'Steam-roast the beans')!.handsOff).toBe(true);
+  });
+
+  it('the steps done meanwhile show what is still cooking and how long it has left', () => {
+    expect(titled(plan(), 'Couscous')!.running).toEqual([{ title: 'Simmer', left: 11 }]);
+    const beans = titled(plan(), 'Steam-roast the beans')!;
+    expect(beans.running).toEqual([{ title: 'Simmer', left: 10 }]);
+    expect(titled(plan(), 'Plate up')!.running ?? []).toEqual([]);
+  });
+});

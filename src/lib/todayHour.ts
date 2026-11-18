@@ -71,6 +71,12 @@ export interface HourStep {
     step?: { recipeId: string; stepId: string; title: string; has: boolean; own: boolean } }[];
   /** For a step from a day's dinner recipe: which day's dinner and which of its steps (to change it for that day). */
   source?: { date: string; phase: 'prep_8pm' | 'finish'; title: string };
+  /** It runs on its own once started (a simmer, the oven): start it and move on. */
+  handsOff?: boolean;
+  /** For a step that runs on its own: the steps to get on with while it does. */
+  meanwhile?: string[];
+  /** What is still cooking on its own when this step starts, and the minutes it has left. */
+  running?: { title: string; left: number }[];
 }
 
 export interface HourPlan {
@@ -229,7 +235,18 @@ export function planHour(input: HourInput): HourPlan {
   add(tail, 5, true, null, { ...plain, kind: 'clean', title: 'Wipe down, load and start the dishwasher', body: 'Wipe the sides, load the last pans and start the dishwasher.' });
 
   const ordered = slots.map((s, i) => ({ s, i })).sort((a, b) => a.s.start - b.s.start || a.i - b.i).map(({ s }) => s);
-  const steps = ordered.map((s) => s.step);
+  const steps = ordered.map((s) => {
+    if (s.busy) {
+      const running = ordered.filter((o) => o !== s && !o.busy && o.start < s.start && o.end > s.start && o.step.kind !== 'clean')
+        .map((o) => ({ title: o.step.title, left: o.end - s.start }));
+      return running.length ? { ...s.step, running } : s.step;
+    }
+    const meanwhile = ordered.filter((o) => o !== s && o.start >= s.start && o.start < s.end && o.step.kind !== 'serve' && ordered.indexOf(o) > ordered.indexOf(s))
+      .map((o) => o.step.title);
+    const running = ordered.filter((o) => o !== s && !o.busy && o.start < s.start && o.end > s.start)
+      .map((o) => ({ title: o.step.title, left: o.end - s.start }));
+    return { ...s.step, handsOff: true, ...(meanwhile.length ? { meanwhile } : {}), ...(running.length ? { running } : {}) };
+  });
   const handsOn = ordered.filter((s) => s.busy).reduce((n, s) => n + (s.end - s.start), 0);
   const state = tonightState(input);
   const tPrep = input.tonight ? prepSteps(input.tonight.recipe) : [];
