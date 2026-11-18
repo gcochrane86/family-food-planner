@@ -3,6 +3,11 @@
 > **Since 14 Nov 2026 recipes are added in the Claude app** through the connector (`get_recipe_rules`, `read_youtube`,
 > `add_recipe`; docs/spec.md §10), and since 17 Nov 2026 Rework with Claude is too (`get_recipe_to_rework`,
 > `rework_recipe`). The Mac's `recipe-import` task is off; this playbook stays for manual use.
+>
+> **Standard ingredient names (18 Nov 2026):** the names already in the recipes and pantry are the standard list.
+> Use a standard name wherever the recipe means the same thing, with any detail ("pitted", "extra virgin") in the
+> note, and show the household every name changed and every new one. `add_recipe` and `rework_recipe` refuse a new
+> name that looks like a standard one unless it's in `new_names`.
 
 Claude follows this when the household pastes a recipe link on the Recipes tab (**Add recipe**), which leaves a
 `requested` row in `recipe_imports`. Claude reads the page, converts it for the household, and saves it as a new

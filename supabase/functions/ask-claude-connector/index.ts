@@ -52,12 +52,13 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
     handler: (args: Record<string, unknown>) => safely(async () => (youtube ? youtube.read(args ?? {}) : 'Video reading needs the GOOGLE_AI_API_KEY secret in Supabase. Ask the household to paste the transcript instead.'), 'read the video'),
   });
   mcp.tool('add_recipe', {
-    description: "Changes the library (the household approves each call in Claude): adds one new recipe in the format from get_recipe_rules, then makes its main photo from its photo description (about 3p). Add only: a recipe whose title or slug is already in the library is refused. Show the household the whole recipe and get their go-ahead first.",
+    description: "Changes the library (the household approves each call in Claude): adds one new recipe in the format from get_recipe_rules, then makes its main photo from its photo description (about 3p). Add only: a recipe whose title or slug is already in the library is refused. Show the household the whole recipe, every ingredient name you changed to a standard one and every new name, and get their go-ahead first.",
     inputSchema: {
       type: 'object', required: ['recipe'],
       properties: {
         recipe: { type: 'object', description: 'The recipe in the seed format from get_recipe_rules' },
         source_url: { type: 'string', description: 'The page or video it came from' },
+        new_names: { type: 'array', items: { type: 'string' }, description: 'Ingredient names not on the standard list that the household said are different things (optional)' },
       },
     },
     annotations: changes,
@@ -77,6 +78,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
         recipe: { type: 'string', description: "The saved recipe's title or slug" },
         changed: { type: 'object', description: 'The whole changed recipe in the seed format' },
         summary: { type: 'string', description: 'One line on what changed, shown on the recipe in the app' },
+        new_names: { type: 'array', items: { type: 'string' }, description: 'Ingredient names not on the standard list that the household said are different things (optional)' },
       },
     },
     annotations: changes,

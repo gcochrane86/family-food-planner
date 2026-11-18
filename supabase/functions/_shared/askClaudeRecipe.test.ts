@@ -137,3 +137,43 @@ test('a failed save says so and leaves the request open', async () => {
   expect(out).toMatch(/Couldn't save.*bad step/s);
   expect(db.writes().some((w) => w.table === 'recipe_reworks')).toBe(false);
 });
+
+describe('standard ingredient names', () => {
+  const named = (o: Record<string, unknown> = {}) => world({
+    recipe_ingredients: [{ name: 'onion' }, { name: 'tinned tomatoes' }, { name: 'olive oil' }, { name: 'smooth peanut butter' }, { name: 'olive oil' }],
+    ingredients: [{ name: 'Sea salt' }], ...o,
+  });
+  const withNut = () => recipe({ ingredients: [...example.ingredients, { group: null, name: 'nut butter', qty: 1, unit: 'tbsp', note: null, approx: false }] });
+
+  test('the rules list the standard names and say to use them, and to show every change and new name first', async () => {
+    const out = await adder(named()).add.rules();
+    expect(out).toMatch(/Standard ingredient names/);
+    expect(out).toContain('- smooth peanut butter');
+    expect(out).toContain('- Sea salt');
+    expect(out).toMatch(/Recipe says nut butter → smooth peanut butter/);
+  });
+
+  test('a new name that looks like a standard one is refused, saying which, and nothing is written', async () => {
+    const db = named();
+    const out = await adder(db).add.add({ recipe: withNut() });
+    expect(out).toMatch(/nut butter.*smooth peanut butter/s);
+    expect(out).toMatch(/new_names/);
+    expect(out).toMatch(/Nothing was saved/);
+    expect(db.writes()).toEqual([]);
+  });
+
+  test('a new name the household said is different is saved, and the reply says it joins the list', async () => {
+    const db = named();
+    const out = await adder(db).add.add({ recipe: withNut(), new_names: ['nut butter'] });
+    expect(db.writes().some((w) => w.table === 'recipes' && w.method === 'insert')).toBe(true);
+    expect(out).toMatch(/New ingredient names, now standard: nut butter/);
+  });
+
+  test('a rework is checked the same way', async () => {
+    const db = reworkWorld({ recipe_ingredients: [{ position: 1, group_name: null, name: 'olive oil', qty: '1', unit: 'tbsp', note: null, qty_approx: false }] });
+    const changed = recipe({ title: 'Classic Fish Pie', ingredients: [...example.ingredients, { group: null, name: 'extra virgin olive oil', qty: 1, unit: 'tbsp', note: null, approx: false }] });
+    const out = await adder(db).add.rework({ recipe: 'fish-pie', changed, summary: 'x' });
+    expect(out).toMatch(/extra virgin olive oil.*olive oil.*Nothing was saved/s);
+    expect(db.rpcs).toEqual([]);
+  });
+});
