@@ -105,6 +105,8 @@ const SAME_PICTURE: Record<string, string> = {
   oil: 'olive oil', 'cooking oil': 'olive oil', 'ground cinnamon': 'cinnamon', 'sugar snap peas': 'snap peas', 'sugar snap pea': 'snap peas',
   'natural yoghurt': 'greek yoghurt', 'plain yoghurt': 'greek yoghurt', 'boiling water': 'water', 'hot water': 'water', 'cold water': 'water',
   'vine tomato': 'tomato', 'baby gem lettuce': 'little gem lettuce', 'boneless chicken thigh fillet': 'chicken thigh fillet',
+  // 18 Nov 2026: the standard names keep the pictures made under the old ones.
+  sourdough: 'real sourdough', anchovy: 'anchovy fillet',
 };
 
 /** A small cartoon of the ingredient as it comes out of the fridge or cupboard, like a picture-vocabulary card. */
