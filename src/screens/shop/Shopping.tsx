@@ -4,7 +4,7 @@ import ErrorBanner from '../../components/ErrorBanner';
 import { formatQty } from '../../lib/recipes';
 import { repo } from '../../lib/repo';
 import { weekMakes } from '../../lib/weekEats';
-import { buildShoppingList, pickShoppingWeek, tickKey, type ShopItem } from '../../lib/shopping';
+import { buildShoppingList, pickShoppingWeek, tickKey, type CupboardCheck, type ShopItem } from '../../lib/shopping';
 import { packsNeeded } from '../../lib/packs';
 import { AISLES, aisle } from '../../lib/aisles';
 import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
@@ -15,6 +15,10 @@ import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
 
 type Delivery = 'sun' | 'tue';
+type Answer = 'got' | 'need' | null;
+// Cupboard answers are kept with the week's ticks, under the Sunday list.
+const gotKey = (id: string) => `cupboard-got|${id}`;
+const needKey = (id: string) => `cupboard-need|${id}`;
 
 
 /** The week's shopping: the freezer check, other shops, and each delivery's list with its tick-offs and Sainsbury's
@@ -32,7 +36,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     // The sheet after Approve week asks for the week it has just approved.
     const chosen = wanted ? (next.week ? next : null) : pickShoppingWeek(next, current);
     const draft = !chosen && (next.week ?? current.week) ? true : false;
-    if (!chosen) return { chosen: null, draft, list: null, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
+    if (!chosen) return { chosen: null, draft, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
     // Everyone's snacks and meal partners, as the family's makes.
     const makes = (slots: MealSlot[]) => weekMakes({ week: chosen.week, slots, eats: chosen.eats }, settings, library);
     const ids = [...new Set([...chosen.slots, ...makes(chosen.slots)].filter((s) => (s.slot === 'dinner' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
@@ -41,11 +45,11 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     for (const r of library) if (sideSlugs.has(r.slug) && !ids.includes(r.id)) ids.push(r.id);
     const details = (await Promise.all(ids.map((id) => repo.getRecipe(id)))).filter((r): r is RecipeDetail => !!r);
     const recipes = new Map(details.map((r) => [r.id, r]));
-    const build = (slots: MealSlot[], shops: OtherShop[] = settings.other_shops ?? []) =>
-      buildShoppingList([...slots, ...makes(slots)], recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start });
+    const build = (slots: MealSlot[], shops: OtherShop[] = settings.other_shops ?? [], needed: Set<string> = new Set()) =>
+      buildShoppingList([...slots, ...makes(slots)], recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start }, needed);
     const [tickRows, runs, freezer] = await Promise.all([repo.getTicks(chosen.week!.id), repo.getRuns(chosen.week!.id), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
     const ticks = new Map(tickRows.map((t) => [`${t.delivery}:${t.item_key}`, t.ticked]));
-    return { chosen, draft, list: build(chosen.slots), build, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };
+    return { chosen, draft, build, staples, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };
   }, [hid]);
   const [ticked, setTicked] = useState<Map<string, boolean>>(new Map());
   const [banner, setBanner] = useState<string | null>(null);
@@ -60,8 +64,34 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
   // Other shops (the fishmonger, the farm shop), with this week's "going" switches as you change them.
   const [otherShops, setOtherShops] = useState<OtherShop[] | null>(null);
   const shopsNow = otherShops ?? data?.settings?.other_shops ?? [];
-  const list = data?.build ? (slots || otherShops ? data.build(slots ?? data.chosen!.slots, shopsNow) : data.list) : null;
+  // The cupboard check's answers ("Got it", "Need it"), as saved and as you change them.
+  const [answers, setAnswers] = useState<Map<string, Answer>>(new Map());
+  const answerOf = (id: string): Answer => (answers.has(id) ? answers.get(id)!
+    : data?.ticks.get(`sun:${needKey(id)}`) ? 'need' : data?.ticks.get(`sun:${gotKey(id)}`) ? 'got' : null);
+  const needed = new Set((data?.staples ?? []).map((s) => s.id).filter((id) => answerOf(id) === 'need'));
+  const list = data?.build ? data.build(weekSlots, shopsNow, needed) : null;
+  // Everything there is to check, the ones you need included (those are on the list instead).
+  const checks = data?.build && needed.size ? data.build(weekSlots, shopsNow).check : list?.check ?? [];
   const weekStart = data?.chosen?.week?.week_start ?? '';
+
+  /** "Got it" leaves the pantry as it is. "Need it" marks it run out, so it's bought, and ticking it restocks it. */
+  async function answer(id: string, value: Answer) {
+    const week = data?.chosen?.week;
+    if (!week) return;
+    const prev = answerOf(id);
+    setAnswers((m) => new Map(m).set(id, value));
+    setBanner(null);
+    try {
+      await repo.setTick(week.id, 'sun', value === 'got' ? gotKey(id) : value === 'need' ? needKey(id) : prev === 'got' ? gotKey(id) : needKey(id), value !== null);
+      if (value !== null && prev !== null && prev !== value) await repo.setTick(week.id, 'sun', prev === 'got' ? gotKey(id) : needKey(id), false);
+      if (value === 'need') await repo.setStaple(id, 'out');
+      else if (prev === 'need') await repo.setStaple(id, 'have');
+    } catch {
+      setAnswers((m) => new Map(m).set(id, prev));
+      await Promise.all([repo.setTick(week.id, 'sun', gotKey(id), prev === 'got'), repo.setTick(week.id, 'sun', needKey(id), prev === 'need')]).catch(() => {});
+      setBanner(SAVE_ERROR);
+    }
+  }
 
   async function goingThisWeek(shop: OtherShop) {
     if (!data?.settings) return;
@@ -181,6 +211,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
           })}
         </section>
       )}
+      {checks.length > 0 && <CupboardCheckList checks={checks} answerOf={answerOf} onAnswer={(id, v) => void answer(id, v)} />}
       {shopsNow.filter((s) => s.sometimes).map((shop) => {
         const on = shop.weeks.includes(weekStart);
         return list && (
@@ -213,7 +244,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
       ) : (
         <Section d="sun" title="Your shop" items={[...list.sun, ...list.tue]} isTicked={isTicked} toggle={toggle} run={runFor('sun')} onReady={ready} products={data!.products} blocked={unchecked.length > 0} showRun={!inSheet} />
       ))}
-      {data?.list && <p className="text-sm text-muted">Made from the approved menu's dinners plus your weekly basics (Settings → Weekly basics).</p>}
+      {list && <p className="text-sm text-muted">Made from the approved menu's dinners plus your weekly basics (Settings → Weekly basics).</p>}
       {inSheet && list && (
         <div className="sticky bottom-0 grid gap-2 bg-bg pt-2">
           {sent || sending ? (
@@ -236,6 +267,46 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
         </div>
       )}
     </>
+  );
+}
+
+/** What the week uses that the pantry says you have: check each before the shop. "Need it" puts it on the list. */
+function CupboardCheckList({ checks, answerOf, onAnswer }: { checks: CupboardCheck[]; answerOf: (id: string) => Answer; onAnswer: (id: string, value: Answer) => void }) {
+  const left = checks.filter((c) => answerOf(c.stapleId) === null).length;
+  const sorted = [...checks].sort((a, b) => Number(answerOf(a.stapleId) !== null) - Number(answerOf(b.stapleId) !== null) || a.neededBy.localeCompare(b.neededBy));
+  return (
+    <section aria-label="Check the cupboard" className="grid gap-2">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-xl font-bold">Check the cupboard</h2>
+        <span className="text-sm text-muted">{left ? `${left} to check` : 'All checked'}</span>
+      </div>
+      <p className="m-0 text-sm text-muted">The pantry says you have these. Check you've enough before you shop: Need it puts it on the list.</p>
+      <ul className="m-0 list-none divide-y divide-line rounded-2xl border border-line bg-surface p-0">
+        {sorted.map((c) => {
+          const a = answerOf(c.stapleId);
+          const amount = c.amounts.map((x) => formatQty(x.qty, x.unit, x.approx)).filter(Boolean).join(' + ');
+          return (
+            <li key={c.stapleId} role="group" aria-label={c.name} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
+              <span className="min-w-0">
+                <span className={`block font-semibold ${a ? 'text-muted' : ''}`}>{amount ? `${amount} ${c.name.toLowerCase()}` : c.name}</span>
+                <span className="block text-[12.5px] text-muted">for {c.forMeals.join(', ')}</span>
+              </span>
+              {a === null ? (
+                <span className="flex gap-2">
+                  <button type="button" onClick={() => onAnswer(c.stapleId, 'got')} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold">Got it</button>
+                  <button type="button" onClick={() => onAnswer(c.stapleId, 'need')} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Need it</button>
+                </span>
+              ) : (
+                <span className="flex items-center gap-3 text-sm">
+                  <span className={a === 'got' ? 'text-accent' : 'font-semibold'}>{a === 'got' ? '✓ Got it' : 'On the list'}</span>
+                  <button type="button" onClick={() => onAnswer(c.stapleId, null)} className="font-semibold text-muted underline">Undo</button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

@@ -87,11 +87,15 @@ async function list() {
   const ticks = new Set(must<{ item_key: string }[]>(
     await db.from('shopping_ticks').select('item_key').eq('plan_week_id', week.id).eq('delivery', delivery).eq('ticked', true), 'Reading ticks').map((t) => t.item_key));
 
+  // Cupboard items answered "Need it" on the Shop tab are bought, even once ticking has restocked the pantry.
+  const needed = new Set(must<{ item_key: string }[]>(
+    await db.from('shopping_ticks').select('item_key').eq('plan_week_id', week.id).eq('delivery', 'sun').eq('ticked', true).like('item_key', 'cupboard-need|%'),
+    'Reading cupboard answers').map((t) => t.item_key.slice('cupboard-need|'.length)));
   const shops = settings?.data?.shops_per_week === 1 ? 1 : 2;
   // Things bought at other shops (the fishmonger, the farm shop in weeks you go) aren't for the Sainsbury's trolley.
   const otherShops = validateSettings(settings?.data).other_shops;
   const list = buildShoppingList(slots.map((s) => ({ ...s, portions: s.portions === null ? null : Number(s.portions) })), details, staples, shops, basics,
-    { shops: otherShops, weekStart: week.week_start });
+    { shops: otherShops, weekStart: week.week_start }, needed);
   const items = list[delivery].map((item) => {
     const p = products.get(item.key);
     return {

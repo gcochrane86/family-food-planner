@@ -65,8 +65,13 @@ function covers(staple: string[], ingredient: string[]): boolean {
  * main noun, so "Eggs" covers "egg white" but not "dried egg noodles", and "Tinned tomatoes" doesn't cover fresh ones.
  */
 export function pantryLabel(name: string, staples: Staple[]): 'In pantry' | 'To buy' {
+  return coveringStaple(name, staples) ? 'In pantry' : 'To buy';
+}
+
+/** The cupboard item (not run out) that an ingredient comes from, if any. */
+export function coveringStaple(name: string, staples: Staple[]): Staple | undefined {
   const ingredient = words(name);
-  return staples.some((s) => s.status !== 'out' && covers(words(s.name), ingredient)) ? 'In pantry' : 'To buy';
+  return staples.find((s) => s.status !== 'out' && covers(words(s.name), ingredient));
 }
 
 /** Spec §3: aim for about 0.5g salt or less in the toddler's portion of a main meal. */

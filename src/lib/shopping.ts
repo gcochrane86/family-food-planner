@@ -2,7 +2,7 @@ import { applyVersion } from '../../supabase/functions/_shared/slotVersion.ts';
 import { parseRoastChoice, roastPartSlugs } from './roastModel';
 import { isBatchIngredient, parseBatch } from './batch';
 import { leftoverLunchPortions } from './weekSummary';
-import { pantryLabel, words } from './recipes';
+import { coveringStaple, pantryLabel, words } from './recipes';
 import { aisle, isTapWater, measure, sameThing } from './aisles';
 import type { OtherShop, MealSlot, PlanWeek, RecipeDetail, Staple, WeeklyBasic } from './types';
 
@@ -18,6 +18,16 @@ export interface ShopItem {
   shop?: string;
   /** The cupboard items (low or run out) this line restocks: ticking it marks them "have". */
   staples?: { id: string; status: 'low' | 'out' }[];
+}
+
+/** A cupboard item the week's cooking uses that the pantry says you have: checked before the shop ("Got it" or
+ *  "Need it") rather than bought. */
+export interface CupboardCheck {
+  stapleId: string;
+  name: string;
+  amounts: { qty: number | null; unit: string; approx: boolean }[];
+  forMeals: string[];
+  neededBy: string;
 }
 
 /** Whether an item is one of a shop's: every word of one of its "buys" is in the item's name. */
@@ -50,12 +60,15 @@ const weekdayIndex = (date: string) => (new Date(`${date}T00:00:00Z`).getUTCDay(
 export function buildShoppingList(
   slots: MealSlot[], recipes: Map<string, RecipeDetail>, staples: Staple[], shopsPerWeek: 1 | 2, basics: WeeklyBasic[] = [],
   elsewhere: { shops: OtherShop[]; weekStart: string } = { shops: [], weekStart: '' },
-): { sun: ShopItem[]; tue: ShopItem[]; others: { name: string; day: number | null; items: ShopItem[] }[] } {
+  /** Cupboard items you said you need this week ("Need it"): bought as run out, even once ticking restocks them. */
+  needed: Set<string> = new Set(),
+): { sun: ShopItem[]; tue: ShopItem[]; others: { name: string; day: number | null; items: ShopItem[] }[]; check: CupboardCheck[] } {
   // Other shops in use this week: always, or (for "some weeks" shops) the weeks you've said you're going.
   const shops = elsewhere.shops.filter((s) => !s.sometimes || s.weeks.includes(elsewhere.weekStart));
   // A staple that's also a weekly basic (e.g. eggs) is bought every week anyway, so recipes still add theirs.
   const basicNames = new Set(basics.map((b) => words(b.name).join(' ')));
-  const have = staples.filter((s) => s.status === 'have' && !basicNames.has(words(s.name).join(' ')));
+  const have = staples.filter((s) => s.status === 'have' && !needed.has(s.id) && !basicNames.has(words(s.name).join(' ')));
+  const checks = new Map<string, CupboardCheck>();
   const items = new Map<string, ShopItem>();
   // The week's first day: a snack made the Sunday before it comes with the first (Sunday) delivery.
   const firstDay = slots.filter((s) => s.slot === 'breakfast' || s.slot === 'lunch' || s.slot === 'dinner').map((s) => s.date).sort()[0] ?? '';
@@ -64,11 +77,23 @@ export function buildShoppingList(
   const add = (recipe: RecipeDetail, factor: number, meal: string, slot: MealSlot) => {
     const batch = parseBatch(recipe.batch);
     for (const ing of recipe.ingredients) {
-      if (pantryLabel(ing.name, have) === 'In pantry' || isTapWater(ing.name)) continue;
+      if (isTapWater(ing.name)) continue;
       // The batch part comes from the freezer, or is made several times over to freeze the rest.
       const inBatch = !!batch && isBatchIngredient(recipe, ing);
       if (inBatch && (slot.batch === 'frozen' || slot.batch === 'frozen_ok')) continue;
       const times = inBatch && slot.batch === 'make' ? batch!.makes : 1;
+      // In the cupboard (says the pantry): checked before the shop, not bought.
+      const staple = coveringStaple(ing.name, have);
+      if (staple) {
+        const check = checks.get(staple.id) ?? { stapleId: staple.id, name: staple.name, amounts: [], forMeals: [], neededBy: slot.date };
+        checks.set(staple.id, check);
+        const qty = ing.qty === null ? null : ing.qty * factor * times;
+        const same = check.amounts.find((a) => a.unit === ing.unit);
+        if (!same) check.amounts.push({ qty, unit: ing.unit, approx: ing.qty_approx });
+        else { same.qty = same.qty === null || qty === null ? same.qty ?? qty : same.qty + qty; same.approx ||= ing.qty_approx; }
+        if (!check.forMeals.includes(meal)) check.forMeals.push(meal);
+        continue;
+      }
       // A shop with a day (the fishmonger on Thursday) takes that day's dinners' things.
       // (Not for a snack made the Sunday before the week: that Sunday isn't the shop's day in this week.)
       const dayShop = beforeWeek.has(slot.date) ? undefined : shops.find((s) => s.day !== null && s.day === weekdayIndex(slot.date) && shopBuys(s, ing.name));
@@ -141,7 +166,8 @@ export function buildShoppingList(
     }
   }
 
-  for (const s of staples.filter((x) => x.status !== 'have')) {
+  // Low and run-out cupboard items, and those you said you need (as run out, so unticking puts them back to that).
+  for (const s of staples.filter((x) => x.status !== 'have' || needed.has(x.id)).map((x) => (needed.has(x.id) ? { ...x, status: 'out' as const } : x))) {
     const note = s.status === 'low' ? 'Cupboard: running low' : 'Cupboard: run out';
     // Already on the list (from a recipe or a basic)? Note it there rather than adding a second line.
     const covered = [...sun, ...tue].find((i) => pantryLabel(i.name, [{ ...s, status: 'have' }]) === 'In pantry');
@@ -170,7 +196,8 @@ export function buildShoppingList(
   }
   // In the order you walk the shop (a stable sort, so each part keeps the order the dinners came in).
   const walk = (list: ShopItem[]) => list.sort((a, b) => aisle(a.name) - aisle(b.name));
-  return { sun: walk(sun), tue: walk(tue), others: others.filter((o) => o.items.length).map((o) => ({ ...o, items: walk(o.items) })) };
+  const check = [...checks.values()].map((c) => ({ ...c, amounts: c.amounts.map((a) => ({ ...a, qty: a.qty === null ? null : Math.round(a.qty * 1000) / 1000 })) }));
+  return { sun: walk(sun), tue: walk(tue), others: others.filter((o) => o.items.length).map((o) => ({ ...o, items: walk(o.items) })), check };
 }
 
 export { aisle };

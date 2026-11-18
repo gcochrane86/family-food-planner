@@ -392,3 +392,28 @@ describe('cupboard lines know their cupboard item, so ticking one can restock it
     expect(milk[0].staples).toEqual([{ id: 'st-milk', status: 'low' }]);
   });
 });
+
+describe('check the cupboard: what the week uses that the pantry says you have', () => {
+  test('each cupboard item the dinners use is listed once, with the amounts and the dinners, and not bought', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6), dinner('2026-10-20', 'curry', 3), dinner('2026-10-21', 'stew', 4)], recipes, staples, 2);
+    expect(list.check).toEqual([
+      { stapleId: 's1', name: 'Tinned tomatoes', amounts: [{ qty: 600, unit: 'g', approx: false }], forMeals: ['Mon curry', 'Tue curry'], neededBy: '2026-10-19' },
+      { stapleId: 's2', name: 'Sea salt', amounts: [{ qty: null, unit: '', approx: false }], forMeals: ['Wed stew'], neededBy: '2026-10-21' },
+    ]);
+    expect(list.sun.map((i) => i.name)).not.toContain('tinned tomatoes');
+  });
+
+  test('low items are bought, not checked', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6)], recipes, [{ ...staples[0], status: 'low' }], 2);
+    expect(list.check).toEqual([]);
+  });
+
+  test('"Need it": a cupboard item you need goes on the list as run out, restocks when ticked, and stays on after', () => {
+    const list = buildShoppingList([dinner('2026-10-19', 'curry', 6)], recipes, staples, 2, [], undefined, new Set(['s1']));
+    expect(list.check.map((c) => c.stapleId)).not.toContain('s1');
+    const tomatoes = list.sun.find((i) => i.name === 'tinned tomatoes')!;
+    expect(tomatoes.qty).toBe(400);
+    expect(tomatoes.forMeals).toEqual(['Mon curry', 'Cupboard: run out']);
+    expect(tomatoes.staples).toEqual([{ id: 's1', status: 'out' }]);
+  });
+});

@@ -312,3 +312,70 @@ describe('ticking a cupboard item restocks the cupboard', () => {
     expect(h.repo.setTick).toHaveBeenLastCalledWith('w-next', 'sun', 'staple|p-cumin', false);
   });
 });
+
+describe('Check the cupboard', () => {
+  beforeEach(() => {
+    h.repo.getWeek.mockImplementation(async (_h: string, ws: string) => (ws === '2026-10-19' ? approved() : { week: null, slots: [] }));
+    h.repo.listStaples.mockResolvedValue([{ id: 'p-rice', ingredient_id: 'i8', name: 'Basmati rice', status: 'have' }]);
+  });
+  const rice = () => within(screen.getByRole('region', { name: 'Check the cupboard' })).getByRole('group', { name: 'Basmati rice' });
+
+  test('lists what the week uses that the pantry says you have, with the amount and the dinner, off the list', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the cupboard' });
+    expect(within(check).getByText('1 to check')).toBeInTheDocument();
+    expect(rice()).toHaveTextContent('400g');
+    expect(rice()).toHaveTextContent('for Mon Almond-Crusted Honey Chilli Chicken');
+    expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
+  });
+
+  test('Got it saves the answer and leaves the pantry alone', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await screen.findByRole('region', { name: 'Check the cupboard' });
+    await user().click(within(rice()).getByRole('button', { name: 'Got it' }));
+    expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'cupboard-got|p-rice', true);
+    expect(rice()).toHaveTextContent('✓ Got it');
+    expect(screen.getByText('All checked')).toBeInTheDocument();
+    expect(h.repo.setStaple).not.toHaveBeenCalled();
+  });
+
+  test('Need it marks it run out and puts it on the list; ticking it there restocks it, and it stays on the list', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await screen.findByRole('region', { name: 'Check the cupboard' });
+    await user().click(within(rice()).getByRole('button', { name: 'Need it' }));
+    expect(h.repo.setTick).toHaveBeenCalledWith('w-next', 'sun', 'cupboard-need|p-rice', true);
+    expect(h.repo.setStaple).toHaveBeenCalledWith('p-rice', 'out');
+    expect(rice()).toHaveTextContent('On the list');
+    await user().click(await screen.findByRole('checkbox', { name: '400g basmati rice' }));
+    await waitFor(() => expect(h.repo.setStaple).toHaveBeenLastCalledWith('p-rice', 'have'));
+    expect(screen.getByRole('checkbox', { name: '400g basmati rice' })).toBeChecked();
+  });
+
+  test('answers are kept: a Need it from before keeps it on the list even once restocked', async () => {
+    h.repo.getTicks.mockResolvedValue([{ delivery: 'sun', item_key: 'cupboard-need|p-rice', ticked: true }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    expect(await screen.findByRole('checkbox', { name: '400g basmati rice' })).toBeInTheDocument();
+    expect(rice()).toHaveTextContent('On the list');
+  });
+
+  test('Undo after Need it puts it back in the pantry and off the list', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await screen.findByRole('region', { name: 'Check the cupboard' });
+    await user().click(within(rice()).getByRole('button', { name: 'Need it' }));
+    await user().click(within(rice()).getByRole('button', { name: 'Undo' }));
+    expect(h.repo.setTick).toHaveBeenLastCalledWith('w-next', 'sun', 'cupboard-need|p-rice', false);
+    expect(h.repo.setStaple).toHaveBeenLastCalledWith('p-rice', 'have');
+    expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
+    expect(within(rice()).getByRole('button', { name: 'Got it' })).toBeInTheDocument();
+  });
+
+  test("if an answer can't be saved, it is undone and you are told", async () => {
+    h.repo.setStaple.mockRejectedValueOnce(new Error('offline'));
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await screen.findByRole('region', { name: 'Check the cupboard' });
+    await user().click(within(rice()).getByRole('button', { name: 'Need it' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(within(rice()).getByRole('button', { name: 'Need it' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
+  });
+});
