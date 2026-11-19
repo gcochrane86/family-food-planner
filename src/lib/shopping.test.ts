@@ -378,6 +378,10 @@ describe('the walking order', () => {
     ]);
   });
 
+  test('accents are read as plain letters: tomato purée is a sauce, crème fraîche is dairy', () => {
+    expect([aisle('tomato purée'), aisle('tomato puree'), aisle('crème fraîche')]).toEqual([2, 2, 1]);
+  });
+
   test('toiletries and household things have their own part, just before frozen', () => {
     expect(['toothpaste', 'bin bags', 'washing-up liquid', 'Nappies', 'kitchen roll', 'sourdough loaf', 'frozen peas'].map((n) => aisle(n)))
       .toEqual([4, 4, 4, 4, 4, 3, 5]);

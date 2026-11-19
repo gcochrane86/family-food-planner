@@ -7,7 +7,7 @@ import { words } from './recipes';
 export const AISLES = ['Fruit, veg, meat & nuts', 'Cheese, pasta & dairy', 'Sauces & seasoning', 'Everything else', 'Toiletries & household', 'Frozen'] as const;
 
 const set = (s: string) => new Set(s.split(' '));
-const SEASONING = set('oil vinegar extract sauce stock cube gravy tinned canned tin passata powder flake seasoning ketchup mustard mayonnaise mayo soy tamari miso harissa pesto honey syrup sugar flour cornflour bicarbonate baking yeast cocoa chocolate vanilla tahini salt peppercorn paste');
+const SEASONING = set('puree oil vinegar extract sauce stock cube gravy tinned canned tin passata powder flake seasoning ketchup mustard mayonnaise mayo soy tamari miso harissa pesto honey syrup sugar flour cornflour bicarbonate baking yeast cocoa chocolate vanilla tahini salt peppercorn paste');
 const NUTS = set('almond pistachio walnut cashew peanut hazelnut pecan macadamia nut chia pumpkin sunflower sesame flax flaxseed linseed hemp date raisin sultana desiccated');
 const SPICES = set('ground dried seed cumin paprika turmeric cinnamon nutmeg garam masala curry cayenne cardamom saffron allspice anise bay chickpea lentil cannellini kidney borlotti');
 const DAIRY = set('milk cheese cheddar parmesan mozzarella halloumi ricotta mascarpone paneer feta gouda brie yoghurt yogurt butter cream creme fraiche kefir egg pasta spaghetti penne fusilli linguine lasagne tagliatelle orzo rigatoni macaroni noodle gnocchi rice couscous quinoa bulgur oat');
@@ -24,7 +24,8 @@ const has = (w: string[], s: Set<string>) => w.some((x) => s.has(x));
 
 /** Which part of the shop an item is in: an index into AISLES. */
 export function aisle(name: string): number {
-  const w = words(name);
+  // "purée" and "crème fraîche" are read as "puree" and "creme fraiche".
+  const w = words(name.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
   if (w.includes('frozen') || (w.includes('ice') && w.includes('cream'))) return 5;
   if (has(w, HOUSEHOLD) || (w.includes('kitchen') && w.includes('roll'))) return 4;
   if (w.includes('snap')) return 0; // sugar snap peas
