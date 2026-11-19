@@ -526,3 +526,20 @@ describe('a snack recipe opens at its planned make', () => {
     expect(screen.getByRole('tab', { name: 'Whole batch · 20' })).toHaveAttribute('aria-selected', 'true');
   });
 });
+
+test('in ad-hoc, Add to plan puts the recipe on the ad-hoc plan at the portions shown', async () => {
+  localStorage.setItem('adhoc-mode', '1');
+  open('r-honey');
+  await screen.findByText('chicken breast or thigh');
+  await userEvent.click(screen.getByRole('button', { name: 'More portions' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Add to plan' }));
+  await userEvent.click(screen.getByRole('button', { name: 'As lunch' }));
+  expect(h.repo.addAdhocMeal).toHaveBeenCalledWith('h1', 'r-honey', 'lunch', 4);
+  expect(await screen.findByText('Added to the ad-hoc plan as lunch.')).toBeInTheDocument();
+});
+
+test('on the weekly plan there is no Add to plan', async () => {
+  open('r-honey');
+  await screen.findByText('chicken breast or thigh');
+  expect(screen.queryByRole('button', { name: 'Add to plan' })).not.toBeInTheDocument();
+});

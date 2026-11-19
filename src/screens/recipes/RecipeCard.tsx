@@ -21,6 +21,7 @@ import MachineBadge, { StepText } from './MachineBadge';
 import RecipeMenu from './RecipeMenu';
 import { parseBatch } from '../../lib/batch';
 import ReworkRecipe from './ReworkRecipe';
+import AddToAdhoc from '../adhoc/AddToAdhoc';
 import { iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import StoredPhoto from '../../components/StoredPhoto';
 
@@ -434,6 +435,7 @@ export default function RecipeCard() {
             <button type="button" aria-label="More portions" disabled={target >= MAX_PORTIONS} onClick={() => setPortions(Math.min(MAX_PORTIONS, Math.floor(target) + 1))}
               className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg font-bold disabled:opacity-40">+</button>
           </div>
+          <AddToAdhoc householdId={householdId!} recipeId={recipe.id} portions={target} />
           <p className="mt-2 hidden text-sm print:block">Quantities for {formatPortions(target)} portions.</p>
           {groupIngredients(recipe.ingredients).map((g) => (
             <div key={g.group}>
