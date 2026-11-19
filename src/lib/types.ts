@@ -287,6 +287,24 @@ export interface WeeklyBasic {
   delivery: 'sun' | 'tue' | 'split';
 }
 
+/** A meal on the ad-hoc plan: bought for, with no day. */
+export interface AdhocMeal {
+  id: string;
+  household_id: string;
+  recipe_id: string;
+  meal: 'lunch' | 'dinner';
+  portions: number;
+  created_at: string;
+}
+
+/** Something added by hand to the ad-hoc shop (toothpaste, bin bags). */
+export interface AdhocItem {
+  id: string;
+  household_id: string;
+  name: string;
+  created_at: string;
+}
+
 export interface QuickItem {
   id: string;
   household_id: string;

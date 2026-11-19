@@ -808,3 +808,19 @@ test("0026: recipes that can be snacks and quick snacks; a replan keeps the hous
     { date: '2026-10-28', slot: 'snack_am', added_by: 'claude' },
   ]);
 });
+
+test('0027: the ad-hoc plan is the household\'s own and clears on its own', async () => {
+  const { hid, rid } = await weekRequest(OWNER);
+  await as(OWNER, `insert into adhoc_meals (household_id, recipe_id, meal, portions) values ('${hid}', '${rid}', 'dinner', 4)`);
+  await as(OWNER, `insert into adhoc_items (household_id, name) values ('${hid}', 'Toothpaste')`);
+  await as(OWNER, `insert into adhoc_ticks (household_id, item_key, ticked) values ('${hid}', 'extra|x', true)`);
+  await as(OWNER, `insert into quick_shop_items (household_id, name) values ('${hid}', 'Milk')`);
+  for (const t of ['adhoc_meals', 'adhoc_items', 'adhoc_ticks']) {
+    expect(await one(OWNER, `select count(*)::int from ${t}`)).toBe(1);
+    expect(await one(STRANGER, `select count(*)::int from ${t}`)).toBe(0);
+  }
+  expect(await fails(STRANGER, `insert into adhoc_items (household_id, name) values ('${hid}', 'X')`)).toMatch(/row-level security/);
+  expect(await fails(OWNER, `insert into adhoc_meals (household_id, recipe_id, meal, portions) values ('${hid}', '${rid}', 'breakfast', 4)`)).toMatch(/check/);
+  for (const t of ['adhoc_meals', 'adhoc_items', 'adhoc_ticks']) await as(OWNER, `delete from ${t} where household_id = '${hid}'`);
+  expect(await one(OWNER, `select count(*)::int from quick_shop_items`)).toBe(1);
+});

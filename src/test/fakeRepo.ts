@@ -1,5 +1,5 @@
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
-import type { Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
+import type { AdhocItem, AdhocMeal, Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -54,6 +54,14 @@ export function fakeRepo() {
     ]),
     saveBasic: vi.fn(async (b: WeeklyBasic) => ({ id: b.id ?? 'b-new', ...b })),
     deleteBasic: vi.fn(async () => {}),
+    listAdhoc: vi.fn(async () => ({ meals: [] as AdhocMeal[], items: [] as AdhocItem[], ticks: new Map<string, boolean>() })),
+    addAdhocMeal: vi.fn(async (hid: string, recipe_id: string, meal: 'lunch' | 'dinner', portions: number): Promise<AdhocMeal> =>
+      ({ id: `am-${recipe_id}-${meal}`, household_id: hid, recipe_id, meal, portions, created_at: '2026-11-19T08:00:00Z' })),
+    removeAdhocMeal: vi.fn(async () => {}),
+    addAdhocItem: vi.fn(async (hid: string, name: string): Promise<AdhocItem> => ({ id: `ai-${name}`, household_id: hid, name, created_at: '2026-11-19T08:00:00Z' })),
+    removeAdhocItem: vi.fn(async () => {}),
+    setAdhocTick: vi.fn(async () => {}),
+    clearAdhoc: vi.fn(async () => {}),
     listQuick: vi.fn(async (): Promise<QuickItem[]> => []),
     addQuick: vi.fn(async (_hid: string, name: string): Promise<QuickItem> => ({ id: `q-${name}`, household_id: 'h1', name, note: null, done: false, created_at: '2026-10-16T08:00:00Z' })),
     setQuickDone: vi.fn(async () => {}),

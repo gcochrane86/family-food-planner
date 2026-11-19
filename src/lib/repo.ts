@@ -4,7 +4,7 @@ import { recipeSavePayload } from './recipeEdit';
 import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import { quickNutrition } from '../../supabase/functions/_shared/quickNutrition.ts';
-import type { PrepPhoto,
+import type { AdhocItem, AdhocMeal, PrepPhoto,
   BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat, Partners } from './types';
 import { CANCELLED } from './types';
@@ -295,6 +295,40 @@ export const repo = {
   },
   async deleteBasic(id: string): Promise<void> {
     must(await db().from('weekly_basics').delete().eq('id', id));
+  },
+
+  /** The ad-hoc plan: its meals, the items added by hand, and what's ticked on its shop. */
+  async listAdhoc(householdId: string): Promise<{ meals: AdhocMeal[]; items: AdhocItem[]; ticks: Map<string, boolean> }> {
+    const [meals, items, ticks] = await Promise.all([
+      db().from('adhoc_meals').select('*').eq('household_id', householdId).order('created_at'),
+      db().from('adhoc_items').select('*').eq('household_id', householdId).order('created_at'),
+      db().from('adhoc_ticks').select('item_key, ticked').eq('household_id', householdId),
+    ]);
+    return {
+      meals: must<AdhocMeal[]>(meals).map((m) => ({ ...m, portions: Number(m.portions) })),
+      items: must<AdhocItem[]>(items),
+      ticks: new Map(must<{ item_key: string; ticked: boolean }[]>(ticks).map((t) => [t.item_key, t.ticked])),
+    };
+  },
+  async addAdhocMeal(householdId: string, recipeId: string, meal: 'lunch' | 'dinner', portions: number): Promise<AdhocMeal> {
+    const m = must<AdhocMeal>(await db().from('adhoc_meals').insert({ household_id: householdId, recipe_id: recipeId, meal, portions }).select().single());
+    return { ...m, portions: Number(m.portions) };
+  },
+  async removeAdhocMeal(id: string): Promise<void> {
+    must(await db().from('adhoc_meals').delete().eq('id', id));
+  },
+  async addAdhocItem(householdId: string, name: string): Promise<AdhocItem> {
+    return must(await db().from('adhoc_items').insert({ household_id: householdId, name }).select().single());
+  },
+  async removeAdhocItem(id: string): Promise<void> {
+    must(await db().from('adhoc_items').delete().eq('id', id));
+  },
+  async setAdhocTick(householdId: string, itemKey: string, ticked: boolean): Promise<void> {
+    must(await db().from('adhoc_ticks').upsert({ household_id: householdId, item_key: itemKey, ticked }));
+  },
+  /** Clears the ad-hoc plan: its meals, items and ticks (the Spar list and the week's shop are left alone). */
+  async clearAdhoc(householdId: string): Promise<void> {
+    for (const t of ['adhoc_meals', 'adhoc_items', 'adhoc_ticks']) must(await db().from(t).delete().eq('household_id', householdId));
   },
 
   async listQuick(householdId: string): Promise<QuickItem[]> {
