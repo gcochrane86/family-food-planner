@@ -397,3 +397,14 @@ describe('Check the cupboard', () => {
     expect(screen.queryByRole('checkbox', { name: /basmati rice/i })).not.toBeInTheDocument();
   });
 });
+
+test("in ad-hoc, Shop is the ad-hoc shop and the Spar list; the week's shop isn't loaded", async () => {
+  localStorage.setItem('adhoc-mode', '1');
+  try {
+    h.repo.getWeek.mockResolvedValue(approved());
+    render(<ShopList />, { wrapper: MemoryRouter });
+    expect(await screen.findByText('Add meals on the Plan tab, or add an item.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ad-hoc shopping' })).toBeInTheDocument();
+    expect(h.repo.getWeek).not.toHaveBeenCalled();
+  } finally { localStorage.removeItem('adhoc-mode'); }
+});

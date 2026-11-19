@@ -15,10 +15,10 @@ import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
 
 type Delivery = 'sun' | 'tue';
-type Answer = 'got' | 'need' | null;
+export type Answer = 'got' | 'need' | null;
 // Cupboard answers are kept with the week's ticks, under the Sunday list.
-const gotKey = (id: string) => `cupboard-got|${id}`;
-const needKey = (id: string) => `cupboard-need|${id}`;
+export const gotKey = (id: string) => `cupboard-got|${id}`;
+export const needKey = (id: string) => `cupboard-need|${id}`;
 
 
 /** The week's shopping: the freezer check, other shops, and each delivery's list with its tick-offs and Sainsbury's
@@ -287,7 +287,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
 
 /** What the week uses that the pantry says you have, each guessed as there: look it over, tap Need it on what's
  *  missing, then one tap confirms the rest. */
-function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }: {
+export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }: {
   checks: CupboardCheck[]; answerOf: (id: string) => Answer; onAnswer: (id: string, value: Answer) => void; onConfirmRest: (ids: string[]) => void;
 }) {
   const rest = checks.filter((c) => answerOf(c.stapleId) === null).map((c) => c.stapleId);
@@ -376,7 +376,7 @@ function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; o
 }
 
 /** One delivery's list. A top-level component, so ticking doesn't rebuild the list (and lose keyboard focus). */
-function Section({ d, title, items, isTicked, toggle, run, onReady, products, blocked = false, showRun = true }: {
+export function Section({ d, title, items, isTicked, toggle, run, onReady, products, blocked = false, showRun = true }: {
   d: Delivery; title: string; items: ShopItem[]; isTicked: (d: Delivery, item: ShopItem) => boolean;
   toggle: (d: Delivery, item: ShopItem) => Promise<void>; run: BasketRun | null; onReady: (d: Delivery, emptyFirst?: boolean) => void;
   products: Map<string, Product>;
@@ -410,7 +410,7 @@ function Section({ d, title, items, isTicked, toggle, run, onReady, products, bl
                         aria-label={`${amount} ${item.name}`.trim()} />
                       <span className="min-w-0">
                         <span className={`block font-semibold ${done ? 'text-muted line-through' : ''}`}>{amount ? `${amount} ${item.name}` : item.name}</span>
-                        <span className="block text-[12.5px] text-muted">{item.forMeals[0]?.startsWith('Cupboard') ? item.forMeals[0] : `for ${item.forMeals.join(', ')}`}</span>
+                        {item.forMeals.length > 0 && <span className="block text-[12.5px] text-muted">{item.forMeals[0]?.startsWith('Cupboard') ? item.forMeals[0] : `for ${item.forMeals.join(', ')}`}</span>}
                         {product && <span className="block text-[12.5px] text-teal">{product.product_name}{packs ? ` × ${packs}` : ''}</span>}
                       </span>
                     </label>
