@@ -1,6 +1,7 @@
 // The ad-hoc plan (19 Nov 2026): for a quick trip to the shops when nothing's organised. A few meals with no days and
 // anything added by hand make a list of their own, kept apart from the week's. Whether this phone shows it is a
 // setting on the phone. See docs/superpowers/specs/2026-11-19-adhoc-plan-design.md.
+import { useEffect, useState } from 'react';
 import { aisle } from './aisles';
 import { buildShoppingList, type CupboardCheck, type ShopItem } from './shopping';
 import type { AdhocItem, AdhocMeal, MealSlot, RecipeDetail, Staple } from './types';
@@ -37,4 +38,29 @@ export function buildAdhocList(meals: AdhocMeal[], recipes: Map<string, RecipeDe
     list: [...food, ...extras].sort((a, b) => aisle(a.name) - aisle(b.name)),
     check: built.check.map((c) => ({ ...c, forMeals: c.forMeals.map(undated) })),
   };
+}
+
+const KEY = 'adhoc-mode';
+const EVENT = 'adhoc-mode';
+
+/** Whether this phone shows the ad-hoc plan (Settings → Plan or ad-hoc). Off if the phone can't say. */
+export function isAdhoc(): boolean {
+  try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
+}
+
+export function setAdhoc(on: boolean): void {
+  try { if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY); } catch { /* stays as it was */ }
+  window.dispatchEvent(new Event(EVENT));
+}
+
+/** isAdhoc, kept up to date when it's switched. */
+export function useAdhoc(): boolean {
+  const [on, setOn] = useState(isAdhoc);
+  useEffect(() => {
+    const update = () => setOn(isAdhoc());
+    window.addEventListener(EVENT, update);
+    window.addEventListener('storage', update);
+    return () => { window.removeEventListener(EVENT, update); window.removeEventListener('storage', update); };
+  }, []);
+  return on;
 }

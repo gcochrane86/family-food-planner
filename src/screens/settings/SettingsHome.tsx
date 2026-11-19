@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { card } from './ui';
 
 const SECTIONS = [
+  { to: 'mode', title: 'Plan or ad-hoc', text: 'Switch this phone to an ad-hoc plan and shop' },
   { to: 'household', title: 'Household', text: 'People, portion sizes, invite code' },
   { to: 'week', title: 'Usual week', text: 'Office days, prep days, cooking time, new recipes' },
   { to: 'kitchen', title: 'Kitchen', text: 'Thermomix, ovens, pans' },

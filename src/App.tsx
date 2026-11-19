@@ -5,6 +5,9 @@ import BottomNav from './components/BottomNav';
 import UpdateBanner from './components/UpdateBanner';
 import CookMode from './screens/recipes/CookMode';
 import WeekView from './screens/week/WeekView';
+import AdhocPlan from './screens/adhoc/AdhocPlan';
+import PlanMode from './screens/settings/PlanMode';
+import { useAdhoc } from './lib/adhoc';
 import ShopList from './screens/shop/ShopList';
 import RecipeEditor from './screens/recipes/RecipeEditor';
 import Pantry from './screens/pantry/Pantry';
@@ -69,11 +72,19 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** The Week tab, or the ad-hoc plan when this phone is in ad-hoc (and the other way round). */
+function WeekOr({ adhoc }: { adhoc: boolean }) {
+  const on = useAdhoc();
+  if (on !== adhoc) return <Navigate to={on ? '/adhoc' : '/week'} replace />;
+  return adhoc ? <AdhocPlan /> : <WeekView />;
+}
+
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/week" replace />} />
-      <Route path="/week" element={<WeekView />} />
+      <Route path="/week" element={<WeekOr adhoc={false} />} />
+      <Route path="/adhoc" element={<WeekOr adhoc />} />
       <Route path="/plan" element={<PlanChoicesScreen />} />
       <Route path="/today" element={<TodayHour />} />
       <Route path="/recipes" element={<RecipeLibrary />} />
@@ -97,6 +108,7 @@ export function AppRoutes() {
         <Route path="shopping" element={<Shopping />} />
         <Route path="staples" element={<Staples />} />
         <Route path="basics" element={<Basics />} />
+        <Route path="mode" element={<PlanMode />} />
       </Route>
       <Route path="*" element={<Navigate to="/week" replace />} />
     </Routes>

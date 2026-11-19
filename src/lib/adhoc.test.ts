@@ -1,4 +1,4 @@
-import { buildAdhocList } from './adhoc';
+import { buildAdhocList, isAdhoc, setAdhoc } from './adhoc';
 import type { AdhocItem, AdhocMeal, RecipeDetail, Staple } from './types';
 
 const recipe = (id: string, title: string, base: number, ingredients: [string, number | null, string][]): RecipeDetail => ({
@@ -52,4 +52,21 @@ test('items added by hand go in their aisle: toothpaste after the food, before t
 
 test('nothing planned and nothing added is an empty list', () => {
   expect(buildAdhocList([], recipes, staples, [])).toEqual({ list: [], check: [] });
+});
+
+describe('the switch is on this phone', () => {
+  afterEach(() => { vi.restoreAllMocks(); localStorage.clear(); });
+  test('off until switched on, then on', () => {
+    expect(isAdhoc()).toBe(false);
+    setAdhoc(true);
+    expect(isAdhoc()).toBe(true);
+    setAdhoc(false);
+    expect(isAdhoc()).toBe(false);
+  });
+  test('storage that throws (private browsing) leaves the phone on the plan', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    expect(() => setAdhoc(true)).not.toThrow();
+    expect(isAdhoc()).toBe(false);
+  });
 });

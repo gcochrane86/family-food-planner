@@ -1,13 +1,17 @@
 import { NavLink } from 'react-router-dom';
+import { useAdhoc } from '../lib/adhoc';
 
+const WEEK = { to: '/week', label: 'Week', icon: 'M3 9h18M8 3v4M16 3v4M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z' };
+/** In ad-hoc (Settings → Plan or ad-hoc), the Week tab is the ad-hoc plan. */
+const ADHOC = { to: '/adhoc', label: 'Plan', icon: 'M9 5h10M9 12h10M9 19h10M4.5 5h.01M4.5 12h.01M4.5 19h.01' };
 const TABS = [
-  { to: '/week', label: 'Week', icon: 'M3 9h18M8 3v4M16 3v4M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z' },
   { to: '/recipes', label: 'Recipes', icon: 'M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11' },
   { to: '/pantry', label: 'Pantry', icon: 'M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM5 10h14M9 6.5v1M9 13v3' },
   { to: '/shop', label: 'Shop', icon: 'M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6' },
 ];
 
 export default function BottomNav() {
+  const adhoc = useAdhoc();
   return (
     <nav
       aria-label="Main"
@@ -15,7 +19,7 @@ export default function BottomNav() {
       style={{ paddingBottom: 'calc(6px + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="mx-auto grid max-w-xl grid-cols-4">
-        {TABS.map((t) => (
+        {[adhoc ? ADHOC : WEEK, ...TABS].map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
