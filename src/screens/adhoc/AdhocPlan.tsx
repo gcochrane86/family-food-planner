@@ -18,14 +18,16 @@ export default function AdhocPlan() {
   const hid = householdId!;
   const { data, setData, error, loading, reload } = useAsync(async () => {
     const [adhoc, recipes, members] = await Promise.all([repo.listAdhoc(hid), repo.listRecipes(hid), repo.listMembers(hid)]);
-    return { meals: adhoc.meals, recipes: recipes.filter((r) => r.status === 'active'), portions: householdPortions(members) };
+    return { meals: adhoc.meals, items: adhoc.items.length, ticks: adhoc.ticks.size, recipes, portions: householdPortions(members) };
   }, [hid]);
   const [banner, setBanner] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [find, setFind] = useState('');
   const [picked, setPicked] = useState<Recipe | null>(null);
   const [clearing, setClearing] = useState(false);
+  // Every recipe names its meal (an archived one too); only active ones can be added.
   const byId = new Map((data?.recipes ?? []).map((r) => [r.id, r]));
+  const active = (data?.recipes ?? []).filter((r) => r.status === 'active');
   const setMeals = (f: (m: AdhocMeal[]) => AdhocMeal[]) => setData((d) => (d ? { ...d, meals: f(d.meals) } : d));
 
   async function add(meal: 'lunch' | 'dinner') {
@@ -41,16 +43,20 @@ export default function AdhocPlan() {
   async function remove(m: AdhocMeal) {
     setBanner(null);
     setMeals((list) => list.filter((x) => x.id !== m.id));
-    try { await repo.removeAdhocMeal(m.id); } catch { setMeals((list) => [...list, m]); setBanner(SAVE_ERROR); }
+    try {
+      await repo.removeAdhocMeal(m.id);
+      // The last of the plan gone: clear it, so its ticks and cupboard answers don't carry over to the next trip.
+      if (data && data.meals.length === 1 && data.items === 0) { await repo.clearAdhoc(hid); setData((d) => (d ? { ...d, ticks: 0 } : d)); }
+    } catch { setMeals((list) => [...list, m]); setBanner(SAVE_ERROR); }
   }
 
   async function clear() {
     setBanner(null);
-    try { await repo.clearAdhoc(hid); setMeals(() => []); setClearing(false); } catch { setBanner(SAVE_ERROR); }
+    try { await repo.clearAdhoc(hid); setData((d) => (d ? { ...d, meals: [], items: 0, ticks: 0 } : d)); setClearing(false); } catch { setBanner(SAVE_ERROR); }
   }
 
   const q = find.trim().toLowerCase();
-  const matches = q ? (data?.recipes ?? []).filter((r) => r.title.toLowerCase().includes(q)).slice(0, 8) : [];
+  const matches = q ? active.filter((r) => r.title.toLowerCase().includes(q)).slice(0, 8) : [];
 
   return (
     <section className="grid gap-4 py-4">
@@ -63,6 +69,7 @@ export default function AdhocPlan() {
       {loading && !error && <p className="text-muted">Loading…</p>}
       {data && (
         <>
+          {data.items > 0 && <p className="m-0 text-sm text-muted">Plus {data.items} item{data.items === 1 ? '' : 's'} added on the shop.</p>}
           {data.meals.length === 0 && (
             <p className="m-0 rounded-2xl border border-dashed border-line p-6 font-semibold">Nothing planned yet. Add a meal here or from a recipe.</p>
           )}
@@ -114,7 +121,7 @@ export default function AdhocPlan() {
           ) : (
             <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-2xl bg-accent font-bold text-accent-ink">Add a meal</button>
           )}
-          {data.meals.length > 0 && (clearing ? (
+          {(data.meals.length > 0 || data.items > 0 || data.ticks > 0) && (clearing ? (
             <div role="group" aria-label="Clear the plan?" className="grid gap-2 rounded-2xl border border-line bg-surface p-4">
               <p className="m-0">This clears the ad-hoc meals, the items you added and what's ticked on its shop. Your weekly plan stays.</p>
               <span className="flex gap-2">

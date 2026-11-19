@@ -824,3 +824,12 @@ test('0027: the ad-hoc plan is the household\'s own and clears on its own', asyn
   for (const t of ['adhoc_meals', 'adhoc_items', 'adhoc_ticks']) await as(OWNER, `delete from ${t} where household_id = '${hid}'`);
   expect(await one(OWNER, `select count(*)::int from quick_shop_items`)).toBe(1);
 });
+
+test('0027: Start fresh clears the ad-hoc plan too', async () => {
+  const { hid, rid } = await weekRequest(OWNER);
+  await as(OWNER, `insert into adhoc_meals (household_id, recipe_id, meal, portions) values ('${hid}', '${rid}', 'dinner', 4)`);
+  await as(OWNER, `insert into adhoc_items (household_id, name) values ('${hid}', 'Toothpaste')`);
+  await as(OWNER, `insert into adhoc_ticks (household_id, item_key, ticked) values ('${hid}', 'cupboard-need|x', true)`);
+  await one(OWNER, `select start_fresh('${hid}')`);
+  for (const t of ['adhoc_meals', 'adhoc_items', 'adhoc_ticks']) expect(await one(OWNER, `select count(*)::int from ${t}`)).toBe(0);
+});

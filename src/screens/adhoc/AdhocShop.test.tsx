@@ -60,3 +60,21 @@ test('nothing planned or added says what to do', async () => {
   render(<AdhocShop />);
   expect(await screen.findByText('Add meals on the Plan tab, or add an item.')).toBeInTheDocument();
 });
+
+test('removing the last added item (with no meals) clears the ad-hoc ticks too', async () => {
+  h.repo.listAdhoc.mockResolvedValue({ meals: [], items: [{ id: 'x1', household_id: 'h1', name: 'Toothpaste', created_at: '' }], ticks: new Map([['extra|x1', true]]) });
+  render(<AdhocShop />);
+  await userEvent.click(await screen.findByRole('button', { name: 'Remove Toothpaste' }));
+  expect(h.repo.clearAdhoc).toHaveBeenCalledWith('h1');
+});
+
+test('a tick whose pantry restock fails is undone in the database as well as on screen', async () => {
+  h.repo.listStaples.mockResolvedValue([{ id: 'st-lamb', ingredient_id: 'i', name: 'Lamb mince', status: 'out' }]);
+  h.repo.listAdhoc.mockResolvedValue({ meals: [doner], items: [], ticks: new Map() });
+  h.repo.setStaple.mockRejectedValueOnce(new Error('offline'));
+  render(<AdhocShop />);
+  await userEvent.click(await screen.findByRole('checkbox', { name: '1kg lamb mince' }));
+  expect(await screen.findByText(/couldn't save|Couldn't save/i)).toBeInTheDocument();
+  expect(h.repo.setAdhocTick).toHaveBeenLastCalledWith('h1', 'lamb mince|g@1000', false);
+  expect(screen.getByRole('checkbox', { name: '1kg lamb mince' })).not.toBeChecked();
+});

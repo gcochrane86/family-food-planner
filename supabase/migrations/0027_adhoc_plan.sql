@@ -36,3 +36,27 @@ begin
     execute format('grant select, insert, update, delete on public.%I to authenticated, service_role', t);
   end loop;
 end $$;
+
+-- Start fresh clears the ad-hoc plan too (as 0012, plus the three ad-hoc tables).
+create or replace function public.start_fresh(p_household uuid) returns uuid
+language plpgsql set search_path = public as $$
+declare
+  entries jsonb;
+  req uuid;
+begin
+  if not public.is_member(p_household) then raise exception 'not_a_member'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('date', s.date, 'title', r.title, 'url', coalesce(r.cookidoo_url, r.cookidoo_own_url)) order by s.date), '[]')
+    into entries
+    from public.meal_slots s
+    join public.plan_weeks w on w.id = s.plan_week_id
+    join public.recipes r on r.id = s.cookidoo_recipe_id
+    where w.household_id = p_household and s.cookidoo_recipe_id is not null;
+  insert into public.fresh_starts (household_id, my_week) values (p_household, entries) returning id into req;
+  -- Slots, shopping ticks, basket and Cookidoo runs go with their weeks.
+  delete from public.plan_weeks where household_id = p_household;
+  delete from public.quick_shop_items where household_id = p_household;
+  delete from public.adhoc_meals where household_id = p_household;
+  delete from public.adhoc_items where household_id = p_household;
+  delete from public.adhoc_ticks where household_id = p_household;
+  return req;
+end $$;

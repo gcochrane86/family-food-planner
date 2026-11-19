@@ -19,7 +19,7 @@ const FRESH = set(['onion shallot garlic ginger potato carrot celery leek pepper
   'chicken beef pork lamb mince turkey bacon ham chorizo pancetta steak duck venison gammon sausage salmon cod haddock hake tuna prawn mackerel',
   'trout bass bream fish mussel squid scallop crab tofu'].join(' '));
 /** Not food: toiletries, cleaning and the like (as words() leaves them: "nappies" is "nappie"). */
-const HOUSEHOLD = set('toothpaste toothbrush mouthwash floss shampoo conditioner soap shower deodorant nappy nappie wipe washing detergent bleach bin foil clingfilm cling toilet tissue sponge cleaner dishwasher razor plaster paracetamol ibuprofen calpol sanitary tampon lightbulb battery batterie suncream sunscreen lotion moisturiser handwash');
+const HOUSEHOLD = set('toothpaste toothbrush mouthwash shampoo conditioner soap shower deodorant nappy nappie wipe washing detergent bleach bin foil clingfilm cling toilet tissue cleaner dishwasher razor plaster paracetamol ibuprofen calpol sanitary tampon lightbulb battery batterie suncream sunscreen lotion moisturiser handwash');
 const has = (w: string[], s: Set<string>) => w.some((x) => s.has(x));
 
 /** Which part of the shop an item is in: an index into AISLES. */

@@ -56,3 +56,19 @@ test('Clear the plan asks first, then clears it', async () => {
   expect(h.repo.clearAdhoc).toHaveBeenCalledWith('h1');
   expect(await screen.findByText(/Nothing planned yet/)).toBeInTheDocument();
 });
+
+test('removing the last meal (with nothing added) clears the plan, so old ticks and cupboard answers go too', async () => {
+  h.repo.listAdhoc.mockResolvedValue({ meals: [meal('m2', 'r-honey', 'dinner')], items: [], ticks: new Map([['cupboard-need|p', true]]) });
+  render(<AdhocPlan />, { wrapper: MemoryRouter });
+  await userEvent.click(await screen.findByRole('button', { name: /Remove Almond-Crusted/ }));
+  expect(h.repo.clearAdhoc).toHaveBeenCalledWith('h1');
+});
+
+test('Clear the plan is there for added items alone, and an archived recipe keeps its name', async () => {
+  h.repo.listAdhoc.mockResolvedValue({ meals: [meal('m1', 'r-honey', 'dinner')], items: [{ id: 'x', household_id: 'h1', name: 'Toothpaste', created_at: '' }], ticks: new Map() });
+  h.repo.listRecipes.mockResolvedValue([{ ...(await h.repo.getRecipe('r-honey'))!, status: 'archived' }]);
+  render(<AdhocPlan />, { wrapper: MemoryRouter });
+  expect(await screen.findByRole('link', { name: /Honey Chilli/ })).toBeInTheDocument();
+  expect(screen.getByText('Plus 1 item added on the shop.')).toBeInTheDocument();
+  h.repo.listAdhoc.mockResolvedValue({ meals: [], items: [{ id: 'x', household_id: 'h1', name: 'Toothpaste', created_at: '' }], ticks: new Map() });
+});

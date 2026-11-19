@@ -45,12 +45,14 @@ export default function AdhocShop() {
     setAnswers((m) => new Map(m).set(id, value));
     setBanner(null);
     try {
-      if (prev !== null && prev !== value) await save(prev === 'got' ? gotKey(id) : needKey(id), false);
       if (value !== null) await save(value === 'got' ? gotKey(id) : needKey(id), true);
+      if (prev !== null && prev !== value) await save(prev === 'got' ? gotKey(id) : needKey(id), false);
       if (value === 'need') await repo.setStaple(id, 'out');
       else if (prev === 'need') await repo.setStaple(id, 'have');
     } catch {
+      // Back to how it was, in the database too.
       setAnswers((m) => new Map(m).set(id, prev));
+      await Promise.all([save(gotKey(id), prev === 'got'), save(needKey(id), prev === 'need')]).catch(() => {});
       setBanner(SAVE_ERROR);
     }
   }
@@ -58,7 +60,11 @@ export default function AdhocShop() {
   async function confirmRest(ids: string[]) {
     setAnswers((m) => { const n = new Map(m); for (const id of ids) n.set(id, 'got'); return n; });
     setBanner(null);
-    try { await Promise.all(ids.map((id) => save(gotKey(id), true))); } catch { setBanner(SAVE_ERROR); }
+    try { await Promise.all(ids.map((id) => save(gotKey(id), true))); } catch {
+      setAnswers((m) => { const n = new Map(m); for (const id of ids) n.set(id, null); return n; });
+      await Promise.all(ids.map((id) => save(gotKey(id), false))).catch(() => {});
+      setBanner(SAVE_ERROR);
+    }
   }
 
   async function toggle(_d: 'sun' | 'tue', item: ShopItem) {
@@ -67,7 +73,13 @@ export default function AdhocShop() {
     setBanner(null);
     try {
       await save(key, value);
-      await Promise.all((item.staples ?? []).map((s) => repo.setStaple(s.id, value ? 'have' : s.status)));
+      // A cupboard item in the trolley is back in the cupboard; untick it and it's low (or out) again.
+      try {
+        await Promise.all((item.staples ?? []).map((s) => repo.setStaple(s.id, value ? 'have' : s.status)));
+      } catch (e) {
+        await repo.setAdhocTick(hid, key, !value).catch(() => {});
+        throw e;
+      }
     } catch {
       setTicked((m) => new Map(m).set(key, !value));
       setBanner(SAVE_ERROR);
@@ -89,7 +101,11 @@ export default function AdhocShop() {
   async function removeItem(item: AdhocItem) {
     setBanner(null);
     setAdded(items.filter((x) => x.id !== item.id));
-    try { await repo.removeAdhocItem(item.id); } catch { setAdded(items); setBanner(SAVE_ERROR); }
+    try {
+      await repo.removeAdhocItem(item.id);
+      // The last of the plan gone: clear it, so its ticks and cupboard answers don't carry over to the next trip.
+      if (items.length === 1 && !data?.meals.length) { await repo.clearAdhoc(hid); setTicked(new Map()); setAnswers(new Map()); }
+    } catch { setAdded(items); setBanner(SAVE_ERROR); }
   }
 
   const empty = !!data && data.meals.length === 0 && items.length === 0;
