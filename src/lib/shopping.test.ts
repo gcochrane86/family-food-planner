@@ -1,3 +1,4 @@
+import { AISLES } from './aisles';
 import { aisle, buildShoppingList, deliveryFor, pickShoppingWeek, tickKey } from './shopping';
 import type { MealSlot, RecipeDetail, Staple } from './types';
 
@@ -370,11 +371,18 @@ describe('the walking order', () => {
       'tinned tomatoes', 'salmon fillets', 'fresh coriander', 'coriander seeds', 'bell pepper', 'black pepper', 'eggs', 'Whole milk', 'chicken stock',
       'frozen raspberries', 'peanut butter', 'basmati rice', 'sourdough loaf'];
     expect(names.map((n) => [n, aisle(n)])).toEqual([
-      ['frozen peas', 4], ['olive oil', 2], ['cheddar', 1], ['chicken thighs', 0], ['spaghetti', 1], ['red onion', 0], ['ground cumin', 2],
+      ['frozen peas', 5], ['olive oil', 2], ['cheddar', 1], ['chicken thighs', 0], ['spaghetti', 1], ['red onion', 0], ['ground cumin', 2],
       ['almonds', 0], ['Greek yoghurt', 1], ['tinned tomatoes', 2], ['salmon fillets', 0], ['fresh coriander', 0], ['coriander seeds', 2],
-      ['bell pepper', 0], ['black pepper', 2], ['eggs', 1], ['Whole milk', 1], ['chicken stock', 2], ['frozen raspberries', 4], ['peanut butter', 0],
+      ['bell pepper', 0], ['black pepper', 2], ['eggs', 1], ['Whole milk', 1], ['chicken stock', 2], ['frozen raspberries', 5], ['peanut butter', 0],
       ['basmati rice', 1], ['sourdough loaf', 3],
     ]);
+  });
+
+  test('toiletries and household things have their own part, just before frozen', () => {
+    expect(['toothpaste', 'bin bags', 'washing-up liquid', 'Nappies', 'kitchen roll', 'sourdough loaf', 'frozen peas'].map((n) => aisle(n)))
+      .toEqual([4, 4, 4, 4, 4, 3, 5]);
+    expect(AISLES[4]).toBe('Toiletries & household');
+    expect(AISLES[5]).toBe('Frozen');
   });
 
   test('a delivery comes back in walking order, keeping the order within each part', () => {

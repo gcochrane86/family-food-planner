@@ -3,8 +3,8 @@
 import { words } from './recipes';
 
 /** The order you walk the shop: fresh, meat and nuts; cheese, pasta and dairy; sauces and seasoning; everything else;
- *  frozen last. */
-export const AISLES = ['Fruit, veg, meat & nuts', 'Cheese, pasta & dairy', 'Sauces & seasoning', 'Everything else', 'Frozen'] as const;
+ *  toiletries and household things; frozen last. */
+export const AISLES = ['Fruit, veg, meat & nuts', 'Cheese, pasta & dairy', 'Sauces & seasoning', 'Everything else', 'Toiletries & household', 'Frozen'] as const;
 
 const set = (s: string) => new Set(s.split(' '));
 const SEASONING = set('oil vinegar extract sauce stock cube gravy tinned canned tin passata powder flake seasoning ketchup mustard mayonnaise mayo soy tamari miso harissa pesto honey syrup sugar flour cornflour bicarbonate baking yeast cocoa chocolate vanilla tahini salt peppercorn paste');
@@ -18,12 +18,15 @@ const FRESH = set(['onion shallot garlic ginger potato carrot celery leek pepper
   'squash okra samphire spring fresh herb',
   'chicken beef pork lamb mince turkey bacon ham chorizo pancetta steak duck venison gammon sausage salmon cod haddock hake tuna prawn mackerel',
   'trout bass bream fish mussel squid scallop crab tofu'].join(' '));
+/** Not food: toiletries, cleaning and the like (as words() leaves them: "nappies" is "nappie"). */
+const HOUSEHOLD = set('toothpaste toothbrush mouthwash floss shampoo conditioner soap shower deodorant nappy nappie wipe washing detergent bleach bin foil clingfilm cling toilet tissue sponge cleaner dishwasher razor plaster paracetamol ibuprofen calpol sanitary tampon lightbulb battery batterie suncream sunscreen lotion moisturiser handwash');
 const has = (w: string[], s: Set<string>) => w.some((x) => s.has(x));
 
 /** Which part of the shop an item is in: an index into AISLES. */
 export function aisle(name: string): number {
   const w = words(name);
-  if (w.includes('frozen') || (w.includes('ice') && w.includes('cream'))) return 4;
+  if (w.includes('frozen') || (w.includes('ice') && w.includes('cream'))) return 5;
+  if (has(w, HOUSEHOLD) || (w.includes('kitchen') && w.includes('roll'))) return 4;
   if (w.includes('snap')) return 0; // sugar snap peas
   if (has(w, SEASONING) || (w.includes('coconut') && (w.includes('milk') || w.includes('cream')))) return 2;
   if (has(w, NUTS) && !w.includes('milk')) return 0;
