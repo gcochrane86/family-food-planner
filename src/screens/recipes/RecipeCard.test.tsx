@@ -538,6 +538,15 @@ test('in ad-hoc, Add to plan puts the recipe on the ad-hoc plan at the portions 
   expect(await screen.findByText('Added to the ad-hoc plan as lunch.')).toBeInTheDocument();
 });
 
+test('in ad-hoc, Add to plan is at the top, above the times and ingredients', async () => {
+  localStorage.setItem('adhoc-mode', '1');
+  open('r-honey');
+  const ingredients = await screen.findByRole('heading', { name: 'Ingredients' });
+  const add = screen.getByRole('button', { name: 'Add to plan' });
+  expect(add.compareDocumentPosition(ingredients) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(add.closest('header')).not.toBeNull();
+});
+
 test('on the weekly plan there is no Add to plan', async () => {
   open('r-honey');
   await screen.findByText('chicken breast or thigh');

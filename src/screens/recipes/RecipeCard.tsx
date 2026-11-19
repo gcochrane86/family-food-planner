@@ -399,6 +399,7 @@ export default function RecipeCard() {
           {recipe.tags.map((t) => <span key={t} className="rounded-full bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-muted">{t}</span>)}
         </div>
         {snackOpen && <SnackDetails recipe={recipe} onCancel={() => setSnackOpen(false)} onSave={(o) => void saveSnack({ snack_ok: true, ...o })} />}
+        <AddToAdhoc householdId={householdId!} recipeId={recipe.id} portions={target} />
       </header>
 
       {split ? (
@@ -435,7 +436,6 @@ export default function RecipeCard() {
             <button type="button" aria-label="More portions" disabled={target >= MAX_PORTIONS} onClick={() => setPortions(Math.min(MAX_PORTIONS, Math.floor(target) + 1))}
               className="grid h-9 w-9 place-items-center rounded-full bg-surface-2 text-lg font-bold disabled:opacity-40">+</button>
           </div>
-          <AddToAdhoc householdId={householdId!} recipeId={recipe.id} portions={target} />
           <p className="mt-2 hidden text-sm print:block">Quantities for {formatPortions(target)} portions.</p>
           {groupIngredients(recipe.ingredients).map((g) => (
             <div key={g.group}>
