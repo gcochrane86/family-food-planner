@@ -111,6 +111,15 @@ describe('stepIngredients', () => {
     expect(stepIngredients('Rub the **chicken** with **butter**, then more **butter** and the **salt**.', list).map((i) => i.name))
       .toEqual(['whole chicken', 'butter', 'fine sea salt']);
   });
+  test("a name in two groups takes the one from the step's own group (the base's 4 dates, not the caramel's 200g)", () => {
+    const g = (group: string, name: string, qty: number) => ({ ...ing(name, qty), group_name: group });
+    const recipe = [g('Base', 'porridge oats', 200), g('Base', 'Medjool dates', 4), g('Base', 'butter', 90), g('Base', 'sea salt', 1), g('Base', 'milk', 2),
+      g('Caramel', 'Medjool dates', 200), g('Caramel', 'peanut butter', 60), g('Caramel', 'milk', 100), g('Caramel', 'sea salt', 1)];
+    const base = stepIngredients('Blitz the **4 dates** with the **butter**, add the **oats** and **salt**. Add the **milk** if dry.', recipe);
+    expect(base.map((i) => `${i.group_name} ${i.name}`)).toEqual(['Base Medjool dates', 'Base butter', 'Base porridge oats', 'Base sea salt', 'Base milk']);
+    const caramel = stepIngredients('Blitz the **12 dates**, **peanut butter**, **milk** and **salt**.', recipe);
+    expect(caramel.map((i) => `${i.group_name} ${i.name}`)).toEqual(['Caramel Medjool dates', 'Caramel peanut butter', 'Caramel milk', 'Caramel sea salt']);
+  });
   test('an exact name wins over one that only shares a word', () => {
     expect(stepIngredients('Soften the **onion**.', list).map((i) => i.name)).toEqual(['onion']);
     expect(stepIngredients('Scatter the **spring onions**.', list).map((i) => i.name)).toEqual(['spring onion']);

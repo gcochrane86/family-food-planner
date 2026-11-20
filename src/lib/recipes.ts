@@ -108,7 +108,7 @@ const MADE = new Set(['sauce', 'glaze', 'dressing', 'marinade', 'paste', 'mixtur
  * is "fine sea salt"); when one ingredient has exactly those words, only it counts ("onion" isn't "spring onion").
  */
 export function stepIngredients<T extends RecipeIngredient>(body: string, ingredients: T[]): T[] {
-  const found: T[] = [];
+  const perName: T[][] = [];
   for (const m of body.matchAll(/\*\*([^*]+)\*\*/g)) {
     let term = words(m[1]);
     // "The sauce", "the glaze": something the recipe makes, not an ingredient to weigh out.
@@ -120,7 +120,21 @@ export function stepIngredients<T extends RecipeIngredient>(body: string, ingred
     // "Rib-eye" is "ribeye" (only for hyphenated names, so "sauce" never finds "soy sauce").
     if (!hits.length && m[1].includes('-')) hits = ingredients.filter((i) => words(i.name).join('').includes(term.join('')));
     const exact = hits.filter((i) => { const w = words(i.name); return w.length === term.length; });
-    for (const i of exact.length ? exact : hits) if (!found.includes(i)) found.push(i);
+    perName.push(exact.length ? exact : hits);
+  }
+  // A name in two groups (dates in the base and in the caramel) is the one from the step's own group: the group the
+  // step's other, single-group ingredients come from.
+  const groupOf = (i: T) => i.group_name ?? '';
+  const votes = new Map<string, number>();
+  for (const hits of perName) {
+    const groups = new Set(hits.map(groupOf));
+    if (groups.size === 1) { const g = groupOf(hits[0]); votes.set(g, (votes.get(g) ?? 0) + 1); }
+  }
+  const own = [...votes].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const found: T[] = [];
+  for (const hits of perName) {
+    const mine = new Set(hits.map(groupOf)).size > 1 && own !== undefined ? hits.filter((i) => groupOf(i) === own) : [];
+    for (const i of mine.length ? mine : hits) if (!found.includes(i)) found.push(i);
   }
   return found;
 }
