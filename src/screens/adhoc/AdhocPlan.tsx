@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
+import { weekMealsToPick, type WeekPick } from '../../lib/adhoc';
 import { householdPortions } from '../../lib/household';
 import { formatPortions } from '../settings/Household';
 import { repo } from '../../lib/repo';
 import type { AdhocMeal, Recipe } from '../../lib/types';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
+import { weekStarts } from '../week/useWeek';
 
 const MEALS = [['lunch', 'Lunch'], ['dinner', 'Dinner']] as const;
 const quiet = 'rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold';
@@ -17,14 +19,21 @@ export default function AdhocPlan() {
   const { householdId } = useAuth();
   const hid = householdId!;
   const { data, setData, error, loading, reload } = useAsync(async () => {
-    const [adhoc, recipes, members] = await Promise.all([repo.listAdhoc(hid), repo.listRecipes(hid), repo.listMembers(hid)]);
-    return { meals: adhoc.meals, items: adhoc.items.length, ticks: adhoc.ticks.size, recipes, portions: householdPortions(members) };
+    const [adhoc, recipes, members, week] = await Promise.all([
+      repo.listAdhoc(hid), repo.listRecipes(hid), repo.listMembers(hid), repo.getWeek(hid, weekStarts().thisWeek)]);
+    const portions = householdPortions(members);
+    // This week's cooked meals, to pick from when the week has slipped.
+    const fromWeek = week.week ? weekMealsToPick(week.slots, recipes, portions) : null;
+    return { meals: adhoc.meals, items: adhoc.items.length, ticks: adhoc.ticks.size, recipes, portions, fromWeek };
   }, [hid]);
   const [banner, setBanner] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [find, setFind] = useState('');
   const [picked, setPicked] = useState<Recipe | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const inPlan = (p: WeekPick) => !!data?.meals.some((m) => m.recipe_id === p.recipe_id && m.meal === p.meal);
   // Every recipe names its meal (an archived one too); only active ones can be added.
   const byId = new Map((data?.recipes ?? []).map((r) => [r.id, r]));
   const active = (data?.recipes ?? []).filter((r) => r.status === 'active');
@@ -38,6 +47,20 @@ export default function AdhocPlan() {
       setMeals((m) => [...m, saved]);
       setAdding(false); setPicked(null); setFind('');
     } catch { setBanner(SAVE_ERROR); }
+  }
+
+  /** Adds the ticked meals from the week, one by one; any that saved stay if a later one fails. */
+  async function addFromWeek() {
+    if (!data?.fromWeek) return;
+    setBanner(null);
+    for (const p of data.fromWeek.filter((x) => chosen.has(x.key))) {
+      try {
+        const saved = await repo.addAdhocMeal(hid, p.recipe_id, p.meal, p.portions);
+        setMeals((m) => [...m, saved]);
+        setChosen((c) => { const n = new Set(c); n.delete(p.key); return n; });
+      } catch { setBanner(SAVE_ERROR); return; }
+    }
+    setPicking(false); setChosen(new Set());
   }
 
   async function remove(m: AdhocMeal) {
@@ -118,8 +141,35 @@ export default function AdhocPlan() {
                 </>
               )}
             </div>
+          ) : picking ? (
+            <div role="group" aria-label="From this week" className="grid gap-2 rounded-2xl border border-line bg-surface p-4">
+              <p className="m-0 font-semibold">From this week</p>
+              {!data.fromWeek ? <p className="m-0 text-sm text-muted">There's no plan for this week.</p>
+                : data.fromWeek.length === 0 ? <p className="m-0 text-sm text-muted">This week has no meals to cook.</p>
+                : data.fromWeek.map((p) => {
+                  const added = inPlan(p);
+                  return (
+                    <label key={p.key} className="flex items-center gap-3 rounded-xl bg-surface-2 px-3 py-2">
+                      <input type="checkbox" checked={added || chosen.has(p.key)} disabled={added}
+                        onChange={(e) => setChosen((c) => { const n = new Set(c); if (e.target.checked) n.add(p.key); else n.delete(p.key); return n; })} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold">{p.day} · {p.title}</span>
+                        <span className="block text-[12.5px] text-muted">{p.meal === 'lunch' ? 'Lunch' : 'Dinner'} · {formatPortions(p.portions)} portions</span>
+                      </span>
+                      {added && <span className="text-sm text-muted">Added</span>}
+                    </label>
+                  );
+                })}
+              <span className="flex flex-wrap gap-2">
+                {chosen.size > 0 && <button type="button" onClick={() => void addFromWeek()} className={loud}>Add {chosen.size} to the plan</button>}
+                <button type="button" onClick={() => { setPicking(false); setChosen(new Set()); }} className={quiet}>Cancel</button>
+              </span>
+            </div>
           ) : (
-            <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-2xl bg-accent font-bold text-accent-ink">Add a meal</button>
+            <span className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-2xl bg-accent font-bold text-accent-ink">Add a meal</button>
+              <button type="button" onClick={() => setPicking(true)} className="min-h-11 rounded-2xl border border-line bg-surface font-bold">From this week</button>
+            </span>
           )}
           {(data.meals.length > 0 || data.items > 0 || data.ticks > 0) && (clearing ? (
             <div role="group" aria-label="Clear the plan?" className="grid gap-2 rounded-2xl border border-line bg-surface p-4">

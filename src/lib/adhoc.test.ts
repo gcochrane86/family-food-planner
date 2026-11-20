@@ -1,5 +1,6 @@
-import { buildAdhocList, isAdhoc, setAdhoc } from './adhoc';
-import type { AdhocItem, AdhocMeal, RecipeDetail, Staple } from './types';
+import { buildAdhocList, isAdhoc, setAdhoc, weekMealsToPick } from './adhoc';
+import { DONER, HONEY } from '../test/fixtures';
+import type { AdhocItem, AdhocMeal, MealSlot, RecipeDetail, Staple } from './types';
 
 const recipe = (id: string, title: string, base: number, ingredients: [string, number | null, string][]): RecipeDetail => ({
   id, household_id: 'h1', slug: id, title, subtitle: null, kind: 'meal', component_role: null, source: 'claude', protein: 'chicken',
@@ -68,5 +69,38 @@ describe('the switch is on this phone', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
     expect(() => setAdhoc(true)).not.toThrow();
     expect(isAdhoc()).toBe(false);
+  });
+});
+
+describe('weekMealsToPick', () => {
+  const recipes = [HONEY, DONER];
+  const slot = (date: string, kind: 'lunch' | 'dinner', extra: Partial<MealSlot>): MealSlot => ({
+    date, slot: kind, recipe_id: null, mode: 'cook', portions: null, guests: 0, locked: false, reason: null,
+    source_date: null, routine_choice: null, cooked_at: null, portions_verdict: null, ...extra,
+  });
+
+  test("lists the week's cooked lunches and dinners by day, lunch first, at their portions", () => {
+    const picks = weekMealsToPick([
+      slot('2026-11-19', 'dinner', { recipe_id: HONEY.id, portions: 3.5 }),
+      slot('2026-11-16', 'dinner', { recipe_id: DONER.id }),
+      slot('2026-11-19', 'lunch', { recipe_id: DONER.id, portions: 2 }),
+    ], recipes, 4);
+    expect(picks.map((p) => [p.day, p.meal, p.title, p.portions])).toEqual([
+      ['Mon', 'dinner', DONER.title, 4],
+      ['Thu', 'lunch', DONER.title, 2],
+      ['Thu', 'dinner', HONEY.title, 3.5],
+    ]);
+    expect(picks[0]).toMatchObject({ recipe_id: DONER.id, date: '2026-11-16' });
+  });
+
+  test('leaves out leftovers, reheats, eating out, breakfasts and meals with no recipe', () => {
+    const picks = weekMealsToPick([
+      slot('2026-11-17', 'lunch', { recipe_id: HONEY.id, mode: 'reheat' }),
+      slot('2026-11-17', 'dinner', { mode: 'leftovers' }),
+      slot('2026-11-18', 'dinner', { mode: 'out' }),
+      slot('2026-11-18', 'lunch', {}),
+      { ...slot('2026-11-18', 'lunch', { recipe_id: HONEY.id }), slot: 'breakfast' },
+    ], recipes, 4);
+    expect(picks).toEqual([]);
   });
 });

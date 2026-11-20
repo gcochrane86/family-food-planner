@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { aisle } from './aisles';
 import { buildShoppingList, type CupboardCheck, type ShopItem } from './shopping';
-import type { AdhocItem, AdhocMeal, MealSlot, RecipeDetail, Staple } from './types';
+import type { AdhocItem, AdhocMeal, MealSlot, Recipe, RecipeDetail, Staple } from './types';
 
 /** A Monday the ad-hoc meals stand on, so the week's list-maker can buy for them (its day labels are taken off). */
 const ADHOC_DATE = '2000-01-03';
@@ -38,6 +38,25 @@ export function buildAdhocList(meals: AdhocMeal[], recipes: Map<string, RecipeDe
     list: [...food, ...extras].sort((a, b) => aisle(a.name) - aisle(b.name)),
     check: built.check.map((c) => ({ ...c, forMeals: c.forMeals.map(undated) })),
   };
+}
+
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** A meal from the week that can go in the ad-hoc plan. */
+export interface WeekPick { key: string; date: string; day: string; meal: 'lunch' | 'dinner'; recipe_id: string; title: string; portions: number }
+
+/** The week's lunches and dinners cooked from a recipe, by day (lunch first), at the week's portions (the household's
+ *  if the slot has none). Leftovers, reheats and eating out have nothing to buy, so they aren't offered. */
+export function weekMealsToPick(slots: MealSlot[], recipes: Recipe[], householdPortions: number): WeekPick[] {
+  const byId = new Map(recipes.map((r) => [r.id, r]));
+  return slots
+    .filter((s): s is MealSlot & { slot: 'lunch' | 'dinner'; recipe_id: string } =>
+      (s.slot === 'lunch' || s.slot === 'dinner') && s.mode === 'cook' && !!s.recipe_id)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.slot === 'lunch' ? -1 : 1) - (b.slot === 'lunch' ? -1 : 1))
+    .map((s) => ({
+      key: `${s.date}|${s.slot}`, date: s.date, day: DAYS[(new Date(`${s.date}T00:00:00Z`).getUTCDay() + 6) % 7], meal: s.slot,
+      recipe_id: s.recipe_id, title: byId.get(s.recipe_id)?.title ?? 'A recipe', portions: Number(s.portions ?? householdPortions),
+    }));
 }
 
 const KEY = 'adhoc-mode';
