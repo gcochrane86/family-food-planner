@@ -6,7 +6,6 @@ import { repo } from '../../lib/repo';
 import type { Recipe } from '../../lib/types';
 import { useAsync } from '../settings/useAsync';
 import AddRecipe from './AddRecipe';
-import QuickSnack from './QuickSnack';
 import { GROUPS, isOnePan, recipeGroups, type RecipeGroup } from '../../lib/recipeGroups';
 import HeroImage from './HeroImage';
 import { easyTonight, type EasyTonight } from '../../lib/easyTonight';
@@ -105,11 +104,7 @@ export default function RecipeLibrary() {
         <h1 className="text-3xl font-bold">Recipes</h1>
         {data && data.length > 0 && <span className="text-sm font-semibold text-muted">{narrowed ? `${shown.length} of ${all.length} recipes` : `${all.length} recipes`}</span>}
       </div>
-      <div className="flex flex-wrap items-start gap-2">
-        <AddRecipe householdId={householdId!} />
-        <QuickSnack householdId={householdId!} onAdded={(r) => setData((list) => [...(list ?? []), r])} />
-        <Link to="/recipes/roast" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold no-underline">Build a roast</Link>
-      </div>
+      <AddRecipe householdId={householdId!} onSnackAdded={(r) => setData((list) => [...(list ?? []), r])} />
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
         className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
@@ -119,6 +114,7 @@ export default function RecipeLibrary() {
             {c.sub && <span aria-hidden="true">↳ </span>}{c.label} {c.count !== null && <span className={c.on ? 'opacity-70' : 'text-muted'}>{c.count}</span>}
           </button>
         ))}
+        <Link to="/recipes/roast" className="whitespace-nowrap rounded-full border border-line bg-surface px-3 py-1.5 text-sm font-semibold no-underline">Roasts</Link>
       </div>
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {photoError && <ErrorBanner message={photoError} />}

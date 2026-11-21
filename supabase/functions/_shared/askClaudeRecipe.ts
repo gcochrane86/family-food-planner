@@ -99,7 +99,9 @@ export function makeRecipeAdder(db: Db, householdId: string,
     async add(a: { recipe?: unknown; source_url?: unknown; new_names?: unknown }): Promise<string> {
       if (!a?.recipe || typeof a.recipe !== 'object') return 'Send the recipe in the format from get_recipe_rules. Nothing was saved.';
       const url = typeof a.source_url === 'string' && /^https?:\/\//.test(a.source_url) ? a.source_url : null;
-      const r = { ...(a.recipe as Record<string, unknown>), source: url ? 'web' : 'claude', status: 'active' } as SeedRecipe;
+      // A Cookidoo recipe (pasted in from the app) keeps its link as the original, which menu syncs add to My Week.
+      const cookidoo = !!url && /^https?:\/\/([a-z0-9-]+\.)*cookidoo\.[a-z.]+\//i.test(url);
+      const r = { ...(a.recipe as Record<string, unknown>), source: cookidoo ? 'cookidoo' : url ? 'web' : 'claude', status: 'active' } as SeedRecipe;
       const problems = validateRecipeSeed({ recipes: [r] });
       if (problems.length) return `The recipe needs fixing before it can be saved:\n${problems.map((p) => `- ${p.replace(/^recipes\[0\]\./, '')}`).join('\n')}\nNothing was saved.`;
       const named = await checkRecipeNames(r, a.new_names);
@@ -108,7 +110,7 @@ export function makeRecipeAdder(db: Db, householdId: string,
       const clash = list.find((x) => x.slug === r.slug || x.title.trim().toLowerCase() === String(r.title).trim().toLowerCase());
       if (clash) return `"${clash.title}" (${clash.slug}) is already in the library. Pick another title and slug, or leave it. Nothing was saved.`;
 
-      const row = await db.from('recipes').insert({ ...recipeRow(householdId, r), ...(url ? { source_url: url } : {}) }).select('id').single();
+      const row = await db.from('recipes').insert({ ...recipeRow(householdId, r), ...(url ? { source_url: url } : {}), ...(cookidoo ? { cookidoo_own_url: url } : {}) }).select('id').single();
       if (row.error || !row.data) return `Couldn't save the recipe: ${row.error?.message ?? 'no row came back'}. Nothing was saved.`;
       const id = row.data.id as string;
       const { ingredients, steps } = contentRows(r);

@@ -19,6 +19,15 @@ test('the rules give the recipe format, the household and the existing recipes',
   expect(out).toMatch(/show the household the whole recipe/i);
 });
 
+test('a recipe from Cookidoo keeps its link as the original, so menu syncs use it and never copy it', async () => {
+  const db = world();
+  const { add } = adder(db);
+  await add.add({ recipe: recipe(), source_url: 'https://cookidoo.co.uk/created-recipes/en-GB/abc123' });
+  const insert = db.writes().find((w) => w.table === 'recipes' && w.method === 'insert');
+  expect(insert?.payload).toMatchObject({ source: 'cookidoo', source_url: 'https://cookidoo.co.uk/created-recipes/en-GB/abc123',
+    cookidoo_own_url: 'https://cookidoo.co.uk/created-recipes/en-GB/abc123' });
+});
+
 test('add saves a new recipe with its contents, from the page it came from, then makes its main photo', async () => {
   const db = world();
   const { add, makeHero } = adder(db);

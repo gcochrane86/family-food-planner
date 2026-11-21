@@ -162,7 +162,8 @@ test('Snacks & treats lists snack recipes, recipes that can be snacks and quick 
 
 test('a quick snack is a name, one portion of items and whether the toddler can have it', async () => {
   render(<RecipeLibrary />, { wrapper: MemoryRouter });
-  await userEvent.click(await screen.findByRole('button', { name: 'Quick snack' }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Add a recipe' }));
+  await userEvent.click(screen.getByRole('button', { name: /Quick snack/ }));
   const form = screen.getByRole('form', { name: 'Add a quick snack' });
   await userEvent.type(within(form).getByLabelText('Name'), 'Apple & almonds');
   await userEvent.type(within(form).getByLabelText('Item 1'), 'apple');
@@ -205,4 +206,10 @@ test('Easy tonight says when a dinner is all in the cupboard', async () => {
   expect(await screen.findAllByText('All in the cupboard')).toHaveLength(2);
   // One-pan dinners come first.
   expect(shownTitles()[0]).toContain('Pesto Chicken');
+});
+
+test('Roasts sits with the recipe filters and opens the roast builder', async () => {
+  render(<RecipeLibrary />, { wrapper: MemoryRouter });
+  expect(await screen.findByRole('link', { name: 'Roasts' })).toHaveAttribute('href', '/recipes/roast');
+  expect(screen.queryByRole('link', { name: 'Build a roast' })).not.toBeInTheDocument();
 });

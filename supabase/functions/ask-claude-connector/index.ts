@@ -58,7 +58,7 @@ function server(read: Reader, change: ReturnType<typeof makeChanger>, plan: Retu
       type: 'object', required: ['recipe'],
       properties: {
         recipe: { type: 'object', description: 'The recipe in the seed format from get_recipe_rules' },
-        source_url: { type: 'string', description: 'The page or video it came from' },
+        source_url: { type: 'string', description: 'The page or video it came from; for a Cookidoo recipe pasted in, its Cookidoo link (kept as the original that menu syncs use)' },
         new_names: { type: 'array', items: { type: 'string' }, description: 'Ingredient names not on the standard list that the household said are different things (optional)' },
       },
     },
