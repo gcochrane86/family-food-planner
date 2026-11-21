@@ -507,6 +507,7 @@ const NUTRITION_ROWS: { key: keyof Nutrition; label: string; unit: string; sub?:
   { key: 'sat_fat_g', label: 'of which saturates', unit: 'g', sub: true },
   { key: 'carbs_g', label: 'Carbs', unit: 'g' },
   { key: 'sugars_g', label: 'of which sugars', unit: 'g', sub: true },
+  { key: 'free_sugars_g', label: 'of which free sugars', unit: 'g', sub: true },
   { key: 'fibre_g', label: 'Fibre', unit: 'g' },
   { key: 'salt_g', label: 'Salt', unit: 'g' },
   { key: 'veg_portions', label: 'Veg portions', unit: '' },

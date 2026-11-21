@@ -20,6 +20,9 @@ export interface Nutrition {
   sat_fat_g?: number;
   carbs_g?: number;
   sugars_g?: number;
+  /** Free sugars (UK definition): added sugar, honey, syrups, juice, and fruit blended, puréed or made into a paste. Not
+   *  whole fruit or milk. The sugar limit is on these. */
+  free_sugars_g?: number;
   salt_g?: number;
 }
 export type Mark = 'ok' | 'low' | 'unknown';
@@ -59,9 +62,17 @@ export const FIBRE_G = 30;
 const NUMBERS = ['protein_g', 'fibre_g', 'veg_portions', 'fruit_portions'] as const;
 const FLAGS = ['healthy_fat', 'oily_fish', 'legumes', 'red_meat', 'processed_meat'] as const;
 /** The numbers each person's day adds up, in the order they're shown. */
-export const MACROS = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugars_g', 'fibre_g', 'salt_g'] as const;
+export const MACROS = ['kcal', 'protein_g', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugars_g', 'free_sugars_g', 'fibre_g', 'salt_g'] as const;
 export type Macro = (typeof MACROS)[number];
-const OPTIONAL = ['kcal', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugars_g', 'salt_g'] as const;
+const OPTIONAL = ['kcal', 'fat_g', 'sat_fat_g', 'carbs_g', 'sugars_g', 'free_sugars_g', 'salt_g'] as const;
+/** What an estimate's free sugars are, for whoever makes one. */
+export const FREE_SUGARS = 'free_sugars_g (free sugars: added sugar, honey, syrups, fruit juice, and fruit blended, puréed or made into a paste, such as date paste; not whole or whole dried fruit, or the sugar in milk and plain yoghurt)';
+
+/** An estimate still to make: none, or one from before free sugars were counted. */
+export function needsEstimate(v: unknown): boolean {
+  const n = parseNutrition(v);
+  return !n || typeof n.free_sugars_g !== 'number';
+}
 export const SNACK_SLOTS = ['snack_am', 'snack_pm'] as const;
 
 /** A whole estimate, or null: four numbers of 0 or more and five yes/no flags. */
@@ -186,9 +197,9 @@ export function weekBalance(dates: string[], slots: BalanceSlot[], recipes: Reci
 
 export type Targets = Partial<Record<Macro, number>>;
 export type TargetState = 'under' | 'ok' | 'over' | 'unknown';
-/** Protein and fibre: at least; sugars, saturated fat and salt: at most; calories, fat and carbs: about (within 10%). */
+/** Protein and fibre: at least; sugars, free sugars, saturated fat and salt: at most; calories, fat and carbs: about (within 10%). */
 const AT_LEAST: Macro[] = ['protein_g', 'fibre_g'];
-const AT_MOST: Macro[] = ['sugars_g', 'sat_fat_g', 'salt_g'];
+const AT_MOST: Macro[] = ['sugars_g', 'free_sugars_g', 'sat_fat_g', 'salt_g'];
 
 /** One person's day: each meal times their portion share, and one of each snack they have (a toddler only has
  *  toddler-friendly ones, scaled to their share). `unknown` lists the numbers some part of the day has no estimate for. */

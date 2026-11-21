@@ -1213,12 +1213,12 @@ describe('daily balance', () => {
 
 describe('each person against their targets', () => {
   const N = { protein_g: 20, fibre_g: 5, veg_portions: 1, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false,
-    kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1 };
+    kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, free_sugars_g: 4, salt_g: 1 };
   beforeEach(() => {
     h.repo.listRecipes.mockResolvedValue([HONEY, DONER, TACOS, SALMON, PENNE, CHOW, BEEF, COD, CURRY].map((r) => ({ ...r, nutrition: N })));
     h.repo.getSettings.mockResolvedValue({ weekday_dinner_max_min: 30, default_plan_days: 7, shops_per_week: 2, delivery_slots: [], delivery_pass: false, use_nectar: false, adventure: 1,
       routine_nutrition: new Proxy({}, { get: () => N }) });
-    h.repo.listMembers.mockResolvedValue([{ ...YOU, targets: { kcal: 2000, protein_g: 90, sugars_g: 30 } }, { ...PARTNER, targets: {} }, TODDLER]);
+    h.repo.listMembers.mockResolvedValue([{ ...YOU, targets: { kcal: 2000, protein_g: 90, free_sugars_g: 30 } }, { ...PARTNER, targets: {} }, TODDLER]);
   });
 
   test("the day sheet has a column for each person, with their totals against their targets", async () => {
@@ -1238,7 +1238,7 @@ describe('each person against their targets', () => {
     const dialog = screen.getByRole('dialog');
     const lines = within(dialog).getAllByText(/^Each adult:/);
     expect(lines).toHaveLength(3); // dinner, lunch, breakfast
-    expect(lines[0]).toHaveTextContent('Each adult: 625 kcal · 25g protein · 25g fat · 63g carbs · 13g sugars · 6g fibre');
+    expect(lines[0]).toHaveTextContent('Each adult: 625 kcal · 25g protein · 25g fat · 63g carbs · 5g free sugars · 6g fibre');
   });
 
   test('a tile never says who is off target', async () => {

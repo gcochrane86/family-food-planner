@@ -73,7 +73,7 @@ export function DayBalanceCard({ date, w }: { date: string; w: WeekState }) {
 
 const ROWS: [Macro, string, string][] = [
   ['kcal', 'Calories', ''], ['protein_g', 'Protein', 'g'], ['fat_g', 'Fat', 'g'], ['sat_fat_g', 'Saturated fat', 'g'],
-  ['carbs_g', 'Carbs', 'g'], ['sugars_g', 'Sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
+  ['carbs_g', 'Carbs', 'g'], ['free_sugars_g', 'Free sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
 ];
 const STATE: Record<TargetState, string> = { under: 'text-warn', over: 'text-warn', ok: 'text-accent', unknown: 'text-muted' };
 const round = (k: Macro, v: number) => (k === 'salt_g' ? Math.round(v * 10) / 10 : Math.round(v));
@@ -109,7 +109,7 @@ function PeopleTable({ date, w }: { date: string; w: WeekState }) {
 }
 
 const UNIT: Partial<Record<Macro, string>> = { kcal: ' kcal', protein_g: 'g', fibre_g: 'g' };
-const WORD: Partial<Record<Macro, string>> = { kcal: 'calories', protein_g: 'protein', fat_g: 'fat', sat_fat_g: 'saturated fat', carbs_g: 'carbs', sugars_g: 'sugars', fibre_g: 'fibre', salt_g: 'salt' };
+const WORD: Partial<Record<Macro, string>> = { kcal: 'calories', protein_g: 'protein', fat_g: 'fat', sat_fat_g: 'saturated fat', carbs_g: 'carbs', sugars_g: 'sugars', free_sugars_g: 'free sugars', fibre_g: 'fibre', salt_g: 'salt' };
 
 /** Under a meal: its numbers for one person's share, e.g. "Each adult: 625 kcal · 25g protein · …". */
 export function MealNumbers({ n, share, who = 'Each adult' }: { n: Nutrition | null | undefined; share: number; who?: string }) {
@@ -118,7 +118,7 @@ export function MealNumbers({ n, share, who = 'Each adult' }: { n: Nutrition | n
   const g = (v: number | undefined, label: string) => (typeof v === 'number' ? `${Math.round(v * share)}g ${label}` : null);
   const parts = [
     typeof n.kcal === 'number' ? `${Math.round(n.kcal * share)} kcal` : null,
-    g(n.protein_g, 'protein'), g(n.fat_g, 'fat'), g(n.carbs_g, 'carbs'), g(n.sugars_g, 'sugars'), g(n.fibre_g, 'fibre'),
+    g(n.protein_g, 'protein'), g(n.fat_g, 'fat'), g(n.carbs_g, 'carbs'), g(n.free_sugars_g, 'free sugars'), g(n.fibre_g, 'fibre'),
   ].filter(Boolean);
   return <span className="text-[13px] text-muted tabular-nums">{who}: {parts.join(' · ')}</span>;
 }

@@ -454,7 +454,7 @@ test('a recipe can also be a snack: how many a batch makes, how long it keeps, a
   expect(screen.getByRole('switch', { name: 'Can be a snack' })).toHaveAttribute('aria-checked', 'true');
 });
 
-const N = { kcal: 500, protein_g: 40, fat_g: 20, sat_fat_g: 6, carbs_g: 45, sugars_g: 8, fibre_g: 6, salt_g: 1.2,
+const N = { kcal: 500, protein_g: 40, fat_g: 20, sat_fat_g: 6, carbs_g: 45, sugars_g: 8, free_sugars_g: 2, fibre_g: 6, salt_g: 1.2,
   veg_portions: 2, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
 
 test('the nutrition sits at the bottom: per serving, and an adult share', async () => {
@@ -467,6 +467,7 @@ test('the nutrition sits at the bottom: per serving, and an adult share', async 
   expect(within(box).getByRole('row', { name: /Protein/ })).toHaveTextContent('Protein40g50g');
   expect(within(box).getByRole('row', { name: /saturates/ })).toHaveTextContent('of which saturates6g7.5g');
   expect(within(box).getByRole('row', { name: /Salt/ })).toHaveTextContent('Salt1.2g1.5g');
+  expect(within(box).getByRole('row', { name: /free sugars/ })).toHaveTextContent('of which free sugars2g2.5g');
   expect(within(box).getByRole('row', { name: /Veg portions/ })).toHaveTextContent('Veg portions22.5');
   expect(within(box).getByText(/estimate/i)).toBeInTheDocument();
 });

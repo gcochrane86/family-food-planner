@@ -1,7 +1,7 @@
 // Snack make days (docs/superpowers/specs/2026-11-15-balance-snacks-design.md; who eats what is in snackEats.ts), and
 // the nutrition estimates Claude saves for recipes and for breakfasts and lunches that are names. Called "snack makes",
 // never batches: meal_slots.batch means freezer batches.
-import { parseNutrition } from './balance.ts';
+import { FREE_SUGARS, parseNutrition } from './balance.ts';
 import { addDays } from './planner.ts';
 
 // deno-lint-ignore no-explicit-any
@@ -21,7 +21,7 @@ export function snackMakeDates(weekStart: string, days: number, prepDays: number
   return out.size ? [...out].sort() : any;
 }
 
-const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat, and (0 or more) kcal, fat_g, sat_fat_g, carbs_g, sugars_g and salt_g';
+const ESTIMATE = 'protein_g, fibre_g, veg_portions and fruit_portions (0 or more), true/false for healthy_fat, oily_fish, legumes, red_meat and processed_meat, and (0 or more) kcal, fat_g, sat_fat_g, carbs_g, sugars_g, ' + FREE_SUGARS + ' and salt_g';
 
 /** Saves Claude's estimates per serving: recipes by slug or title, and breakfasts or lunches that are names
  *  (into settings.routine_nutrition). All or nothing. */

@@ -244,7 +244,7 @@ export default function Household() {
 
 const TARGETS: [Macro, string, string][] = [
   ['kcal', 'Calories', 'kcal'], ['protein_g', 'Protein', 'g'], ['fat_g', 'Fat', 'g'], ['sat_fat_g', 'Saturated fat', 'g'],
-  ['carbs_g', 'Carbohydrate', 'g'], ['sugars_g', 'Sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
+  ['carbs_g', 'Carbohydrate', 'g'], ['free_sugars_g', 'Free sugars', 'g'], ['fibre_g', 'Fibre', 'g'], ['salt_g', 'Salt', 'g'],
 ];
 
 /** A person's daily targets: each saved when its box is left; an empty box clears it. */
@@ -277,7 +277,7 @@ function DailyTargets({ m, onSave }: { m: Member; onSave: (t: Targets) => Promis
         ))}
       </div>
       {problem && <p className="m-0 mt-1 font-semibold text-warn">{problem}</p>}
-      <p className="m-0 mt-1 text-muted">Protein and fibre: at least. Sugars, saturated fat and salt: at most. The rest: about.</p>
+      <p className="m-0 mt-1 text-muted">Protein and fibre: at least. Free sugars, saturated fat and salt: at most. Free sugars are added sugar, honey, syrups, juice and blended fruit like date paste, not whole fruit or milk. The rest: about.</p>
     </details>
   );
 }

@@ -4,7 +4,7 @@
 import { MAX_MINUTES, MIN_MINUTES } from './cookingTime.ts';
 import { loadPlannerInput } from './loadPlan.ts';
 import { parseChoices, type PlanChoices } from './planChoices.ts';
-import { compareTargets, dayBalance, parseNutrition, personDay } from './balance.ts';
+import { compareTargets, dayBalance, needsEstimate, parseNutrition, personDay } from './balance.ts';
 import { snackMakeDates } from './snackPlan.ts';
 import { isSnack, snackFactor } from './snackRules.ts';
 import { parseEats, parsePartners, partnerEats, type Eat, type Partners } from './snackEats.ts';
@@ -200,8 +200,8 @@ export async function planContext(db: Db, hid: string, weekStart: string) {
     })),
     // Estimates still to make (save_nutrition): plannable dinners, and breakfasts and lunches that are names.
     nutritionMissing: {
-      recipes: [...all.filter((x) => plannable.has(x.id)), ...snacks].filter((x) => !parseNutrition(x.nutrition)).map((x) => x.slug),
-      routines: names.filter((n) => !parseNutrition(routines[n])),
+      recipes: [...all.filter((x) => plannable.has(x.id)), ...snacks].filter((x) => needsEstimate(x.nutrition)).map((x) => x.slug),
+      routines: names.filter((n) => needsEstimate(routines[n])),
     },
   };
 }

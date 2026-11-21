@@ -171,7 +171,7 @@ test("loadPlannerInput with choices only counts adults' office days", async () =
 });
 
 describe('snacks and nutrition (daily balance)', () => {
-  const N = { protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false };
+  const N = { protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: true, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, free_sugars_g: 0 };
   test('the context lists snack recipes, the snack-making days, what has no estimate yet, and the proposal’s balance', async () => {
     const { planContext } = await import('./weekPlan');
     const db = tableDb({

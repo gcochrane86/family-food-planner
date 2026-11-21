@@ -4,7 +4,7 @@
 import type { Nutrition } from './balance.ts';
 
 // Per 100g: kcal, protein, fat, saturated fat, carbs, sugars, fibre, salt.
-type Food = { per: [number, number, number, number, number, number, number, number]; each?: number; fruit?: number; veg?: number; fat?: boolean; legumes?: boolean };
+type Food = { per: [number, number, number, number, number, number, number, number]; each?: number; fruit?: number; veg?: number; fat?: boolean; legumes?: boolean; free?: boolean };
 const FOODS: Record<string, Food> = {
   apple: { per: [52, 0.3, 0.2, 0, 13.8, 10.4, 2.4, 0], each: 182, fruit: 182 },
   banana: { per: [89, 1.1, 0.3, 0.1, 22.8, 12.2, 2.6, 0], each: 118, fruit: 118 },
@@ -48,10 +48,10 @@ const FOODS: Record<string, Food> = {
   olive: { per: [115, 0.8, 10.7, 1.4, 6, 0, 3.2, 2.2], each: 4, fat: true },
   oatcake: { per: [450, 10, 19, 4, 57, 2.5, 8, 1.3], each: 10 },
   'rice cake': { per: [387, 8, 3, 0.6, 82, 0.5, 4, 0.1], each: 9 },
-  'dark chocolate': { per: [598, 7.8, 42.6, 24.5, 46, 24, 10.9, 0] },
+  'dark chocolate': { per: [598, 7.8, 42.6, 24.5, 46, 24, 10.9, 0], free: true },
   oats: { per: [389, 16.9, 6.9, 1.2, 66, 1, 10.6, 0] },
   milk: { per: [64, 3.4, 3.6, 2.3, 4.7, 4.7, 0, 0.1] },
-  honey: { per: [304, 0.3, 0, 0, 82, 82, 0.2, 0] },
+  honey: { per: [304, 0.3, 0, 0, 82, 82, 0.2, 0], free: true },
 };
 const KEYS = Object.keys(FOODS).sort((a, b) => b.length - a.length);
 const SPOON: Record<string, number> = { tbsp: 15, tablespoon: 15, tsp: 5, teaspoon: 5, handful: 30 };
@@ -75,7 +75,7 @@ const grams = (f: Food, qty: number, unit: string): number | null => {
 
 export function quickNutrition(items: { name: string; qty: number | null; unit: string }[]): Nutrition | null {
   if (!items.length) return null;
-  const t = { kcal: 0, protein_g: 0, fat_g: 0, sat_fat_g: 0, carbs_g: 0, sugars_g: 0, fibre_g: 0, salt_g: 0, fruit: 0, veg: 0 };
+  const t = { kcal: 0, protein_g: 0, fat_g: 0, sat_fat_g: 0, carbs_g: 0, sugars_g: 0, free_sugars_g: 0, fibre_g: 0, salt_g: 0, fruit: 0, veg: 0 };
   let fat = false, legumes = false;
   for (const it of items) {
     const key = quickFood(it.name);
@@ -84,7 +84,7 @@ export function quickNutrition(items: { name: string; qty: number | null; unit: 
     const g = grams(f, it.qty, it.unit ?? '');
     if (g == null) return null;
     const [kcal, p, fa, sat, c, s, fi, salt] = f.per.map((v) => (v * g) / 100);
-    t.kcal += kcal; t.protein_g += p; t.fat_g += fa; t.sat_fat_g += sat; t.carbs_g += c; t.sugars_g += s; t.fibre_g += fi; t.salt_g += salt;
+    t.kcal += kcal; t.protein_g += p; t.fat_g += fa; t.sat_fat_g += sat; t.carbs_g += c; t.sugars_g += s; if (f.free) t.free_sugars_g += s; t.fibre_g += fi; t.salt_g += salt;
     if (f.fruit) t.fruit += g / f.fruit;
     if (f.veg) t.veg += g / f.veg;
     fat ||= !!f.fat; legumes ||= !!f.legumes;
@@ -93,6 +93,6 @@ export function quickNutrition(items: { name: string; qty: number | null; unit: 
   return {
     protein_g: r1(t.protein_g), fibre_g: r1(t.fibre_g), veg_portions: r1(t.veg), fruit_portions: r1(t.fruit),
     healthy_fat: fat, oily_fish: false, legumes, red_meat: false, processed_meat: false,
-    kcal: Math.round(t.kcal), fat_g: r1(t.fat_g), sat_fat_g: r1(t.sat_fat_g), carbs_g: r1(t.carbs_g), sugars_g: r1(t.sugars_g), salt_g: Math.round(t.salt_g * 100) / 100,
+    kcal: Math.round(t.kcal), fat_g: r1(t.fat_g), sat_fat_g: r1(t.sat_fat_g), carbs_g: r1(t.carbs_g), sugars_g: r1(t.sugars_g), free_sugars_g: r1(t.free_sugars_g), salt_g: Math.round(t.salt_g * 100) / 100,
   };
 }

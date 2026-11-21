@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { compareTargets, dayBalance, mealEstimates, nudge, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
+import { compareTargets, needsEstimate, dayBalance, mealEstimates, nudge, parseNutrition, personDay, routineName, weekBalance } from './balance.ts';
 
 const N = (o: Partial<Record<string, unknown>> = {}) => ({
   protein_g: 30, fibre_g: 10, veg_portions: 2, fruit_portions: 0, healthy_fat: false, oily_fish: false, legumes: false, red_meat: false, processed_meat: false, ...o,
@@ -122,7 +122,7 @@ describe('home lunches the planner left as a default', () => {
 });
 
 describe('each person’s day', () => {
-  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1, ...o });
+  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, free_sugars_g: 2, salt_g: 1, ...o });
   const rs = new Map<string, { nutrition?: unknown; toddler_ok?: boolean }>([
     ['salmon', { nutrition: full({ protein_g: 30 }) }],
     ['hummus', { nutrition: full({ kcal: 150, protein_g: 6, sugars_g: 2 }), toddler_ok: true }],
@@ -194,7 +194,7 @@ describe('each meal\'s estimate', () => {
 });
 
 describe("each person's snacks and partners", () => {
-  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, salt_g: 1, ...o });
+  const full = (o: Partial<Record<string, unknown>> = {}) => N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, free_sugars_g: 2, salt_g: 1, ...o });
   const rs = new Map<string, { nutrition?: unknown; toddler_ok?: boolean }>([
     ['salmon', { nutrition: full({ protein_g: 30 }) }],
     ['egg', { nutrition: full({ kcal: 75, protein_g: 6.5, fibre_g: 0 }) }],
@@ -247,4 +247,23 @@ test('the nudge weighs a recipe that can be a snack by one snack, not a serving'
     { id: 'egg', title: 'Boiled egg', kind: 'snack', nutrition: N({ protein_g: 10 }) },
   ] as never);
   expect(pick?.recipe_id).toBe('egg');
+});
+
+describe('free sugars', () => {
+  test('an estimate keeps its free sugars, and the limit is on free sugars, not all sugars', () => {
+    expect(parseNutrition(N({ sugars_g: 20, free_sugars_g: 8 }))).toMatchObject({ sugars_g: 20, free_sugars_g: 8 });
+    // Lots of sugar from whole fruit and milk is fine; it's the free sugars that go over.
+    expect(compareTargets({ sugars_g: 70, free_sugars_g: 12 }, { free_sugars_g: 30 }, [])).toEqual({ free_sugars_g: 'ok' });
+    expect(compareTargets({ sugars_g: 40, free_sugars_g: 35 }, { free_sugars_g: 30 }, [])).toEqual({ free_sugars_g: 'over' });
+  });
+  test('an estimate without free sugars still needs one', () => {
+    expect(needsEstimate(undefined)).toBe(true);
+    expect(needsEstimate(N({ sugars_g: 10 }))).toBe(true);
+    expect(needsEstimate(N({ sugars_g: 10, free_sugars_g: 0 }))).toBe(false);
+  });
+  test("a day adds up each person's free sugars", () => {
+    const recipes = new Map([['r', { nutrition: N({ kcal: 500, fat_g: 20, sat_fat_g: 5, carbs_g: 50, sugars_g: 10, free_sugars_g: 4, salt_g: 1 }) }]]);
+    const slots = [{ date: '2026-11-23', slot: 'dinner', mode: 'cook', recipe_id: 'r' }];
+    expect(personDay('2026-11-23', slots, recipes, {}, { kind: 'adult', portion_weight: 1.25 }).totals.free_sugars_g).toBe(5);
+  });
 });

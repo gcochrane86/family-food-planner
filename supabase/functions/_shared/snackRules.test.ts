@@ -44,3 +44,9 @@ test('food names match whole words: pineapple is not an apple, doughnuts are not
   expect(quickNutrition([{ name: 'doughnuts', qty: 1, unit: '' }])).toBeNull();
   expect(quickNutrition([{ name: 'red apples', qty: 1, unit: '' }])).not.toBeNull();
 });
+
+test('quick snacks: honey and chocolate are free sugars, whole fruit and yoghurt are not', () => {
+  expect(quickNutrition([{ name: 'apple', qty: 1, unit: '' }, { name: 'Greek yoghurt', qty: 100, unit: 'g' }])?.free_sugars_g).toBe(0);
+  expect(quickNutrition([{ name: 'Greek yoghurt', qty: 100, unit: 'g' }, { name: 'honey', qty: 1, unit: 'tsp' }])?.free_sugars_g).toBe(4.1);
+  expect(quickNutrition([{ name: 'dark chocolate', qty: 20, unit: 'g' }])?.free_sugars_g).toBe(4.8);
+});
