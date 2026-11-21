@@ -42,7 +42,7 @@ async function waiting(): Promise<string[]> {
 /** Starts Claude with the fill instructions, only the tools the fill needs, and Chrome. */
 function runClaude(): Promise<number> {
   mkdirSync(workDir, { recursive: true });
-  const prompt = `${fillPrompt(readFileSync(taskFile, 'utf8'))}\n\nWrite any JSON files only inside ${workDir}/. You have no way to send a push notification here: put what you would have said in your final message instead.`;
+  const prompt = `${fillPrompt(readFileSync(taskFile, 'utf8'))}\n\nWrite any JSON files only inside ${workDir}/, and pass them to the basket commands with --file <path> instead of a `< file` redirect (which isn't allowed here), e.g. npm run -s basket -- finish --file ${workDir}/finish.json. You have no way to send a push notification here: put what you would have said in your final message instead.`;
   const args = ['-p', prompt, '--chrome', '--permission-mode', 'dontAsk', '--allowedTools',
     'Read', 'Glob', 'Grep', 'ToolSearch', `Edit(/${workDir}/**)`,
     'Bash(npm run -s basket:*)', `Bash(cd ${process.cwd()} && npm run -s basket:*)`, 'mcp__claude-in-chrome__*'];

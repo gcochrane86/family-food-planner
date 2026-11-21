@@ -107,6 +107,8 @@ with the scheduled task's instructions and only the tools a fill needs: reading 
 `~/.food-planner-basket/`, `npm run -s basket`, and Claude in Chrome. It runs one fill at a time, and waits 10 minutes
 before trying a request again. The scheduled task in the Claude desktop app stays as a backup; `claim` stops the two
 filling the same request.
+- The watcher's Claude can't use a `< file` redirect, so it passes JSON with `--file <path>` (only files inside
+  `~/.food-planner-basket/` are accepted), e.g. `npm run -s basket -- finish --file ~/.food-planner-basket/finish.json`.
 - Stop it: `launchctl bootout gui/$(id -u)/com.familyfoodplanner.basketwatch`
 - Start it: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.familyfoodplanner.basketwatch.plist`
 - It needs the Mac awake, Chrome open with Claude in Chrome connected, Sainsbury's signed in, and the command-line

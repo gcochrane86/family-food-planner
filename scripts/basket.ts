@@ -7,7 +7,11 @@
 //   npx tsx scripts/basket.ts claim --run <run id>                      marks a request 'filling' so no other check takes it
 //   npx tsx scripts/basket.ts spar --household <id> < item.json         {"name","note"?} onto the Spar list
 //   npx tsx scripts/basket.ts progress < progress.json                  {"run","stage":"emptying"|"adding","done"?,"total"?,"item"?} for the app's progress bar
-// record, finish and spar read JSON on stdin so text copied from web pages never goes through a shell command line.
+// record, finish, spar and progress read JSON on stdin (or --file <path> inside ~/.food-planner-basket/) so text copied
+// from web pages never goes through a shell command line.
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
@@ -110,7 +114,16 @@ async function list() {
   console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, delivery, deliveryDate, emptyFirst: run.empty_first }, items }, null, 2));
 }
 
+/** The JSON input: from `--file <path>` (only inside ~/.food-planner-basket/, where the watcher's Claude writes it;
+ *  it can't use a `< file` redirect), or piped on stdin. */
 async function stdin(): Promise<string> {
+  const file = arg('file');
+  if (file) {
+    const dir = join(homedir(), '.food-planner-basket');
+    const path = resolve(file);
+    if (!path.startsWith(`${dir}/`)) fail('--file must be inside ~/.food-planner-basket/');
+    return readFileSync(path, 'utf8');
+  }
   if (process.stdin.isTTY) fail('Pipe the JSON in, e.g. npm run -s basket -- record --household <id> < product.json');
   let data = '';
   for await (const chunk of process.stdin) data += chunk;
