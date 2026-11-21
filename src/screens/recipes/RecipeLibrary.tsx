@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { householdPortions } from '../../lib/household';
+import { lunchDayName, saveLunchRecipe } from './UseForLunch';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
@@ -13,24 +13,12 @@ import { easyTonight, type EasyTonight } from '../../lib/easyTonight';
 import type { Staple } from '../../lib/types';
 import { SAVE_ERROR } from '../settings/useAsync';
 
-const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-/** Makes a recipe a day's lunch (from the + on the day's lunch options), at the household's portions. */
-async function saveLunchRecipe(hid: string, date: string, recipeId: string): Promise<void> {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-  const [{ slots }, members] = await Promise.all([repo.getWeek(hid, d.toISOString().slice(0, 10)), repo.listMembers(hid)]);
-  const lunch = slots.find((s) => s.date === date && s.slot === 'lunch');
-  if (!lunch) throw new Error('That day has no lunch in the plan.');
-  await repo.saveSlots([{ ...lunch, mode: 'cook', recipe_id: recipeId, portions: householdPortions(members), source_date: null, routine_choice: null, reason: null }]);
-}
-
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
   const navigate = useNavigate();
   // Opened from a day's lunch options: tapping a recipe makes it that day's lunch.
   const lunchFor = useSearchParams()[0].get('lunch');
-  const lunchDay = lunchFor && /^\d{4}-\d{2}-\d{2}$/.test(lunchFor) ? WEEKDAYS[new Date(`${lunchFor}T00:00:00Z`).getUTCDay()] : null;
+  const lunchDay = lunchDayName(lunchFor);
   const [pickError, setPickError] = useState<string | null>(null);
   async function pickLunch(r: Recipe) {
     setPickError(null);
@@ -186,7 +174,7 @@ export default function RecipeLibrary() {
               <button type="button" aria-label={`Use ${r.title} for lunch`} onClick={() => void pickLunch(r)}
                 className="order-last m-3 mt-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Use for lunch</button>
             )}
-            <Link to={`/recipes/${r.id}`} className="flex flex-1 flex-col no-underline">
+            <Link to={lunchDay ? `/recipes/${r.id}?lunch=${lunchFor}` : `/recipes/${r.id}`} className="flex flex-1 flex-col no-underline">
               <HeroImage recipe={r} className="aspect-[4/3] w-full" />
               <span className="grid gap-1 p-3">
                 <span className="font-display text-[17px] font-semibold leading-tight">{r.title}</span>

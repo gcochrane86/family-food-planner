@@ -553,3 +553,16 @@ test('on the weekly plan there is no Add to plan', async () => {
   await screen.findByText('chicken breast or thigh');
   expect(screen.queryByRole('button', { name: 'Add to plan' })).not.toBeInTheDocument();
 });
+
+test("opened while picking a day's lunch, the recipe has Use for lunch at the top", async () => {
+  open('/recipes/r-honey?lunch=2026-10-22');
+  await userEvent.click(await screen.findByRole('button', { name: "Use for Thursday's lunch" }));
+  const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
+  expect(saved[0]).toMatchObject({ date: '2026-10-22', slot: 'lunch', mode: 'cook', recipe_id: 'r-honey' });
+});
+
+test('opened normally, the recipe has no Use for lunch', async () => {
+  open('r-honey');
+  await screen.findByRole('heading', { level: 1 });
+  expect(screen.queryByRole('button', { name: /lunch/i })).not.toBeInTheDocument();
+});

@@ -22,6 +22,7 @@ import RecipeMenu from './RecipeMenu';
 import { parseBatch } from '../../lib/batch';
 import ReworkRecipe from './ReworkRecipe';
 import AddToAdhoc from '../adhoc/AddToAdhoc';
+import UseForLunch from './UseForLunch';
 import { iconKey } from '../../../supabase/functions/_shared/prepCut.ts';
 import StoredPhoto from '../../components/StoredPhoto';
 
@@ -360,6 +361,7 @@ export default function RecipeCard() {
       <header>
         <h1 className="mt-1 text-3xl font-bold leading-tight sm:text-4xl">{recipe.title}</h1>
         {recipe.subtitle && <p className="text-muted">{recipe.subtitle}</p>}
+        {params.get('lunch') && <UseForLunch householdId={householdId!} recipeId={recipe.id} date={params.get('lunch')!} />}
         {originalHost && (
           <a href={recipe.source_url!} target="_blank" rel="noreferrer" className="mr-3 mt-1 inline-block text-sm font-semibold text-accent">
             Original recipe ({originalHost})

@@ -217,6 +217,7 @@ test('Roasts sits with the recipe filters and opens the roast builder', async ()
 test("opened from a day's lunch, tapping a recipe makes it that day's lunch, at the household portions", async () => {
   render(<MemoryRouter initialEntries={['/recipes?lunch=2026-10-22']}><RecipeLibrary /></MemoryRouter>);
   expect(await screen.findByText("Pick Thursday's lunch")).toBeInTheDocument();
+  expect(screen.getAllByRole('link', { name: /Honey Chilli/ })[0]).toHaveAttribute('href', '/recipes/r-honey?lunch=2026-10-22');
   await userEvent.click(await screen.findByRole('button', { name: /Use .*Honey Chilli.* for lunch/ }));
   const saved = h.repo.saveSlots.mock.calls.at(-1)![0];
   expect(saved).toHaveLength(1);
