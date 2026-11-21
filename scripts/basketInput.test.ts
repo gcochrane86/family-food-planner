@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { parseFinish, parseProduct, parseSpar } from './basketInput';
+import { parseFinish, parseProduct, parseProgress, parseSpar } from './basketInput';
 
 describe('parseProduct', () => {
   it('reads a product with odd characters in its name untouched', () => {
@@ -42,5 +42,26 @@ describe('parseSpar', () => {
   it('needs a name and caps it at 80 characters', () => {
     expect(() => parseSpar('{"note":"x"}')).toThrow('name');
     expect(parseSpar(`{"name":"${'x'.repeat(200)}"}`).name).toHaveLength(80);
+  });
+});
+
+describe('parseProgress', () => {
+  it('reads how far the fill has got', () => {
+    expect(parseProgress('{"run":"r1","stage":"adding","done":12,"total":34,"item":" chicken thighs "}'))
+      .toEqual({ run: 'r1', progress: { stage: 'adding', done: 12, total: 34, item: 'chicken thighs' } });
+  });
+  it('emptying needs no counts', () => {
+    expect(parseProgress('{"run":"r1","stage":"emptying"}')).toEqual({ run: 'r1', progress: { stage: 'emptying', done: null, total: null, item: null } });
+  });
+  it('needs a run and a known stage', () => {
+    expect(() => parseProgress('{"stage":"adding"}')).toThrow('"run" is required');
+    expect(() => parseProgress('{"run":"r1","stage":"checkout"}')).toThrow('"stage" must be emptying or adding');
+  });
+  it('keeps done within total and drops nonsense counts', () => {
+    expect(parseProgress('{"run":"r1","stage":"adding","done":40,"total":34}').progress).toMatchObject({ done: 34, total: 34 });
+    expect(parseProgress('{"run":"r1","stage":"adding","done":-1,"total":"x"}').progress).toMatchObject({ done: null, total: null });
+  });
+  it('keeps the item name short', () => {
+    expect(parseProgress(`{"run":"r1","stage":"adding","item":"${'a'.repeat(200)}"}`).progress.item).toHaveLength(80);
   });
 });

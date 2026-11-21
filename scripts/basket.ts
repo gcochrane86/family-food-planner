@@ -6,13 +6,14 @@
 //   npx tsx scripts/basket.ts pending --household <id>                  requests waiting to be filled (cheap: no browsing)
 //   npx tsx scripts/basket.ts claim --run <run id>                      marks a request 'filling' so no other check takes it
 //   npx tsx scripts/basket.ts spar --household <id> < item.json         {"name","note"?} onto the Spar list
+//   npx tsx scripts/basket.ts progress < progress.json                  {"run","stage":"emptying"|"adding","done"?,"total"?,"item"?} for the app's progress bar
 // record, finish and spar read JSON on stdin so text copied from web pages never goes through a shell command line.
 import { createClient } from '@supabase/supabase-js';
 import { buildShoppingList, pickShoppingWeek, tickKey } from '../src/lib/shopping';
 import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule';
 import { packsNeeded } from '../src/lib/packs';
 import { validateSettings } from '../src/lib/household';
-import { parseFinish, parseProduct, parseSpar } from './basketInput';
+import { parseFinish, parseProduct, parseProgress, parseSpar } from './basketInput';
 import { parseRoastChoice, roastPartSlugs } from '../src/lib/roastModel';
 import type { Eat, MealSlot, PlanWeek, Product, Recipe, RecipeDetail, Settings, Staple, WeeklyBasic } from '../src/lib/types';
 import { weekMakes } from '../src/lib/weekEats';
@@ -171,10 +172,19 @@ async function pending() {
 /** Takes a request for this fill; fails if another check already took it. */
 async function claim() {
   const id = arg('run') ?? fail('--run is required');
-  const rows = must<{ id: string }[]>(await db.from('basket_runs').update({ status: 'filling', started_at: new Date().toISOString() })
+  const rows = must<{ id: string }[]>(await db.from('basket_runs').update({ status: 'filling', started_at: new Date().toISOString(), progress: { stage: 'starting', done: null, total: null, item: null, at: new Date().toISOString() } })
     .eq('id', id).eq('status', 'requested').select('id'), 'Claiming the request');
   if (!rows.length) fail('That request is already being filled or is finished.');
   console.log(`Run ${id} claimed.`);
+}
+
+/** How far the fill has got, shown as a progress bar on the Shop tab. Only a run that's filling takes it. */
+async function progress() {
+  const p = read(parseProgress, await stdin());
+  const rows = must<{ id: string }[]>(await db.from('basket_runs').update({ progress: { ...p.progress, at: new Date().toISOString() } })
+    .eq('id', p.run).eq('status', 'filling').select('id'), 'Saving progress');
+  if (!rows.length) fail('That run is no longer filling. Not saving progress.');
+  console.log('Progress saved.');
 }
 
 async function spar() {
@@ -201,5 +211,5 @@ async function freshDone() {
   console.log(`Trolley for start-fresh ${id}: ${status}.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, spar, 'fresh-pending': freshPending, 'fresh-done': freshDone };
-await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | spar | fresh-pending | fresh-done')))();
+const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, progress, spar, 'fresh-pending': freshPending, 'fresh-done': freshDone };
+await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | progress | spar | fresh-pending | fresh-done')))();

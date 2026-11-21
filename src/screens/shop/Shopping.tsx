@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { formatQty } from '../../lib/recipes';
@@ -13,6 +13,10 @@ import { parseBatch } from '../../lib/batch';
 import { parseRoastChoice, roastPartSlugs } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
+import { runView } from '../../lib/basketProgress';
+
+/** How often the Shop tab checks on a fill that's under way. */
+const POLL_MS = 5000;
 
 type Delivery = 'sun' | 'tue';
 export type Answer = 'got' | 'need' | null;
@@ -55,6 +59,16 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
   const [banner, setBanner] = useState<string | null>(null);
   const [runs, setRuns] = useState<Record<string, BasketRun>>({});
   const runFor = (d: Delivery) => runs[d] ?? data?.runs.find((r) => r.delivery === d) ?? null;
+  // While Claude is filling a trolley, check every few seconds so the progress bar moves on its own.
+  const weekId = data?.chosen?.week?.id;
+  const active = (['sun', 'tue'] as Delivery[]).some((d) => { const r = runFor(d); return r?.status === 'requested' || r?.status === 'filling'; });
+  useEffect(() => {
+    if (!weekId || !active) return;
+    const t = setInterval(() => {
+      repo.getRuns(weekId).then((rows) => setRuns((r) => ({ ...r, ...Object.fromEntries(rows.map((x) => [x.delivery, x])) }))).catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [weekId, active]);
   // The freezer check changes dinners' batch plans, and so the list: keep the changed slots and rebuild from them.
   const [slots, setSlots] = useState<MealSlot[] | null>(null);
   // The freezer as the check leaves it, so a second "It's there" takes the next portion, not the same one again.
@@ -337,14 +351,25 @@ export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }:
 
 function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; onReady: () => void; blocked?: boolean }) {
   if (run?.status === 'requested') {
-    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">
-      {run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts in a few seconds while your Mac is on.
-    </p>;
+    const v = runView(run, Date.now());
+    return <div className="grid gap-2 rounded-xl bg-evening-soft px-3 py-2 text-sm">
+      <p className="m-0">{run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts in a few seconds while your Mac is on.</p>
+      {v.warning && <p role="alert" className="m-0 font-semibold text-warn">{v.warning}</p>}
+    </div>;
   }
   if (run?.status === 'filling') {
-    return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm font-semibold">
-      {run.empty_first ? 'Claude is emptying and refilling your trolley now…' : 'Claude is filling your basket now…'}
-    </p>;
+    const v = runView(run, Date.now());
+    return <div className="grid gap-2 rounded-xl bg-evening-soft px-3 py-2 text-sm">
+      <p className="m-0 font-semibold">{run.empty_first ? 'Claude is emptying and refilling your trolley now…' : 'Claude is filling your basket now…'}</p>
+      <div role="progressbar" aria-label={v.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={v.pct ?? undefined}
+        className="h-2 overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full bg-accent transition-[width] duration-500 ${v.pct === null ? 'w-1/3 animate-pulse' : ''}`}
+          style={v.pct === null ? undefined : { width: `${Math.max(v.pct, 3)}%` }} />
+      </div>
+      <p className="m-0 flex justify-between gap-2 text-xs text-muted"><span>{v.label}</span>{v.item && <span className="truncate">{v.item}</span>}</p>
+      {v.warning && <p role="alert" className="m-0 font-semibold text-warn">{v.warning}</p>}
+      {v.warning && <button type="button" onClick={() => onReady()} className="justify-self-start rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Start again</button>}
+    </div>;
   }
   const filledBefore = run?.status === 'done' || run?.status === 'failed';
   return (

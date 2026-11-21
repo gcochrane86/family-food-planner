@@ -337,6 +337,8 @@ export interface BasketRun {
   started_at?: string | null;
   finished_at: string | null;
   summary: string | null;
+  /** How far Claude has got with the fill (migration 0028), for the Shop tab's progress bar. */
+  progress?: { stage: 'starting' | 'emptying' | 'adding'; done: number | null; total: number | null; item: string | null; at?: string } | null;
 }
 
 // Cookidoo (Phase 6) -------------------------------------------------------------

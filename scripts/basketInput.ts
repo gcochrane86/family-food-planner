@@ -40,3 +40,16 @@ export function parseSpar(input: string): SparInput {
   const name = text(o.name, 80) ?? (() => { throw new Error('"name" is required'); })();
   return { name, note: text(o.note, 200) };
 }
+
+export interface BasketProgress { stage: 'emptying' | 'adding'; done: number | null; total: number | null; item: string | null }
+
+/** `basket progress`: how far a fill has got, for the Shop tab's progress bar. */
+export function parseProgress(input: string): { run: string; progress: BasketProgress } {
+  const o = parse(input);
+  const run = text(o.run, 100) ?? (() => { throw new Error('"run" is required'); })();
+  if (o.stage !== 'emptying' && o.stage !== 'adding') throw new Error('"stage" must be emptying or adding');
+  const count = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
+  const total = count(o.total);
+  const done = count(o.done);
+  return { run, progress: { stage: o.stage, done: done !== null && total !== null ? Math.min(done, total) : done, total, item: text(o.item, 80) } };
+}

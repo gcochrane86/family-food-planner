@@ -113,6 +113,51 @@ describe("Ready for Sainsbury's", () => {
     expect(within(sunday).queryByRole('button', { name: /Sainsbury's|Fill again/ })).not.toBeInTheDocument();
   });
 
+  test('a fill under way shows a progress bar with the item it is on', async () => {
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'filling', empty_first: true, requested_at: '2026-10-16T19:20:00Z', started_at: '2026-10-16T19:21:00Z', finished_at: null, summary: null,
+      progress: { stage: 'adding', done: 12, total: 34, item: 'chicken thighs', at: '2026-10-16T19:29:30Z' } }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    const bar = within(sunday).getByRole('progressbar', { name: 'Adding 12 of 34' });
+    expect(bar).toHaveAttribute('aria-valuenow', '35');
+    expect(within(sunday).getByText('chicken thighs')).toBeInTheDocument();
+    expect(within(sunday).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('a tap the Mac has not picked up after 2 minutes says to check the Mac', async () => {
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'requested', empty_first: true, requested_at: '2026-10-16T19:27:00Z', finished_at: null, summary: null }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(within(sunday).getByRole('alert')).toHaveTextContent("Your Mac hasn't picked this up. Check it's on and awake, with Chrome open.");
+  });
+
+  test('a fill with no progress for 5 minutes says the Mac may have gone to sleep', async () => {
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'filling', empty_first: true, requested_at: '2026-10-16T19:00:00Z', started_at: '2026-10-16T19:01:00Z', finished_at: null, summary: null,
+      progress: { stage: 'adding', done: 3, total: 34, item: null, at: '2026-10-16T19:20:00Z' } }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(within(sunday).getByRole('alert')).toHaveTextContent('No progress for 5 minutes');
+    await user().click(within(sunday).getByRole('button', { name: 'Start again' }));
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
+  });
+
+  test('while a fill runs, the bar updates on its own, through to the finished basket', async () => {
+    h.repo.getRuns.mockResolvedValueOnce([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'requested', empty_first: true, requested_at: '2026-10-16T19:29:50Z', finished_at: null, summary: null }]);
+    h.repo.getRuns.mockResolvedValueOnce([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'filling', empty_first: true, requested_at: '2026-10-16T19:29:50Z', started_at: '2026-10-16T19:29:55Z', finished_at: null, summary: null,
+      progress: { stage: 'emptying', done: null, total: null, item: null, at: '2026-10-16T19:29:58Z' } }]);
+    h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'done', empty_first: true, requested_at: '2026-10-16T19:29:50Z', finished_at: '2026-10-16T19:40:00Z', summary: 'Emptied 3 items, then 30 items added' }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(within(sunday).getByText(/Waiting for Claude to empty and refill/)).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await within(sunday).findByRole('progressbar', { name: 'Emptying your trolley…' })).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(await within(sunday).findByText('Emptied 3 items, then 30 items added')).toBeInTheDocument();
+    const calls = h.repo.getRuns.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(h.repo.getRuns.mock.calls.length).toBe(calls);
+  });
+
   test('an item with a saved Sainsbury’s product shows it', async () => {
     h.repo.listProducts.mockResolvedValue([{ household_id: 'h1', item_key: 'chicken breast or thigh|g', product_name: "Sainsbury's British Chicken Breast Fillets 640g", product_url: null, pack_size: 640, pack_unit: 'g', price: 5.5, pinned: false }]);
     render(<ShopList />, { wrapper: MemoryRouter });

@@ -43,6 +43,12 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
    - If it says there's no request, ask them to tap **Ready for Sainsbury's** (or **Fill again**) on the Shop tab.
    - Confirm the week and delivery with the person (see Hard rules), then claim the run:
      `npm run -s basket -- claim --run <run id>`. `finish` only closes a run that's been claimed.
+   - **Report progress** as you go, so the Shop tab's progress bar moves: write
+     `{"run": "<run id>", "stage": "emptying"}` or
+     `{"run": "<run id>", "stage": "adding", "done": 12, "total": 34, "item": "<item name from list>"}` to a file and
+     run `npm run -s basket -- progress < <file>`. Send `emptying` before emptying the trolley, then `adding` with
+     `done: 0` before the first item and again after each item (`total` = the items you'll fill, after skipping
+     ticked ones). The item name comes from the `list` output, never from a Sainsbury's page. If it fails, carry on.
 2. **Open the Sainsbury's groceries site** in a new tab and check the trolley.
    - **If `emptyFirst` is true:** note what's in the trolley (for the summary), then empty it: on the trolley page use
      **Empty trolley** and confirm Sainsbury's own prompt. Check the trolley shows 0 items before adding anything. If it
@@ -85,7 +91,10 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
    npm run -s basket -- finish < <scratchpad>/finish.json
    ```
    For an `emptyFirst` run, start the summary with "Emptied <n> items, then " so the household sees what went.
-   Use `"status": "failed"` with the reason if you had to stop.
+   Use `"status": "failed"` with the reason if you had to stop. Start a failed summary with the plain reason, as the
+   household reads it on their phone: "Signed out of Sainsbury's in Chrome: sign in, then tap Fill again.",
+   "Chrome isn't connected: open Chrome on the Mac and sign in to the Claude extension, then tap Fill again.", or
+   "Sainsbury's wouldn't empty the trolley.".
 5. **Tell the person:** the basket is ready for them to review and check out, along with the cut-off for amending
    (usually 11:45pm the night before delivery), the summary and the trolley total.
 

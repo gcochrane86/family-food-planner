@@ -68,6 +68,14 @@ async function check() {
   log(`Starting Claude for ${d.ids.join(', ')}`);
   const code = await runClaude();
   log(`Claude finished (exit ${code})`);
+  // A fill request Claude never claimed means it couldn't get going (signed out, no network): say so in the app.
+  const runIds = d.ids.filter((id) => id.startsWith('run:')).map((id) => id.slice(4));
+  if (runIds.length) {
+    const r = await db.from('basket_runs').update({ status: 'failed', finished_at: new Date().toISOString(),
+      summary: "Claude couldn't start on the Mac (it may be signed out). Check the Mac, then tap Fill again." })
+      .in('id', runIds).eq('status', 'requested').select('id');
+    if (r.data?.length) log(`Marked ${r.data.length} unclaimed request(s) failed`);
+  }
   running = false;
   void check();
 }

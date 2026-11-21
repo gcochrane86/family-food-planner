@@ -391,6 +391,14 @@ test('0009: a basket run can ask for the trolley to be emptied first', async () 
   expect(await one(OWNER, `select empty_first from basket_runs where id = '${plain}'`)).toBe(false);
 });
 
+test('0028: a basket run keeps how far the fill has got', async () => {
+  const { wid } = await weekFor(OWNER);
+  const rid = await one(OWNER, `insert into basket_runs (plan_week_id, delivery) values ('${wid}', 'sun') returning id`);
+  expect(await one(OWNER, `select progress from basket_runs where id = '${rid}'`)).toBe(null);
+  await as(OWNER, `update basket_runs set progress = '{"stage":"adding","done":3,"total":10}' where id = '${rid}'`);
+  expect(await one(OWNER, `select progress->>'done' from basket_runs where id = '${rid}'`)).toBe('3');
+});
+
 test('0009: a recipe link import belongs to its household, needs an http link, and has known statuses', async () => {
   const { hid } = await recipeFor(OWNER);
   const iid = await one(OWNER, `insert into recipe_imports (household_id, url) values ('${hid}', 'https://www.bbcgoodfood.com/recipes/x') returning id`);
