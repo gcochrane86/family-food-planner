@@ -30,3 +30,10 @@ export function nextJob(ids: string[]): { job: Job; ids: string[] } {
   const job = jobFor(ids[0]);
   return { job, ids: ids.filter((id) => jobFor(id) === job) };
 }
+
+/** After a Claude run: `left` is what's still waiting of what it was given. Claude takes one request at a time, so if
+ *  it got through some, the rest go next straight away; if it got through none, it couldn't get going and they fail. */
+export function afterRun(given: string[], left: string[]): { fail: string[]; retryNow: string[] } {
+  const stuck = given.filter((id) => left.includes(id));
+  return stuck.length === given.length ? { fail: stuck, retryNow: [] } : { fail: [], retryNow: stuck };
+}

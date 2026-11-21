@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { decide, fillPrompt, jobFor, nextJob, RETRY_MS } from './basketWatchLogic';
+import { afterRun, decide, fillPrompt, jobFor, nextJob, RETRY_MS } from './basketWatchLogic';
 
 const NOW = Date.parse('2026-11-21T12:00:00Z');
 
@@ -50,5 +50,17 @@ describe('jobs', () => {
   test('one job at a time, the oldest kind first, with all its requests', () => {
     expect(nextJob(['cookidoo:a', 'run:b', 'cookidoo-fresh:c'])).toEqual({ job: 'cookidoo', ids: ['cookidoo:a', 'cookidoo-fresh:c'] });
     expect(nextJob(['run:b', 'cookidoo:a'])).toEqual({ job: 'basket', ids: ['run:b'] });
+  });
+});
+
+describe('afterRun', () => {
+  test('Claude handled one request but not the other: the other goes next, at once, rather than failing', () => {
+    expect(afterRun(['run:a', 'run:b'], ['run:b'])).toEqual({ fail: [], retryNow: ['run:b'] });
+  });
+  test('Claude handled none of them: it could not get going, so they fail with that reason', () => {
+    expect(afterRun(['run:a', 'run:b'], ['run:a', 'run:b'])).toEqual({ fail: ['run:a', 'run:b'], retryNow: [] });
+  });
+  test('all handled: nothing to do', () => {
+    expect(afterRun(['run:a'], [])).toEqual({ fail: [], retryNow: [] });
   });
 });

@@ -328,6 +328,21 @@ export interface Product {
   pinned: boolean;
 }
 
+/** A Sainsbury's order as its emails describe it (migration 0030): confirmed at checkout, then picked with any swaps. */
+export interface SainsburyOrder {
+  id: string;
+  order_number: string;
+  status: 'confirmed' | 'picked' | 'cancelled';
+  slot: string | null;
+  delivery_date: string | null;
+  total: number | null;
+  item_count: number | null;
+  amend_until: string | null;
+  items: { name: string; qty: number | string | null; price: number | null }[];
+  substitutions: { ordered: string; substitute: string; qty: number | string | null; price: number | null }[];
+  missing: { name: string }[];
+}
+
 export interface BasketRun {
   id: string;
   plan_week_id: string;

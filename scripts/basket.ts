@@ -6,6 +6,7 @@
 //   npx tsx scripts/basket.ts pending --household <id>                  requests waiting to be filled (cheap: no browsing)
 //   npx tsx scripts/basket.ts claim --run <run id>                      marks a request 'filling' so no other check takes it
 //   npx tsx scripts/basket.ts spar --household <id> < item.json         {"name","note"?} onto the Spar list
+//   npx tsx scripts/basket.ts order --household <id> < order.json      a Sainsbury's order from its email (see orderInput.ts)
 //   npx tsx scripts/basket.ts progress < progress.json                  {"run","stage":"emptying"|"adding","done"?,"total"?,"item"?} for the app's progress bar
 // record, finish, spar and progress read JSON on stdin (or --file <path> inside ~/.food-planner-basket/) so text copied
 // from web pages never goes through a shell command line.
@@ -18,6 +19,7 @@ import { londonParts, nextMonday } from '../supabase/functions/_shared/schedule'
 import { packsNeeded } from '../src/lib/packs';
 import { validateSettings } from '../src/lib/household';
 import { parseFinish, parseProduct, parseProgress, parseSpar } from './basketInput';
+import { mergeOrder, parseOrder, weekStartFor, type OrderStatus } from './orderInput';
 import { parseRoastChoice, roastPartSlugs } from '../src/lib/roastModel';
 import type { Eat, MealSlot, PlanWeek, Product, Recipe, RecipeDetail, Settings, Staple, WeeklyBasic } from '../src/lib/types';
 import { weekMakes } from '../src/lib/weekEats';
@@ -200,6 +202,28 @@ async function progress() {
   console.log('Progress saved.');
 }
 
+/** Records a Sainsbury's order from its email (confirmed at checkout, picked with swaps), for the Shop tab. */
+async function order() {
+  const householdId = arg('household') ?? fail('--household is required');
+  const o = read(parseOrder, await stdin());
+  type Row = { status: OrderStatus; delivery_date: string | null; plan_week_id: string | null };
+  const was = must<Row | null>(await db.from('sainsbury_orders').select('status, delivery_date, plan_week_id')
+    .eq('household_id', householdId).eq('order_number', o.orderNumber).maybeSingle(), 'Reading the order');
+  const m = mergeOrder(was, o);
+  const date = o.deliveryDate ?? was?.delivery_date ?? null;
+  const week = date ? must<{ id: string } | null>(await db.from('plan_weeks').select('id').eq('household_id', householdId)
+    .eq('week_start', weekStartFor(date)).maybeSingle(), 'Finding the week') : null;
+  const row = {
+    household_id: householdId, order_number: o.orderNumber, status: m.status, updated_at: new Date().toISOString(),
+    plan_week_id: week?.id ?? was?.plan_week_id ?? null,
+    ...(o.slot !== undefined && { slot: o.slot }), ...(date && { delivery_date: date }), ...(o.total !== undefined && { total: o.total }),
+    ...(o.itemCount !== undefined && { item_count: o.itemCount }), ...(o.amendUntil !== undefined && { amend_until: o.amendUntil }),
+    ...(o.items && { items: o.items }), ...(o.substitutions && { substitutions: o.substitutions }), ...(o.missing && { missing: o.missing }),
+  };
+  must(await db.from('sainsbury_orders').upsert(row, { onConflict: 'household_id,order_number' }), 'Saving the order');
+  console.log(`Order ${o.orderNumber}: ${m.status}${week ? '' : ' (no plan week for that delivery date)'}.`);
+}
+
 async function spar() {
   const householdId = arg('household') ?? fail('--household is required');
   const item = read(parseSpar, await stdin());
@@ -224,5 +248,5 @@ async function freshDone() {
   console.log(`Trolley for start-fresh ${id}: ${status}.`);
 }
 
-const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, progress, spar, 'fresh-pending': freshPending, 'fresh-done': freshDone };
-await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | progress | spar | fresh-pending | fresh-done')))();
+const commands: Record<string, () => Promise<void>> = { list, record, finish, pending, claim, progress, order, spar, 'fresh-pending': freshPending, 'fresh-done': freshDone };
+await (commands[command] ?? (() => fail('Use: list | record | finish | pending | claim | progress | order | spar | fresh-pending | fresh-done')))();

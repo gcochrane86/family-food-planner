@@ -158,6 +158,41 @@ describe("Ready for Sainsbury's", () => {
     expect(h.repo.getRuns.mock.calls.length).toBe(calls);
   });
 
+  test('a confirmed order shows its slot, total and when it can be changed, and what was ordered on a tap', async () => {
+    h.repo.listOrders.mockResolvedValue([{ id: 'o1', order_number: '1358318680', status: 'confirmed', slot: 'Monday 23 November, 10am to 11am', delivery_date: '2026-11-23',
+      total: 99.26, item_count: 32, amend_until: '11pm Sunday, 22 November', items: [{ name: "Sainsbury's Basmati Rice 500g", qty: 1, price: 0.89 }], substitutions: [], missing: [] }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const order = await screen.findByRole('region', { name: "Sainsbury's order 1358318680" });
+    expect(order).toHaveTextContent('✓ Order confirmed');
+    expect(order).toHaveTextContent('Monday 23 November, 10am to 11am');
+    expect(order).toHaveTextContent('32 items · £99.26 (estimate)');
+    expect(order).toHaveTextContent('You can change it until 11pm Sunday, 22 November');
+    expect(within(order).queryByText("Sainsbury's Basmati Rice 500g")).not.toBeInTheDocument();
+    await user().click(within(order).getByRole('button', { name: 'See what was ordered' }));
+    expect(within(order).getByText("Sainsbury's Basmati Rice 500g")).toBeInTheDocument();
+    expect(within(order).getByText('£0.89')).toBeInTheDocument();
+  });
+
+  test('a picked order shows its swaps and anything missing up front', async () => {
+    h.repo.listOrders.mockResolvedValue([{ id: 'o1', order_number: '1357811798', status: 'picked', slot: 'Monday 19th October, 9:30am to 10:30am', delivery_date: '2026-10-19',
+      total: 95.56, item_count: null, amend_until: null, items: [],
+      substitutions: [{ ordered: 'Bananas, SO Organic x6', substitute: 'Bananas Loose', qty: '0.89kg', price: 0.8 }], missing: [{ name: 'Spring onions' }] }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const order = await screen.findByRole('region', { name: "Sainsbury's order 1357811798" });
+    expect(order).toHaveTextContent('✓ Picked: on its way');
+    expect(order).toHaveTextContent('£95.56 paid');
+    expect(order).toHaveTextContent('1 swap, 1 missing');
+    expect(order).toHaveTextContent('Bananas, SO Organic x6 → Bananas Loose');
+    expect(order).toHaveTextContent('Missing: Spring onions');
+    expect(order).not.toHaveTextContent('You can change it');
+  });
+
+  test('with no orders recorded, there is no order card', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    await screen.findByRole('region', { name: 'Sunday delivery' });
+    expect(screen.queryByRole('region', { name: /Sainsbury's order/ })).not.toBeInTheDocument();
+  });
+
   test('an item with a saved Sainsbury’s product shows it', async () => {
     h.repo.listProducts.mockResolvedValue([{ household_id: 'h1', item_key: 'chicken breast or thigh|g', product_name: "Sainsbury's British Chicken Breast Fillets 640g", product_url: null, pack_size: 640, pack_unit: 'g', price: 5.5, pinned: false }]);
     render(<ShopList />, { wrapper: MemoryRouter });

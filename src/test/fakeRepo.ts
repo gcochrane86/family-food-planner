@@ -1,5 +1,5 @@
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
-import type { AdhocItem, AdhocMeal, Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest } from '../lib/types';
+import type { AdhocItem, AdhocMeal, Equipment, PrepPhoto, FreshStart, PantryEntry, PreparedItem, Settings, BasketRun, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, Staple, WeeklyBasic, CookidooRun, RecipeImport, RecipeRework, RecipeEdit, RecipeIngredient, RecipeStep, WeekPlanRequest, SainsburyOrder } from '../lib/types';
 import { DONER, HONEY, NEXT_WEEK, TACOS } from './fixtures';
 
 export const YOU: Member = { id: 'm-you', household_id: 'h1', name: 'You', kind: 'adult', birthdate: null, portion_weight: 1.25 };
@@ -87,6 +87,7 @@ export function fakeRepo() {
     retryImport: vi.fn(async () => {}),
     dismissImport: vi.fn(async () => {}),
     getRuns: vi.fn(async (): Promise<BasketRun[]> => []),
+    listOrders: vi.fn(async (): Promise<SainsburyOrder[]> => []),
     requestRun: vi.fn(async (weekId: string, delivery: 'sun' | 'tue'): Promise<BasketRun> => ({ id: `run-${delivery}`, plan_week_id: weekId, delivery, status: 'requested', requested_at: '2026-10-16T08:00:00Z', finished_at: null, summary: null })),
     listProducts: vi.fn(async (): Promise<Product[]> => []),
     getTicks: vi.fn(async (): Promise<{ delivery: 'sun' | 'tue'; item_key: string; ticked: boolean }[]> => []),

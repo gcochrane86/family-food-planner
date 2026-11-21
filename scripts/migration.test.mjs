@@ -409,6 +409,15 @@ test('0029: what is already in Cookidoo becomes each recipe\'s first copy, and M
   expect(await one(OWNER, `select cookidoo_portions from meal_slots where plan_week_id = '${wid}'`)).toBe(4);
 });
 
+test("0030: a household's Sainsbury's orders are its own, one row per order number, with known statuses", async () => {
+  const { hid, wid } = await weekFor(OWNER);
+  await as(OWNER, `insert into sainsbury_orders (household_id, plan_week_id, order_number, status, items) values ('${hid}', '${wid}', '1358318680', 'confirmed', '[{"name":"Eggs","qty":1,"price":3.4}]')`);
+  expect(await as(STRANGER, 'select * from sainsbury_orders')).toHaveLength(0);
+  expect(await fails(OWNER, `insert into sainsbury_orders (household_id, order_number, status) values ('${hid}', '1358318680', 'confirmed')`)).toMatch(/duplicate key/);
+  expect(await fails(OWNER, `insert into sainsbury_orders (household_id, order_number, status) values ('${hid}', '2', 'lost')`)).toMatch(/check constraint/);
+  expect(await fails(STRANGER, `insert into sainsbury_orders (household_id, order_number, status) values ('${hid}', '3', 'confirmed')`)).toMatch(/row-level security/);
+});
+
 test('0009: a recipe link import belongs to its household, needs an http link, and has known statuses', async () => {
   const { hid } = await recipeFor(OWNER);
   const iid = await one(OWNER, `insert into recipe_imports (household_id, url) values ('${hid}', 'https://www.bbcgoodfood.com/recipes/x') returning id`);

@@ -14,6 +14,7 @@ import { parseRoastChoice, roastPartSlugs } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
 import { runView } from '../../lib/basketProgress';
+import Orders from './OrderCard';
 
 /** How often the Shop tab checks on a fill that's under way. */
 const POLL_MS = 5000;
@@ -216,6 +217,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {banner && <ErrorBanner message={banner} />}
       {loading && !error && <p className="text-muted">Loading…</p>}
+      {!inSheet && data?.chosen?.week && <Orders weekId={data.chosen.week.id} />}
       {!loading && data && !data.chosen && (
         <div className="rounded-2xl border border-dashed border-line p-6">
           <p className="m-0 font-semibold">{data.draft ? "Approve next week's menu to make the list." : 'No menu yet. Your first menu arrives Friday at 7pm.'}</p>

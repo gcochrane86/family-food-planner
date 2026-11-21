@@ -5,7 +5,7 @@ import type { RoastChoice } from './roastModel';
 import { slugify } from './mealPhotos';
 import { quickNutrition } from '../../supabase/functions/_shared/quickNutrition.ts';
 import type { AdhocItem, AdhocMeal, PrepPhoto,
-  BasketRun, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
+  BasketRun, SainsburyOrder, Equipment, FreshStart, PantryEntry, PreparedItem, RecipeImport, Household, HouseRule, MealSlot, Member, PlanWeek, Product, QuickItem, Recipe, RecipeDetail, RecipeIngredient, RecipeStep,
   Settings, Staple, StapleStatus, WeekPattern, WeeklyBasic, CookidooRun, RecipeEdit, RecipeRework, WeekPlanRequest, PrepAhead, SlotVersion, Eat, Partners } from './types';
 import { CANCELLED } from './types';
 import type { PlanChoices } from '../../supabase/functions/_shared/planChoices.ts';
@@ -344,6 +344,11 @@ export const repo = {
     must(await db().from('quick_shop_items').delete().eq('household_id', householdId).eq('done', true));
   },
 
+  /** The week's Sainsbury's orders, newest first, as Claude recorded them from the emails. */
+  async listOrders(weekId: string): Promise<SainsburyOrder[]> {
+    return must<SainsburyOrder[]>(await db().from('sainsbury_orders').select('*').eq('plan_week_id', weekId).order('updated_at', { ascending: false }))
+      .map((o) => ({ ...o, total: o.total === null ? null : Number(o.total) }));
+  },
   async getRuns(weekId: string): Promise<BasketRun[]> {
     return must(await db().from('basket_runs').select('*').eq('plan_week_id', weekId));
   },

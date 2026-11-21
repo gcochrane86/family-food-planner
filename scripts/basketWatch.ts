@@ -10,7 +10,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
-import { decide, fillPrompt, nextJob, type Job } from './basketWatchLogic';
+import { afterRun, decide, fillPrompt, nextJob, type Job } from './basketWatchLogic';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
 
@@ -100,7 +100,11 @@ async function check() {
   log(`Starting Claude (${job}) for ${ids.join(', ')}`);
   const code = await runClaude(job);
   log(`Claude finished (exit ${code})`);
-  try { await failUnclaimed(ids); } catch (e) { log(`Couldn't mark unclaimed requests: ${(e as Error).message}`); }
+  try {
+    const after = afterRun(ids, await waiting());
+    for (const id of after.retryNow) tried.delete(id);
+    await failUnclaimed(after.fail);
+  } catch (e) { log(`Couldn't check what's left: ${(e as Error).message}`); }
   running = false;
   void check();
 }
