@@ -187,6 +187,36 @@ describe("Ready for Sainsbury's", () => {
     expect(order).not.toHaveTextContent('You can change it');
   });
 
+  test("once the Sunday delivery is ordered, its list gives way to the order; Tuesday's stays", async () => {
+    // Week of 19 Oct: a Monday 19 Oct delivery is the first shop (Sainsbury's moved it from Sunday).
+    h.repo.listOrders.mockResolvedValue([{ id: 'o1', order_number: '1358318680', status: 'confirmed', slot: 'Monday 19 October, 10am to 11am', delivery_date: '2026-10-19',
+      total: 99.26, item_count: 32, amend_until: null, items: [], substitutions: [], missing: [] }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    expect(await screen.findByRole('region', { name: "Sainsbury's order 1358318680" })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Sunday delivery' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Tuesday delivery' })).toBeInTheDocument();
+  });
+
+  test('a cancelled order gives the list back', async () => {
+    h.repo.listOrders.mockResolvedValue([{ id: 'o1', order_number: '1358318680', status: 'cancelled', slot: null, delivery_date: '2026-10-18',
+      total: null, item_count: null, amend_until: null, items: [], substitutions: [], missing: [] }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    expect(await screen.findByRole('region', { name: 'Sunday delivery' })).toBeInTheDocument();
+  });
+
+  test('a delivery folds away to its heading and count, and opens again', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const tuesday = await screen.findByRole('region', { name: 'Tuesday delivery' });
+    const toggle = within(tuesday).getByRole('button', { name: /Tuesday delivery/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user().click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(tuesday).queryAllByRole('checkbox')).toHaveLength(0);
+    expect(within(tuesday).getByText(/to get/)).toBeInTheDocument();
+    await user().click(toggle);
+    expect(within(tuesday).getAllByRole('checkbox').length).toBeGreaterThan(0);
+  });
+
   test('with no orders recorded, there is no order card', async () => {
     render(<ShopList />, { wrapper: MemoryRouter });
     await screen.findByRole('region', { name: 'Sunday delivery' });
@@ -417,6 +447,24 @@ describe('Check the cupboard', () => {
     expect(h.repo.setStaple).not.toHaveBeenCalledWith('p-chicken', expect.anything());
   });
 
+  test('the check folds away, and starts folded once everything has been checked', async () => {
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the cupboard' });
+    const toggle = within(check).getByRole('button', { name: /Check the cupboard/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await user().click(toggle);
+    expect(within(check).queryByRole('group', { name: 'Basmati rice' })).not.toBeInTheDocument();
+    expect(within(check).getByText('1 to check')).toBeInTheDocument();
+  });
+
+  test('with everything already checked, the check starts folded', async () => {
+    h.repo.getTicks.mockResolvedValue([{ delivery: 'sun', item_key: 'cupboard-got|p-rice', ticked: true }]);
+    render(<ShopList />, { wrapper: MemoryRouter });
+    const check = await screen.findByRole('region', { name: 'Check the cupboard' });
+    expect(within(check).getByRole('button', { name: /Check the cupboard/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(check).getByText('All checked')).toBeInTheDocument();
+  });
+
   test("if confirming can't be saved, they go back to unchecked and you are told", async () => {
     h.repo.setTick.mockRejectedValueOnce(new Error('offline'));
     render(<ShopList />, { wrapper: MemoryRouter });
@@ -442,6 +490,8 @@ describe('Check the cupboard', () => {
     h.repo.getTicks.mockResolvedValue([{ delivery: 'sun', item_key: 'cupboard-need|p-rice', ticked: true }]);
     render(<ShopList />, { wrapper: MemoryRouter });
     expect(await screen.findByRole('checkbox', { name: '400g basmati rice' })).toBeInTheDocument();
+    // Everything's been answered, so the check starts folded: open it to see the answer.
+    await user().click(within(screen.getByRole('region', { name: 'Check the cupboard' })).getByRole('button', { name: /Check the cupboard/ }));
     expect(rice()).toHaveTextContent('On the list');
   });
 

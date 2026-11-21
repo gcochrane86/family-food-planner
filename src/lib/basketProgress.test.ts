@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { runView } from './basketProgress';
+import { orderCovers, runView } from './basketProgress';
 import type { BasketRun } from './types';
 
 const NOW = Date.parse('2026-11-21T12:00:00Z');
@@ -40,5 +40,19 @@ describe('runView', () => {
   test('filling with no progress saved yet goes by when it started', () => {
     expect(runView(run({ status: 'filling', started_at: ago(400), progress: null }), NOW).warning).toMatch(/No progress for 5 minutes/);
     expect(runView(run({ status: 'filling', started_at: ago(10), progress: null }), NOW)).toMatchObject({ label: 'Claude is opening Sainsbury’s…', warning: null });
+  });
+});
+
+describe('orderCovers', () => {
+  const o = (delivery_date: string | null, status = 'confirmed') => ({ status, delivery_date });
+  test('a Sunday or Monday delivery is the first shop; Tuesday onwards the second', () => {
+    expect(orderCovers(o('2026-11-22'), '2026-11-23')).toBe('sun');
+    expect(orderCovers(o('2026-11-23'), '2026-11-23')).toBe('sun');
+    expect(orderCovers(o('2026-11-24'), '2026-11-23')).toBe('tue');
+  });
+  test('other weeks, no date, or cancelled: none', () => {
+    expect(orderCovers(o('2026-11-15'), '2026-11-23')).toBeNull();
+    expect(orderCovers(o(null), '2026-11-23')).toBeNull();
+    expect(orderCovers(o('2026-11-22', 'cancelled'), '2026-11-23')).toBeNull();
   });
 });

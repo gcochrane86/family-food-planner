@@ -7,14 +7,14 @@ import { weekMakes } from '../../lib/weekEats';
 import { buildShoppingList, pickShoppingWeek, tickKey, type CupboardCheck, type ShopItem } from '../../lib/shopping';
 import { packsNeeded } from '../../lib/packs';
 import { AISLES, aisle } from '../../lib/aisles';
-import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail } from '../../lib/types';
+import type { BasketRun, MealSlot, OtherShop, PreparedItem, Product, RecipeDetail, SainsburyOrder } from '../../lib/types';
 import { switchClasses } from '../../lib/switchClasses';
 import { parseBatch } from '../../lib/batch';
 import { parseRoastChoice, roastPartSlugs } from '../../lib/roastModel';
 import { SAVE_ERROR, useAsync } from '../settings/useAsync';
 import { weekStarts } from '../week/useWeek';
-import { runView } from '../../lib/basketProgress';
-import Orders from './OrderCard';
+import { orderCovers, runView } from '../../lib/basketProgress';
+import { OrderCard } from './OrderCard';
 
 /** How often the Shop tab checks on a fill that's under way. */
 const POLL_MS = 5000;
@@ -52,9 +52,10 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     const recipes = new Map(details.map((r) => [r.id, r]));
     const build = (slots: MealSlot[], shops: OtherShop[] = settings.other_shops ?? [], needed: Set<string> = new Set()) =>
       buildShoppingList([...slots, ...makes(slots)], recipes, staples, settings.shops_per_week, basics, { shops, weekStart: chosen.week!.week_start }, needed);
-    const [tickRows, runs, freezer] = await Promise.all([repo.getTicks(chosen.week!.id), repo.getRuns(chosen.week!.id), repo.listPrepared(hid).catch(() => [] as PreparedItem[])]);
+    const [tickRows, runs, freezer, orders] = await Promise.all([repo.getTicks(chosen.week!.id), repo.getRuns(chosen.week!.id), repo.listPrepared(hid).catch(() => [] as PreparedItem[]),
+      repo.listOrders(chosen.week!.id).catch(() => [] as SainsburyOrder[])]);
     const ticks = new Map(tickRows.map((t) => [`${t.delivery}:${t.item_key}`, t.ticked]));
-    return { chosen, draft, build, staples, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer };
+    return { chosen, draft, build, staples, recipes, settings, ticks, shops: settings.shops_per_week, runs, products: new Map(products.map((p) => [p.item_key, p])), freezer, orders };
   }, [hid]);
   const [ticked, setTicked] = useState<Map<string, boolean>>(new Map());
   const [banner, setBanner] = useState<string | null>(null);
@@ -212,12 +213,18 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     }
   }
 
+  // An order Sainsbury's has confirmed takes the place of the delivery list it covers (its card shows what was ordered).
+  const orders = inSheet ? [] : data?.orders ?? [];
+  const weekOf = data?.chosen?.week?.week_start ?? '';
+  const ordersFor = (d: Delivery) => orders.filter((o) => orderCovers(o, weekOf) === d);
+  const loose = orders.filter((o) => orderCovers(o, weekOf) === null);
+
   return (
     <>
       {error && <ErrorBanner message={error} onRetry={reload} />}
       {banner && <ErrorBanner message={banner} />}
       {loading && !error && <p className="text-muted">Loading…</p>}
-      {!inSheet && data?.chosen?.week && <Orders weekId={data.chosen.week.id} />}
+      {loose.map((o) => <OrderCard key={o.id} order={o} />)}
       {!loading && data && !data.chosen && (
         <div className="rounded-2xl border border-dashed border-line p-6">
           <p className="m-0 font-semibold">{data.draft ? "Approve next week's menu to make the list." : 'No menu yet. Your first menu arrives Friday at 7pm.'}</p>
@@ -270,10 +277,13 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
       })}
       {list && (data?.shops === 2 ? (
         <>
-          <Section d="sun" title="Sunday delivery" items={list.sun} isTicked={isTicked} toggle={toggle} run={runFor('sun')} onReady={ready} products={data.products} blocked={unchecked.length > 0} showRun={!inSheet} />
-          <Section d="tue" title="Tuesday delivery" items={list.tue} isTicked={isTicked} toggle={toggle} run={runFor('tue')} onReady={ready} products={data.products} blocked={unchecked.length > 0} showRun={!inSheet} />
+          {ordersFor('sun').length ? ordersFor('sun').map((o) => <OrderCard key={o.id} order={o} />)
+            : <Section d="sun" title="Sunday delivery" items={list.sun} isTicked={isTicked} toggle={toggle} run={runFor('sun')} onReady={ready} products={data.products} blocked={unchecked.length > 0} showRun={!inSheet} />}
+          {ordersFor('tue').length ? ordersFor('tue').map((o) => <OrderCard key={o.id} order={o} />)
+            : <Section d="tue" title="Tuesday delivery" items={list.tue} isTicked={isTicked} toggle={toggle} run={runFor('tue')} onReady={ready} products={data.products} blocked={unchecked.length > 0} showRun={!inSheet} />}
         </>
       ) : (
+        [...ordersFor('sun'), ...ordersFor('tue')].length ? [...ordersFor('sun'), ...ordersFor('tue')].map((o) => <OrderCard key={o.id} order={o} />) :
         <Section d="sun" title="Your shop" items={[...list.sun, ...list.tue]} isTicked={isTicked} toggle={toggle} run={runFor('sun')} onReady={ready} products={data!.products} blocked={unchecked.length > 0} showRun={!inSheet} />
       ))}
       {list && <p className="text-sm text-muted">Made from the approved menu's dinners plus your weekly basics (Settings → Weekly basics).</p>}
@@ -310,12 +320,12 @@ export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }:
   const rest = checks.filter((c) => answerOf(c.stapleId) === null).map((c) => c.stapleId);
   const left = rest.length;
   const sorted = [...checks].sort((a, b) => Number(answerOf(a.stapleId) !== null) - Number(answerOf(b.stapleId) !== null) || a.neededBy.localeCompare(b.neededBy));
+  // Open while there's something to check; already all checked, it starts folded.
+  const [open, setOpen] = useState(() => left > 0);
   return (
     <section aria-label="Check the cupboard" className="grid gap-2">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-bold">Check the cupboard</h2>
-        <span className="text-sm text-muted">{left ? `${left} to check` : 'All checked'}</span>
-      </div>
+      <FoldHeading title="Check the cupboard" open={open} onToggle={() => setOpen(!open)} aside={left ? `${left} to check` : 'All checked'} />
+      {open && <>
       <p className="m-0 text-sm text-muted">The pantry says you have these. Look them over, tap Need it on anything missing or short, then confirm the rest.</p>
       <ul className="m-0 list-none divide-y divide-line rounded-2xl border border-line bg-surface p-0">
         {sorted.map((c) => {
@@ -347,7 +357,22 @@ export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }:
           Confirm the rest are there ({left})
         </button>
       )}
+      </>}
     </section>
+  );
+}
+
+/** A section heading that folds the section away; the count beside it stays in view. */
+function FoldHeading({ title, open, onToggle, aside }: { title: string; open: boolean; onToggle: () => void; aside: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="m-0 text-xl font-bold">
+        <button type="button" aria-expanded={open} onClick={onToggle} className="flex items-baseline gap-2 text-left">
+          {title}<span aria-hidden="true" className="text-base text-muted">{open ? '▾' : '▸'}</span>
+        </button>
+      </h2>
+      <span className="text-sm text-muted">{aside}</span>
+    </div>
   );
 }
 
@@ -398,14 +423,12 @@ export function Section({ d, title, items, isTicked, toggle, run, onReady, produ
   showRun?: boolean;
 }) {
   const left = items.filter((i) => !isTicked(d, i)).length;
+  const [open, setOpen] = useState(true);
   return (
     <section aria-label={title} className="grid gap-2">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-xl font-bold">{title}</h2>
-        <span className="text-sm text-muted">{left} to get</span>
-      </div>
+      <FoldHeading title={title} open={open} onToggle={() => setOpen(!open)} aside={`${left} to get`} />
       {showRun && <RunStatus run={run} onReady={() => onReady(d)} blocked={blocked} />}
-      {items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
+      {!open ? null : items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
         // In the order you walk the shop, a heading per part; what's in the trolley drops to the bottom.
         [...AISLES.map((label, n) => ({ label, list: items.filter((i) => !isTicked(d, i) && aisle(i.name) === n) })),
           { label: 'In the trolley', list: items.filter((i) => isTicked(d, i)) }].filter((g) => g.list.length).map((g) => (

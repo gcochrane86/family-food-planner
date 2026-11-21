@@ -28,3 +28,15 @@ export function runView(run: BasketRun, now: number): RunView {
   if (p?.stage === 'adding') return { label: 'Adding to your trolley…', warning, pct: null, item: p.item };
   return { label: 'Claude is opening Sainsbury’s…', warning, pct: 0, item: null };
 }
+
+const addDays = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+/** Which of the week's deliveries a Sainsbury's order covers, by its delivery date: up to the Monday it's the first
+ *  shop (Sainsbury's may move a Sunday slot to Monday), from the Tuesday the second. A cancelled order covers none. */
+export function orderCovers(order: { status: string; delivery_date: string | null }, weekStart: string): 'sun' | 'tue' | null {
+  if (order.status === 'cancelled' || !order.delivery_date) return null;
+  const d = order.delivery_date;
+  if (d >= addDays(weekStart, -3) && d <= weekStart) return 'sun';
+  if (d > weekStart && d <= addDays(weekStart, 6)) return 'tue';
+  return null;
+}

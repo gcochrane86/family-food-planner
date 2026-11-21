@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { repo } from '../../lib/repo';
+import { useState } from 'react';
 import type { SainsburyOrder } from '../../lib/types';
 
 const pounds = (n: number) => `£${n.toFixed(2)}`;
@@ -8,15 +7,9 @@ const STATUS: Record<SainsburyOrder['status'], string> = {
   confirmed: '✓ Order confirmed', picked: '✓ Picked: on its way', cancelled: 'Order cancelled',
 };
 
-/** The week's Sainsbury's orders, as Claude read them from the emails: status, slot and total, swaps up front, and
- *  what was ordered on a tap. Shows nothing until an order is recorded (or if orders can't be read). */
-export default function Orders({ weekId }: { weekId: string }) {
-  const [orders, setOrders] = useState<SainsburyOrder[]>([]);
-  useEffect(() => { repo.listOrders(weekId).then(setOrders).catch(() => setOrders([])); }, [weekId]);
-  return <>{orders.map((o) => <OrderCard key={o.id} order={o} />)}</>;
-}
-
-function OrderCard({ order: o }: { order: SainsburyOrder }) {
+/** A Sainsbury's order, as Claude read it from the emails: status, slot and total, swaps up front, and what was ordered
+ *  on a tap. On the Shop tab it takes the place of the delivery it covers. */
+export function OrderCard({ order: o }: { order: SainsburyOrder }) {
   const [open, setOpen] = useState(false);
   const total = o.total === null ? null : o.status === 'picked' ? `${pounds(o.total)} paid` : `${pounds(o.total)} (estimate)`;
   const counts = [o.substitutions.length ? plural(o.substitutions.length, 'swap') : '', o.missing.length ? `${o.missing.length} missing` : ''].filter(Boolean).join(', ');
