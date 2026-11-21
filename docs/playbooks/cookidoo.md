@@ -28,14 +28,19 @@ Household id: in **Settings → Household** in the app. Never guess it.
      settings already in Cookidoo notation, prep steps starting "The night before:"), and `stepsHtml[]`: the
      same steps with the TM settings as Cookidoo's settings chips (see **Settings chips** below). Imported
      recipes never appear here: their original is the household's own and is never edited.
-   - `myWeek.remove` and `myWeek.add`: `{date, recipeId, title, url}`.
+   - `myWeek.remove` and `myWeek.add`: `{date, recipeId, portions, title, url}`.
+   - **One Created Recipe per portion size.** A recipe already made in Cookidoo at this week's portions, with the
+     same text, isn't in `send` at all: its saved copy goes straight into My Week. A size it hasn't had before comes
+     as `new` with a title like "Chicken casserole (6 portions)"; a copy whose recipe changed comes as `changed`
+     with that copy's `url`. Each `send` item has its `portions`. The owner chose this on 21 Nov 2026, so recipes
+     aren't retyped whenever the portions change.
 4. For each item in `send`:
    - **`new`:** Created Recipes, then **Create recipe**. Enter the title, the portions exactly as given, device
      TM7, the ingredients one per line, and the steps one per step, then put in the settings chips (below)
-     before saving. Save. Then record it: write `{"recipeId":
-     "...", "url": "https://cookidoo.co.uk/created-recipes/en-GB/...", "portions": <text.portions>}` to a file
+     before saving. Use `text.title` as it is (it may end in the portions). Save. Then record it: write `{"recipeId":
+     "...", "url": "https://cookidoo.co.uk/created-recipes/en-GB/...", "portions": <portions>}` to a file
      and run `npm run -s cookidoo -- record-recipe --household <id> < file`.
-   - **`changed`:** open its `url` and **edit that recipe**. Never make a second copy. Replace the portions,
+   - **`changed`:** open its `url` and **edit that recipe**. Never make a second copy of the same size. Replace the portions,
      ingredients and steps with the new text, put in the settings chips, save, then run `record-recipe` the same
      way.
    - **The `url` no longer opens** (the household deleted it): create it as `new` instead, record the new URL, and
@@ -48,7 +53,7 @@ Household id: in **Settings → Household** in the app. Never guess it.
      `{"date": "YYYY-MM-DD", "recipeId": null}` piped into `npm run -s cookidoo -- record-day --run <id>`. If the
      entry is already gone, just record the day as empty.
    - For each `add`: add the recipe (from its `url`) to that day, then run `record-day` with
-     `{"date": ..., "recipeId": ...}`. If an add has no `url`, finish as failed rather than guessing.
+     `{"date": ..., "recipeId": ..., "portions": <portions from the add>}`. If an add has no `url`, finish as failed rather than guessing.
 7. **Always finish**, even if you stop early:
    `{"run": "<id>", "status": "done", "summary": "Cookidoo synced: 5 recipes (2 new, 1 updated), My Week 5 days"}`
    piped into `npm run -s cookidoo -- finish`. Use `"status": "failed"` with the reason if you had to stop. If

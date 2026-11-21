@@ -261,6 +261,8 @@ export interface MealSlot {
   cooked_at: string | null;
   portions_verdict: 'not_enough' | 'right' | 'leftovers' | null;
   cookidoo_recipe_id?: string | null;
+  /** The portions of the Cookidoo copy put in My Week that day (migration 0029). */
+  cookidoo_portions?: number | null;
   /** make a batch / made it / use a frozen portion / checked it's in the freezer */
   batch?: BatchPlan | null;
   /** A dinner planned as a roast: { main, sides, people, serve }. */

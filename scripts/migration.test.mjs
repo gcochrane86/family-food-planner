@@ -399,6 +399,16 @@ test('0028: a basket run keeps how far the fill has got', async () => {
   expect(await one(OWNER, `select progress->>'done' from basket_runs where id = '${rid}'`)).toBe('3');
 });
 
+test('0029: what is already in Cookidoo becomes each recipe\'s first copy, and My Week remembers its size', async () => {
+  const { rid, wid } = await weekFor(OWNER);
+  await as(OWNER, `update recipes set cookidoo_url = 'https://cookidoo.co.uk/c', cookidoo_portions = 3.5, cookidoo_hash = 'abc' where id = '${rid}'`);
+  await as(OWNER, `update meal_slots set cookidoo_recipe_id = '${rid}' where plan_week_id = '${wid}'`);
+  const sql = readFileSync('supabase/migrations/0029_cookidoo_copies.sql', 'utf8').split('\n').filter((l) => !l.startsWith('--') && !l.startsWith('alter table')).join('\n');
+  for (const stmt of sql.split(';').map((x) => x.trim()).filter(Boolean)) await as(OWNER, stmt);
+  expect(await one(OWNER, `select cookidoo_copies from recipes where id = '${rid}'`)).toEqual({ 4: { url: 'https://cookidoo.co.uk/c', hash: 'abc' } });
+  expect(await one(OWNER, `select cookidoo_portions from meal_slots where plan_week_id = '${wid}'`)).toBe(4);
+});
+
 test('0009: a recipe link import belongs to its household, needs an http link, and has known statuses', async () => {
   const { hid } = await recipeFor(OWNER);
   const iid = await one(OWNER, `insert into recipe_imports (household_id, url) values ('${hid}', 'https://www.bbcgoodfood.com/recipes/x') returning id`);

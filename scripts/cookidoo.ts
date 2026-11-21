@@ -4,17 +4,17 @@
 //   npx tsx scripts/cookidoo.ts claim --run <id>                  marks a sync 'filling' so no other check takes it
 //   npx tsx scripts/cookidoo.ts plan --run <id>                   what to send and what to change in My Week
 //   npx tsx scripts/cookidoo.ts record-recipe --household <id> < r.json   {"recipeId","url","portions"}
-//   npx tsx scripts/cookidoo.ts record-day --run <id> < d.json            {"date","recipeId"|null}
+//   npx tsx scripts/cookidoo.ts record-day --run <id> < d.json            {"date","recipeId"|null,"portions"?}
 //   npx tsx scripts/cookidoo.ts finish < f.json                           {"run","status":"done"|"failed","summary"}
 //   npx tsx scripts/cookidoo.ts record-own --household <id> < o.json      {"slug","url"} an imported recipe's original
-import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, textHash, whyToSend } from '../src/lib/cookidoo';
+import { copyTitle, copyToUse, cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, textHash, type CookidooCopies } from '../src/lib/cookidoo';
 import type { MealSlot, RecipeDetail } from '../src/lib/types';
 import { arg, command, db, fail, must, read, stdin } from './cliShared';
 import { parseCookidooFinish, parseRecordDay, parseRecordOwn, parseRecordRecipe } from './cookidooInput';
 
 const STALE_MS = 2 * 60 * 60 * 1000;
 type Run = { id: string; plan_week_id: string; status: string; started_at: string | null; requested_at: string };
-type CookidooRecipe = RecipeDetail & { cookidoo_status: string; cookidoo_url: string | null; cookidoo_portions: number | null; cookidoo_hash: string | null; cookidoo_own_url: string | null };
+type CookidooRecipe = RecipeDetail & { cookidoo_status: string; cookidoo_url: string | null; cookidoo_portions: number | null; cookidoo_hash: string | null; cookidoo_own_url: string | null; cookidoo_copies: CookidooCopies | null };
 type Ing = RecipeDetail['ingredients'][number] & { recipe_id: string };
 type Step = RecipeDetail['steps'][number] & { recipe_id: string };
 const NONE = ['00000000-0000-0000-0000-000000000000'];
@@ -81,22 +81,30 @@ async function plan() {
   // Only recipes with Thermomix steps go to Cookidoo (and My Week); the rest stay in the app only.
   const cooked = planned.filter((s) => { const r = byId.get(s.recipe_id!); return !!r && (hasTm7Steps(r) || !!r.cookidoo_own_url); });
   const ids = [...new Set(cooked.map((s) => s.recipe_id!))];
+  // Without migration 0029 every recipe would look new and be made again: stop instead.
+  if ([...byId.values()].some((r) => !('cookidoo_copies' in r))) fail('Run supabase/migrations/0029_cookidoo_copies.sql in the Supabase SQL Editor first.');
   const send = [];
+  // Each portion size has its own Created Recipe: one Cookidoo already has at this size, unchanged, is reused as it is.
+  const sizes = new Map<string, number | null>();
   for (const id of ids) {
     const r = byId.get(id)!;
-    const text = cookidooRecipe(r, portionsToSend(slots, id, r.base_portions, byId));
-    const hash = textHash(text);
-    const why = whyToSend(r, hash);
-    if (!why && r.cookidoo_status === 'outdated') {
+    const portions = portionsToSend(slots, id, r.base_portions, byId);
+    const text = copyText(r, portions);
+    const use = copyToUse(r, portions, textHash(text));
+    sizes.set(id, r.cookidoo_own_url ? null : portions);
+    if (!use.why && r.cookidoo_status === 'outdated') {
       // Re-seeded with no real change: nothing to send, so it's up to date again.
       must(await db.from('recipes').update({ cookidoo_status: 'sent' }).eq('id', id), 'Marking an unchanged recipe up to date');
     }
-    if (why) send.push({ recipeId: id, why, url: r.cookidoo_url, text });
+    if (use.why) send.push({ recipeId: id, why: use.why, url: use.url, portions, text });
   }
-  const changes = myWeekChanges(cooked.map((s) => ({ date: s.date, recipeId: s.recipe_id! })), slots.map((s) => ({ date: s.date, recipeId: s.cookidoo_recipe_id ?? null })));
-  const named = (d: { date: string; recipeId: string }) => {
+  const changes = myWeekChanges(
+    cooked.map((s) => ({ date: s.date, recipeId: s.recipe_id!, portions: sizes.get(s.recipe_id!) ?? null })),
+    slots.map((s) => ({ date: s.date, recipeId: s.cookidoo_recipe_id ?? null, portions: s.cookidoo_portions ?? null })));
+  const named = (d: { date: string; recipeId: string; portions?: number | null }) => {
     const r = byId.get(d.recipeId);
-    return { ...d, title: r?.title ?? '?', url: r?.cookidoo_own_url ?? r?.cookidoo_url ?? null };
+    const copy = d.portions ? r?.cookidoo_copies?.[String(d.portions)]?.url : null;
+    return { ...d, title: r?.title ?? '?', url: r?.cookidoo_own_url ?? copy ?? (d.portions ? null : r?.cookidoo_url) ?? null };
   };
   console.log(JSON.stringify({ run: { id: run.id, weekStart: week.week_start, approved: week.status === 'approved' }, send, myWeek: { add: changes.add.map(named), remove: changes.remove.map(named) } }, null, 2));
 }
@@ -106,17 +114,29 @@ async function recordRecipe() {
   const r = read(parseRecordRecipe, await stdin());
   const recipe = (await loadRecipes([r.recipeId])).get(r.recipeId);
   if (!recipe || recipe.household_id !== householdId) fail('That recipe is not in this household.');
+  const portions = Math.ceil(r.portions);
+  // The first copy made is the recipe's own link; later sizes are kept alongside it.
+  const first = !recipe!.cookidoo_url;
+  const withFirst = first ? { ...recipe!, cookidoo_portions: portions } : recipe!;
   // The fingerprint of exactly what was sent, so later syncs only edit it when the text really changes.
-  const hash = textHash(cookidooRecipe(recipe!, r.portions));
-  must(await db.from('recipes').update({ cookidoo_status: 'sent', cookidoo_url: r.url, cookidoo_portions: r.portions, cookidoo_hash: hash })
+  const hash = textHash(copyText(withFirst, portions));
+  const copies = { ...(recipe!.cookidoo_copies ?? {}), [String(portions)]: { url: r.url, hash } };
+  must(await db.from('recipes').update({ cookidoo_status: 'sent', cookidoo_copies: copies,
+    ...(first || Math.ceil(Number(recipe!.cookidoo_portions)) === portions ? { cookidoo_url: r.url, cookidoo_portions: portions, cookidoo_hash: hash } : {}) })
     .eq('id', r.recipeId).eq('household_id', householdId), 'Saving the Cookidoo link');
-  console.log(`Recorded ${r.recipeId} → ${r.url} (use this link for My Week)`);
+  console.log(`Recorded ${r.recipeId} at ${portions} portions → ${r.url} (use this link for My Week)`);
+}
+
+/** The text for a recipe's copy at these portions. The first copy keeps the recipe's title; others say their size. */
+function copyText(r: CookidooRecipe, portions: number) {
+  const first = r.cookidoo_portions === null ? null : Math.ceil(Number(r.cookidoo_portions));
+  return { ...cookidooRecipe(r, portions), title: copyTitle(r.title, portions, first) };
 }
 
 async function recordDay() {
   const { week } = await loadRun(arg('run') ?? fail('--run is required'));
   const d = read(parseRecordDay, await stdin());
-  const rows = must<{ id: string }[]>(await db.from('meal_slots').update({ cookidoo_recipe_id: d.recipeId })
+  const rows = must<{ id: string }[]>(await db.from('meal_slots').update({ cookidoo_recipe_id: d.recipeId, cookidoo_portions: d.recipeId ? d.portions : null })
     .eq('plan_week_id', week.id).eq('date', d.date).eq('slot', 'dinner').select('id'), 'Saving the My Week entry');
   if (!rows.length) fail(`No dinner on ${d.date} in that week.`);
   console.log(`My Week ${d.date}: ${d.recipeId ?? 'cleared'}`);

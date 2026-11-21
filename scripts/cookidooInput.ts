@@ -3,7 +3,7 @@
 import { parse, parseFinish, text } from './basketInput';
 
 export interface RecordRecipe { recipeId: string; url: string; portions: number }
-export interface RecordDay { date: string; recipeId: string | null }
+export interface RecordDay { date: string; recipeId: string | null; portions: number | null }
 
 function cookidooUrl(v: unknown): string {
   const url = text(v, 1000) ?? '';
@@ -26,7 +26,8 @@ export function parseRecordDay(input: string): RecordDay {
   const o = parse(input);
   const date = text(o.date, 10);
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('"date" must be YYYY-MM-DD');
-  return { date, recipeId: o.recipeId === null ? null : text(o.recipeId, 100) ?? (() => { throw new Error('"recipeId" must be an id or null'); })() };
+  const portions = typeof o.portions === 'number' && Number.isInteger(o.portions) && o.portions > 0 && o.portions <= 50 ? o.portions : null;
+  return { date, recipeId: o.recipeId === null ? null : text(o.recipeId, 100) ?? (() => { throw new Error('"recipeId" must be an id or null'); })(), portions };
 }
 
 export const parseCookidooFinish = parseFinish;

@@ -1,5 +1,5 @@
 import { HONEY, NEXT_WEEK } from '../test/fixtures';
-import { cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, settingsHtml, textHash, whyToSend } from './cookidoo';
+import { copyTitle, copyToUse, cookidooRecipe, finishStatus, hasTm7Steps, myWeekChanges, portionsToSend, settingsHtml, textHash } from './cookidoo';
 import { formatQty } from './recipes';
 
 test('only the TM7 steps are sent, with just the ingredients they use, scaled', () => {
@@ -63,12 +63,43 @@ test('the text fingerprint changes when the text does, and only then', () => {
   expect(textHash(cookidooRecipe(HONEY, 3))).not.toBe(textHash(cookidooRecipe({ ...HONEY, title: 'Other' }, 3)));
 });
 
-test('what to send: new, changed, nothing, and never an imported original', () => {
-  const sent = { cookidoo_url: 'https://cookidoo.co.uk/x', cookidoo_hash: 'abc', cookidoo_own_url: null };
-  expect(whyToSend({ ...sent, cookidoo_url: null, cookidoo_hash: null }, 'abc')).toBe('new');
-  expect(whyToSend(sent, 'abc')).toBeNull();
-  expect(whyToSend(sent, 'xyz')).toBe('changed');
-  expect(whyToSend({ cookidoo_url: null, cookidoo_hash: null, cookidoo_own_url: 'https://cookidoo.co.uk/own' }, 'abc')).toBeNull();
+test('a recipe already in Cookidoo at these portions is reused as it is', () => {
+  const r = { cookidoo_own_url: null, cookidoo_copies: { 4: { url: 'https://cookidoo.co.uk/c4', hash: 'abc' } } };
+  expect(copyToUse(r, 4, 'abc')).toEqual({ why: null, url: 'https://cookidoo.co.uk/c4' });
+});
+
+test('a recipe whose steps or ingredients changed has that copy edited, in place', () => {
+  const r = { cookidoo_own_url: null, cookidoo_copies: { 4: { url: 'https://cookidoo.co.uk/c4', hash: 'abc' } } };
+  expect(copyToUse(r, 4, 'xyz')).toEqual({ why: 'changed', url: 'https://cookidoo.co.uk/c4' });
+});
+
+test('new portions get a copy of their own, and the copy for other portions is left alone', () => {
+  const r = { cookidoo_own_url: null, cookidoo_copies: { 4: { url: 'https://cookidoo.co.uk/c4', hash: 'abc' } } };
+  expect(copyToUse(r, 6, 'def')).toEqual({ why: 'new', url: null });
+  expect(copyToUse({ cookidoo_own_url: null, cookidoo_copies: {} }, 4, 'abc')).toEqual({ why: 'new', url: null });
+  expect(copyToUse({ cookidoo_own_url: null, cookidoo_copies: null }, 4, 'abc')).toEqual({ why: 'new', url: null });
+});
+
+test("an imported recipe's original is used and never copied or edited", () => {
+  expect(copyToUse({ cookidoo_own_url: 'https://cookidoo.co.uk/own', cookidoo_copies: {} }, 4, 'abc')).toEqual({ why: null, url: 'https://cookidoo.co.uk/own' });
+});
+
+test('the first copy keeps the plain title; copies at other portions say their portions', () => {
+  expect(copyTitle('Chicken casserole', 4, null)).toBe('Chicken casserole');
+  expect(copyTitle('Chicken casserole', 4, 4)).toBe('Chicken casserole');
+  expect(copyTitle('Chicken casserole', 6, 4)).toBe('Chicken casserole (6 portions)');
+});
+
+test('my week: the same dinner at new portions swaps to the copy for those portions', () => {
+  expect(myWeekChanges([{ date: 'd1', recipeId: 'A', portions: 6 }], [{ date: 'd1', recipeId: 'A', portions: 4 }]))
+    .toEqual({ add: [{ date: 'd1', recipeId: 'A', portions: 6 }], remove: [{ date: 'd1', recipeId: 'A', portions: 4 }] });
+  expect(myWeekChanges([{ date: 'd1', recipeId: 'A', portions: 4 }], [{ date: 'd1', recipeId: 'A', portions: 4 }]))
+    .toEqual({ add: [], remove: [] });
+});
+
+test('my week: an entry from before portions were recorded is left alone', () => {
+  expect(myWeekChanges([{ date: 'd1', recipeId: 'A', portions: 4 }], [{ date: 'd1', recipeId: 'A', portions: null }]))
+    .toEqual({ add: [], remove: [] });
 });
 
 test('a sync that saw a change while it ran finishes by asking again', () => {

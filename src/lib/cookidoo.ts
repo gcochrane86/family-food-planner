@@ -114,14 +114,17 @@ export function cookidooRecipe(recipe: RecipeDetail, portions: number): Cookidoo
   return { title: recipe.title, portions, ingredients, steps, stepsHtml };
 }
 
-type Day = { date: string; recipeId: string };
+type Day = { date: string; recipeId: string; portions?: number | null };
 
-/** What to add to and remove from My Week. `current` is only what Claude put there, so hand-added entries are never touched. */
-export function myWeekChanges(wanted: Day[], current: { date: string; recipeId: string | null }[]): { add: Day[]; remove: Day[] } {
-  const now = new Map(current.filter((c): c is Day => !!c.recipeId).map((c) => [c.date, c.recipeId]));
-  const want = new Map(wanted.map((w) => [w.date, w.recipeId]));
-  const remove = [...now].filter(([date, id]) => want.get(date) !== id).map(([date, recipeId]) => ({ date, recipeId }));
-  const add = [...want].filter(([date, id]) => now.get(date) !== id).map(([date, recipeId]) => ({ date, recipeId }));
+/** What to add to and remove from My Week. `current` is only what Claude put there, so hand-added entries are never
+ *  touched. A day is the same when it's the same recipe at the same portions (each size is its own Cookidoo copy); an
+ *  entry from before portions were recorded counts as the same. */
+export function myWeekChanges(wanted: Day[], current: { date: string; recipeId: string | null; portions?: number | null }[]): { add: Day[]; remove: Day[] } {
+  const now = new Map(current.filter((c): c is Day => !!c.recipeId).map((c) => [c.date, c]));
+  const want = new Map(wanted.map((w) => [w.date, w]));
+  const same = (a?: Day, b?: Day) => !!a && !!b && a.recipeId === b.recipeId && (a.portions == null || b.portions == null || a.portions === b.portions);
+  const remove = [...now.values()].filter((d) => !same(d, want.get(d.date)));
+  const add = [...want.values()].filter((d) => !same(d, now.get(d.date)));
   return { add, remove };
 }
 
@@ -143,11 +146,21 @@ export function textHash(text: CookidooText): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-/** Whether a recipe needs creating or editing in Cookidoo. An imported recipe's original is never edited. */
-export function whyToSend(r: { cookidoo_url: string | null; cookidoo_hash: string | null; cookidoo_own_url: string | null }, hash: string): 'new' | 'changed' | null {
-  if (r.cookidoo_own_url) return null;
-  if (!r.cookidoo_url) return 'new';
-  return r.cookidoo_hash === hash ? null : 'changed';
+/** The Created Recipes Claude has made for a recipe, one per portion size: {"4": {url, hash}} (migration 0029). */
+export type CookidooCopies = Record<string, { url: string; hash: string }>;
+
+/** Which Cookidoo recipe to use for these portions, and whether it needs creating or editing first. A copy at these
+ *  portions with the same text is reused as it is; an imported recipe's original is used and never edited. */
+export function copyToUse(r: { cookidoo_own_url: string | null; cookidoo_copies: CookidooCopies | null }, portions: number, hash: string): { why: 'new' | 'changed' | null; url: string | null } {
+  if (r.cookidoo_own_url) return { why: null, url: r.cookidoo_own_url };
+  const copy = r.cookidoo_copies?.[String(portions)];
+  if (!copy) return { why: 'new', url: null };
+  return { why: copy.hash === hash ? null : 'changed', url: copy.url };
+}
+
+/** A copy's title: the first copy made keeps the recipe's title; copies at other portions say their portions. */
+export function copyTitle(title: string, portions: number, firstPortions: number | null): string {
+  return firstPortions === null || firstPortions === portions ? title : `${title} (${portions} portions)`;
 }
 
 /** How a sync ends: if something changed while it ran, it asks again rather than calling the week done. */

@@ -17,8 +17,12 @@ describe('parseRecordRecipe', () => {
 
 describe('parseRecordDay', () => {
   it('reads a date and a recipe, or null to clear the day', () => {
-    expect(parseRecordDay('{"date":"2026-10-19","recipeId":"r1"}')).toEqual({ date: '2026-10-19', recipeId: 'r1' });
-    expect(parseRecordDay('{"date":"2026-10-19","recipeId":null}')).toEqual({ date: '2026-10-19', recipeId: null });
+    expect(parseRecordDay('{"date":"2026-10-19","recipeId":"r1"}')).toEqual({ date: '2026-10-19', recipeId: 'r1', portions: null });
+    expect(parseRecordDay('{"date":"2026-10-19","recipeId":null}')).toEqual({ date: '2026-10-19', recipeId: null, portions: null });
+  });
+  it('keeps the portions of the copy put on the day', () => {
+    expect(parseRecordDay('{"date":"2026-10-19","recipeId":"r1","portions":6}')).toEqual({ date: '2026-10-19', recipeId: 'r1', portions: 6 });
+    expect(parseRecordDay('{"date":"2026-10-19","recipeId":"r1","portions":"x"}').portions).toBeNull();
   });
   it('dates must be YYYY-MM-DD', () => {
     expect(() => parseRecordDay('{"date":"19/10/2026","recipeId":"r1"}')).toThrow('date');
