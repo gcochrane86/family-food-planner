@@ -90,7 +90,20 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
    (usually 11:45pm the night before delivery), the summary and the trolley total.
 
 ## Scheduled runs (the "Ready for Sainsbury's" button)
-A scheduled task in the Claude desktop app on the owner's Mac runs every 15 minutes, 7am–10pm.
+**The watcher** (`scripts/basketWatch.ts`) starts this straight after a tap. It runs in the background on the owner's
+Mac under launchd (`~/Library/LaunchAgents/com.familyfoodplanner.basketwatch.plist`, log in
+`~/Library/Logs/basket-watch.log`). Every 10 seconds it checks for waiting fill and Start fresh requests (a small
+database read, no Claude). When one appears it starts the Claude command-line tool (`~/.local/bin/claude -p --chrome`)
+with the scheduled task's instructions and only the tools a fill needs: reading files, writing JSON in
+`~/.food-planner-basket/`, `npm run -s basket`, and Claude in Chrome. It runs one fill at a time, and waits 10 minutes
+before trying a request again. The scheduled task in the Claude desktop app stays as a backup; `claim` stops the two
+filling the same request.
+- Stop it: `launchctl bootout gui/$(id -u)/com.familyfoodplanner.basketwatch`
+- Start it: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.familyfoodplanner.basketwatch.plist`
+- It needs the Mac awake, Chrome open with Claude in Chrome connected, Sainsbury's signed in, and the command-line
+  tool signed in (`~/.local/bin/claude`, then `/login`, once).
+
+Each run:
 1. `npm run -s basket -- pending --household <id>` prints a JSON list of waiting requests (`[]` = nothing to do: stop
    at once, without opening Chrome). It also marks a fill that stalled for over 2 hours as failed.
 2. Take the oldest: `npm run -s basket -- claim --run <id>`. If it says it's already taken, stop.

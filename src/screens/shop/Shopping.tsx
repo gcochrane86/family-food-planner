@@ -266,7 +266,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
           {sent || sending ? (
             <>
               <p role="status" className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">
-                Sent. Claude fills {deliveries.length === 2 ? 'both trolleys' : 'your trolley'} within 15 minutes while your Mac is on.
+                Sent. Claude starts filling {deliveries.length === 2 ? 'both trolleys' : 'your trolley'} in a few seconds while your Mac is on.
               </p>
               <button type="button" onClick={onDone} className="min-h-12 rounded-2xl bg-accent font-bold text-accent-ink">Done</button>
             </>
@@ -338,7 +338,7 @@ export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }:
 function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; onReady: () => void; blocked?: boolean }) {
   if (run?.status === 'requested') {
     return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">
-      {run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts within 15 minutes while your Mac is on.
+      {run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts in a few seconds while your Mac is on.
     </p>;
   }
   if (run?.status === 'filling') {

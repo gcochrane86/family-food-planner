@@ -74,7 +74,7 @@ describe('approving opens your shopping', () => {
     await user().click(await within(sheet).findByRole('button', { name: "Send to Sainsbury's" }));
     expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
     expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'tue', true);
-    expect(await within(sheet).findByText(/Claude fills both trolleys within 15 minutes/)).toBeInTheDocument();
+    expect(await within(sheet).findByText(/Claude starts filling both trolleys in a few seconds/)).toBeInTheDocument();
     await user().click(within(sheet).getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog', { name: 'Your shopping' })).not.toBeInTheDocument();
   });

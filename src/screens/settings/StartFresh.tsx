@@ -6,7 +6,7 @@ import type { FreshStart } from '../../lib/types';
 import { card, Page } from './ui';
 import { SAVE_ERROR, useAsync } from './useAsync';
 
-const STATUS: Record<FreshStart['trolley_status'], string> = { requested: 'waiting for Claude (within 15 minutes while your Mac is on)', done: 'emptied', failed: "couldn't finish" };
+const STATUS: Record<FreshStart['trolley_status'], string> = { requested: 'waiting for Claude (starts in a few seconds while your Mac is on)', done: 'emptied', failed: "couldn't finish" };
 const COOKIDOO: Record<FreshStart['cookidoo_status'], string> = { ...STATUS, done: "Claude's dinners removed" };
 
 /** Clears the week plans and lists, and asks the Mac to empty the trolley and Claude's My Week entries. */

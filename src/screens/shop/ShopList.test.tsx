@@ -72,7 +72,7 @@ describe("Ready for Sainsbury's", () => {
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     await user().click(within(sunday).getByRole('button', { name: "Ready for Sainsbury's" }));
     expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
-    expect(await within(sunday).findByText(/Waiting for Claude. It starts within 15 minutes while your Mac is on/)).toBeInTheDocument();
+    expect(await within(sunday).findByText(/Waiting for Claude. It starts in a few seconds while your Mac is on/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).getByRole('button', { name: "Ready for Sainsbury's" })).toBeInTheDocument();
   });
 
