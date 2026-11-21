@@ -79,7 +79,18 @@ test('from Cookidoo: the link and the pasted recipe go to the Claude app', async
   await userEvent.type(within(form).getByRole('textbox', { name: 'Cookidoo link' }), 'https://cookidoo.co.uk/recipes/recipe/en-GB/r59322');
   await userEvent.type(within(form).getByRole('textbox', { name: /The recipe, pasted/ }), 'Chicken korma. Ingredients: 500g chicken. Preparation: 1. Chop 5 sec/speed 5.');
   await userEvent.click(within(form).getByRole('button', { name: 'Add with Claude' }));
-  expect(asked()).toBe('Add this Cookidoo recipe to the Family Food Planner (source_url https://cookidoo.co.uk/recipes/recipe/en-GB/r59322). Here it is, pasted from Cookidoo:\n\nChicken korma. Ingredients: 500g chicken. Preparation: 1. Chop 5 sec/speed 5.');
+  // Kept as Cookidoo has it, unless you choose to rewrite it.
+  expect(within(form).getByRole('radio', { name: /Keep it as Cookidoo has it/ })).toBeChecked();
+  expect(asked()).toBe('Add this Cookidoo recipe to the Family Food Planner (source_url https://cookidoo.co.uk/recipes/recipe/en-GB/r59322). Keep it exactly as Cookidoo has it: the same ingredients, amounts, steps and Thermomix settings, only put into the app\'s format. Here it is, pasted from Cookidoo:\n\nChicken korma. Ingredients: 500g chicken. Preparation: 1. Chop 5 sec/speed 5.');
+});
+
+test('from Cookidoo: it can be rewritten for our kit instead', async () => {
+  const form = await pick(/From Cookidoo/);
+  await userEvent.type(within(form).getByRole('textbox', { name: 'Cookidoo link' }), 'https://cookidoo.co.uk/recipes/recipe/en-GB/r59322');
+  await userEvent.type(within(form).getByRole('textbox', { name: /The recipe, pasted/ }), 'Chicken korma.');
+  await userEvent.click(within(form).getByRole('radio', { name: /Rewrite it for our kit/ }));
+  await userEvent.click(within(form).getByRole('button', { name: 'Add with Claude' }));
+  expect(asked()).toBe('Add this Cookidoo recipe to the Family Food Planner (source_url https://cookidoo.co.uk/recipes/recipe/en-GB/r59322). Rewrite it for our household and kit, as for any other recipe. Here it is, pasted from Cookidoo:\n\nChicken korma.');
 });
 
 test('from Cookidoo: it needs a Cookidoo link and the recipe pasted in', async () => {

@@ -30,9 +30,11 @@ export default function AddRecipe({ householdId, onSnackAdded }: { householdId: 
   const [part, setPart] = useState('');
   const [note, setNote] = useState('');
   const [text, setText] = useState('');
+  /** A Cookidoo recipe: kept as Cookidoo has it, or rewritten for the household's kit. */
+  const [asIs, setAsIs] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
 
-  function reset() { setWay(null); setLink(''); setPart(''); setNote(''); setText(''); setProblem(null); }
+  function reset() { setWay(null); setLink(''); setPart(''); setNote(''); setText(''); setAsIs(true); setProblem(null); }
   const change = () => (note.trim() ? ` ${note.trim()}` : '');
 
   /** The request for the Claude app, or why it can't go yet. */
@@ -49,7 +51,10 @@ export default function AddRecipe({ householdId, onSnackAdded }: { householdId: 
     if (way === 'cookidoo') {
       if (!isCookidoo(url)) return { problem: 'Paste the Cookidoo link (from the recipe page).' };
       if (!text.trim()) return { problem: 'Paste the recipe in from Cookidoo too.' };
-      return { ask: `Add this Cookidoo recipe to the Family Food Planner (source_url ${url}).${change()} Here it is, pasted from Cookidoo:\n\n${text.trim()}` };
+      const how = asIs
+        ? " Keep it exactly as Cookidoo has it: the same ingredients, amounts, steps and Thermomix settings, only put into the app's format."
+        : ' Rewrite it for our household and kit, as for any other recipe.';
+      return { ask: `Add this Cookidoo recipe to the Family Food Planner (source_url ${url}).${how}${change()} Here it is, pasted from Cookidoo:\n\n${text.trim()}` };
     }
     if (!isLink(url)) return { problem: 'Paste a link to the recipe page (starting https://).' };
     return { ask: `Add this recipe to the Family Food Planner: ${url}.${change()}` };
@@ -115,13 +120,25 @@ export default function AddRecipe({ householdId, onSnackAdded }: { householdId: 
           <span className="text-xs font-normal text-muted">Cookidoo only shows the method when you're signed in, so Claude needs it pasted. Up to {MAX_PASTE.toLocaleString('en-GB')} characters.</span>
         </label>
       )}
+      {way === 'cookidoo' && (
+        <fieldset className="m-0 grid gap-1 border-0 p-0">
+          <legend className="mb-1 text-sm font-semibold">How should it come in?</legend>
+          {([[true, 'Keep it as Cookidoo has it', 'The same ingredients, amounts, steps and settings'],
+            [false, 'Rewrite it for our kit', 'Claude adapts it to your household and equipment, as for other recipes']] as const).map(([v, label, hint]) => (
+            <label key={label} className="flex items-start gap-2 rounded-xl bg-surface-2 px-3 py-2">
+              <input type="radio" name="cookidoo-how" checked={asIs === v} onChange={() => setAsIs(v)} className="mt-1" />
+              <span><span className="block text-sm font-semibold">{label}</span><span className="block text-[12.5px] text-muted">{hint}</span></span>
+            </label>
+          ))}
+        </fieldset>
+      )}
       {way !== 'create' && (
         <label className={field}>
           Anything to change? (optional)
           <input type="text" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. no mushrooms, make it milder" className={box} />
         </label>
       )}
-      <p className="m-0 text-sm text-muted">It opens the Claude app: Claude {way === 'create' ? 'writes it' : 'rewrites it'} for your household and kit and shows you the recipe. Say "add it" and it's saved here with its main photo.</p>
+      <p className="m-0 text-sm text-muted">It opens the Claude app: Claude {way === 'create' ? 'writes it for your household and kit' : way === 'cookidoo' && asIs ? "puts it in the app's format" : 'rewrites it for your household and kit'} and shows you the recipe. Say "add it" and it's saved here with its main photo.</p>
       {problem && <p role="alert" className="m-0 text-sm font-semibold text-warn">{problem}</p>}
       <span className="flex gap-2">
         <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">{way === 'create' ? 'Create with Claude' : 'Add with Claude'}</button>

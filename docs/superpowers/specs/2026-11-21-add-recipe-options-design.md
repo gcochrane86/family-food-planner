@@ -13,6 +13,8 @@ roast. The owner wants clear ways to add a recipe. Approved 21 Nov 2026.
   - **From Cookidoo:** the link and the recipe pasted in (Cookidoo hides the method from anyone not signed in, so
     the Claude app can't read the link), plus anything to change. Saved with source `cookidoo` and the link as
     `cookidoo_own_url`, so menu syncs add the original to My Week and never copy or edit it.
+    A choice (added the same day): **Keep it as Cookidoo has it** (the default: same ingredients, amounts, steps and
+    settings, only put into the app's format) or **Rewrite it for our kit** (as for any other recipe).
   - Quick snack sits under them, smaller.
 - Build a roast moves to a "Roasts" chip among the recipe filters; it opens the roast builder.
 
