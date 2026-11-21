@@ -321,10 +321,6 @@ export function useWeek() {
       if (l.mode !== 'routine' || l.recipe_id) return { ...l, mode: 'routine', recipe_id: null, source_date: null, reason: null, routine_choice: choice };
       return l.routine_choice === choice ? null : { ...l, routine_choice: choice };
     }),
-    /** A lunch cooked from a recipe (shakshuka), at the household's portions; picking it again goes back to a home lunch. */
-    lunchRecipe: (date: string, recipeId: string) => update(date, 'lunch', (l) => (l.mode === 'cook' && l.recipe_id === recipeId
-      ? { ...l, mode: 'routine', recipe_id: null, portions: null }
-      : { ...l, mode: 'cook', recipe_id: recipeId, portions: input?.householdPortions ?? adultShare * 2, source_date: null, routine_choice: null, reason: null })),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
     freezer: data?.freezer ?? [],

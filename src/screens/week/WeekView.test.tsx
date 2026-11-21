@@ -759,7 +759,7 @@ describe('breakfast and lunch options', () => {
     fireEvent.contextMenu(within(lunchRow).getByRole('button', { name: 'Egg sandwich' }));
     await user().click(within(screen.getByRole('alertdialog', { name: 'Remove Egg sandwich?' })).getByRole('button', { name: 'Remove' }));
     expect(h.repo.saveSettings.mock.calls.at(-1)![1].lunches).toEqual(['Chicken sandwich']);
-    expect(within(lunchRow).getByRole('button', { name: 'Add a lunch' })).toBeInTheDocument();
+    expect(within(lunchRow).getByRole('link', { name: 'Add a lunch' })).toBeInTheDocument();
   });
 });
 
@@ -1366,14 +1366,9 @@ test("a planned leftover lunch can be held and swapped for another lunch", async
   expect(saved.routine_choice).toMatch(/poke bowl/i);
 });
 
-test('a lunch can be a recipe: found by name in the lunch options, cooked at the household portions', async () => {
+test("a lunch's + opens the recipes to pick that day's lunch from", async () => {
   render(<WeekView />, { wrapper: MemoryRouter });
   await openDay('Thu');
-  const sheet = opts(/Thursday/, 'Lunch');
-  await user().type(within(sheet).getByRole('searchbox', { name: 'Use a recipe' }), 'honey');
-  await user().click(within(sheet).getByRole('button', { name: /Honey Chilli/ }));
-  const saved = h.repo.saveSlots.mock.calls.at(-1)![0].find((s: MealSlot) => s.date === '2026-10-22' && s.slot === 'lunch')!;
-  expect(saved).toMatchObject({ mode: 'cook', recipe_id: 'r-honey', routine_choice: null, source_date: null });
-  expect(saved.portions).toBeGreaterThan(0);
-  expect(mealCard(day(/Thursday/), 'Lunch').getAttribute('aria-label')).toMatch(/Lunch: Almond-Crusted Honey Chilli/);
+  const row = within(opts(/Thursday/, 'Lunch')).getByRole('group', { name: 'Lunch options' });
+  expect(within(row).getByRole('link', { name: 'Add a lunch' })).toHaveAttribute('href', '/recipes?lunch=2026-10-22');
 });

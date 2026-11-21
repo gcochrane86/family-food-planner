@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { householdPortions } from '../../lib/household';
 import { useAuth } from '../../auth/AuthProvider';
 import ErrorBanner from '../../components/ErrorBanner';
 import { repo } from '../../lib/repo';
@@ -12,8 +13,29 @@ import { easyTonight, type EasyTonight } from '../../lib/easyTonight';
 import type { Staple } from '../../lib/types';
 import { SAVE_ERROR } from '../settings/useAsync';
 
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+/** Makes a recipe a day's lunch (from the + on the day's lunch options), at the household's portions. */
+async function saveLunchRecipe(hid: string, date: string, recipeId: string): Promise<void> {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  const [{ slots }, members] = await Promise.all([repo.getWeek(hid, d.toISOString().slice(0, 10)), repo.listMembers(hid)]);
+  const lunch = slots.find((s) => s.date === date && s.slot === 'lunch');
+  if (!lunch) throw new Error('That day has no lunch in the plan.');
+  await repo.saveSlots([{ ...lunch, mode: 'cook', recipe_id: recipeId, portions: householdPortions(members), source_date: null, routine_choice: null, reason: null }]);
+}
+
 export default function RecipeLibrary() {
   const { householdId } = useAuth();
+  const navigate = useNavigate();
+  // Opened from a day's lunch options: tapping a recipe makes it that day's lunch.
+  const lunchFor = useSearchParams()[0].get('lunch');
+  const lunchDay = lunchFor && /^\d{4}-\d{2}-\d{2}$/.test(lunchFor) ? WEEKDAYS[new Date(`${lunchFor}T00:00:00Z`).getUTCDay()] : null;
+  const [pickError, setPickError] = useState<string | null>(null);
+  async function pickLunch(r: Recipe) {
+    setPickError(null);
+    try { await saveLunchRecipe(householdId!, lunchFor!, r.id); navigate(-1); } catch { setPickError(SAVE_ERROR); }
+  }
   const { data, setData, error, loading, reload } = useAsync(() => repo.listRecipes(householdId!), [householdId], { keep: `ffp.recipes.${householdId}` });
   const [photos, setPhotos] = useState<'idle' | 'confirm' | 'running' | 'done'>('idle');
   const [progress, setProgress] = useState(0);
@@ -104,7 +126,14 @@ export default function RecipeLibrary() {
         <h1 className="text-3xl font-bold">Recipes</h1>
         {data && data.length > 0 && <span className="text-sm font-semibold text-muted">{narrowed ? `${shown.length} of ${all.length} recipes` : `${all.length} recipes`}</span>}
       </div>
-      <AddRecipe householdId={householdId!} onSnackAdded={(r) => setData((list) => [...(list ?? []), r])} />
+      {lunchDay && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-accent px-4 py-3 text-accent-ink">
+          <span className="grid"><b>Pick {lunchDay}'s lunch</b><span className="text-sm opacity-90">Tap a recipe to have it for lunch</span></span>
+          <button type="button" onClick={() => navigate(-1)} className="rounded-lg bg-surface px-3 py-1.5 text-sm font-semibold text-ink">Cancel</button>
+        </div>
+      )}
+      {pickError && <ErrorBanner message={pickError} />}
+      {!lunchDay && <AddRecipe householdId={householdId!} onSnackAdded={(r) => setData((list) => [...(list ?? []), r])} />}
       <input type="search" aria-label="Search recipes" placeholder="Search recipes" value={query} onChange={(e) => setQuery(e.target.value)}
         className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-base" />
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
@@ -153,6 +182,10 @@ export default function RecipeLibrary() {
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
         {shown.map((r) => (
           <li key={r.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+            {lunchDay && (
+              <button type="button" aria-label={`Use ${r.title} for lunch`} onClick={() => void pickLunch(r)}
+                className="order-last m-3 mt-0 rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-accent-ink">Use for lunch</button>
+            )}
             <Link to={`/recipes/${r.id}`} className="flex flex-1 flex-col no-underline">
               <HeroImage recipe={r} className="aspect-[4/3] w-full" />
               <span className="grid gap-1 p-3">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import StoredPhoto from '../../components/StoredPhoto';
 import type { Recipe } from '../../lib/types';
 import MealPhoto from './MealPhoto';
@@ -18,11 +19,13 @@ const MOVE_PX = 8; // a press that moves further than this is a scroll, not a ho
 /** A swipeable row of photo cards to pick a breakfast or lunch. + adds an option; holding a card (or right-clicking it)
  *  offers to take it off the list. Options in a `group` share one card; choosing it picks the member you've had least
  *  (by `usage`, then list order) and lists the members underneath. */
-export default function MealOptions({ label, options, picked, onPick, onAdd, onRemove, groups = [], usage = {} }: {
+export default function MealOptions({ label, options, picked, onPick, onAdd, onRemove, groups = [], usage = {}, addTo }: {
   label: 'Breakfast' | 'Lunch'; options: MealOption[]; picked: string; groups?: OptionGroup[]; usage?: Record<string, number>;
   onPick: (value: string) => void;
   /** Adds the option; resolves to a problem to show, or null. */
   onAdd: (name: string, photo: boolean) => Promise<string | null>;
+  /** Where the + goes instead of adding a named option (lunch: the recipes, to pick that day's lunch). */
+  addTo?: string;
   onRemove: (value: string) => void;
 }) {
   const noun = label.toLowerCase();
@@ -92,8 +95,13 @@ export default function MealOptions({ label, options, picked, onPick, onAdd, onR
           const on = picked === o.value;
           return card(o.value, o.name, on, o.recipe, pressProps(o, () => { setOpenGroup(null); if (!on) onPick(o.value); }));
         })}
-        <button type="button" aria-label={`Add a ${noun}`} onClick={() => setAdding(true)}
-          className="grid w-[30%] max-w-[150px] shrink-0 snap-start place-items-center rounded-[20px] border-2 border-dashed border-line text-3xl font-bold text-muted">+</button>
+        {addTo ? (
+          <Link to={addTo} aria-label={`Add a ${noun}`}
+            className="grid w-[30%] max-w-[150px] shrink-0 snap-start place-items-center rounded-[20px] border-2 border-dashed border-line text-3xl font-bold text-muted no-underline">+</Link>
+        ) : (
+          <button type="button" aria-label={`Add a ${noun}`} onClick={() => setAdding(true)}
+            className="grid w-[30%] max-w-[150px] shrink-0 snap-start place-items-center rounded-[20px] border-2 border-dashed border-line text-3xl font-bold text-muted">+</button>
+        )}
       </div>
       {shownGroup && (
         <div role="group" aria-label={`${shownGroup.label} fillings`} className="grid divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
