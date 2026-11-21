@@ -316,7 +316,11 @@ export function useWeek() {
     cooked: (date: string) => update(date, 'dinner', (d) => ({ ...d, cooked_at: new Date().toISOString() })),
     verdict: (date: string, v: NonNullable<MealSlot['portions_verdict']>) => update(date, 'dinner', (d) => ({ ...d, portions_verdict: v })),
     /** Records which lunch was picked when there's a choice (Leftovers or Chicken sandwich). */
-    lunch: (date: string, choice: string) => update(date, 'lunch', (l) => (l.routine_choice === choice ? null : { ...l, routine_choice: choice })),
+    lunch: (date: string, choice: string) => update(date, 'lunch', (l) => {
+      // A planned lunch (packed or reheated leftovers, or a recipe) becomes a home lunch picked from the options.
+      if (l.mode !== 'routine' || l.recipe_id) return { ...l, mode: 'routine', recipe_id: null, source_date: null, reason: null, routine_choice: choice };
+      return l.routine_choice === choice ? null : { ...l, routine_choice: choice };
+    }),
     breakfast: (date: string, choice: string) =>
       update(date, 'breakfast', (b) => ({ ...b, routine_choice: b.routine_choice === choice ? null : choice })),
     freezer: data?.freezer ?? [],

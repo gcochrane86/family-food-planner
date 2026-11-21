@@ -121,7 +121,10 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
   const lunch = slot('lunch');
   const dinner = slot('dinner');
   const dinnerRecipe = recipe(dinner?.recipe_id);
-  const lastNightRecipe = lunchLeftover(date, w.slots, w.recipes);
+  // Last night's leftovers: offered for a home lunch, or already planned (packed or reheated) for this one.
+  const lunchSlot = w.slots.find((s) => s.date === date && s.slot === 'lunch');
+  const lastNightRecipe = lunchLeftover(date, w.slots, w.recipes)
+    ?? (lunchSlot && lunchSlot.mode !== 'routine' && lunchSlot.source_date && lunchSlot.recipe_id ? recipe(lunchSlot.recipe_id) : undefined);
   const swap = onSwap ?? (() => {});
   const [moving, setMoving] = useState(false);
   const [sheet, setSheet] = useState<'breakfast' | 'lunch' | 'dinner' | null>(null);
@@ -210,10 +213,11 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
       const reheat = lunch.recipe_id ? recipe(lunch.recipe_id) : undefined;
       const name = packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : w.mealOptions.lunch[0];
       const r = packed ? routineRecipe('Packed lunch', w.recipes) : reheat ?? routineRecipe(w.mealOptions.lunch[0], w.recipes);
+      // Holding it swaps it for one of the lunch options (it then becomes a home lunch).
       lunchCard = (
-        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined}>
+        <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined} onHold={() => setSheet('lunch')}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
-          {caption(name, undefined, false, numbers('lunch'))}
+          {caption(name, undefined, true, numbers('lunch'))}
         </HoldCard>
       );
     }
@@ -253,10 +257,10 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
         </OptionsSheet>
       )}
 
-      {sheet === 'lunch' && lunch && lunchChoice && (
+      {sheet === 'lunch' && lunch && (
         <OptionsSheet title="Lunch options" onClose={closeSheet}>
-          <MealOptions label="Lunch" groups={LUNCH_GROUPS} usage={lunchUsage} options={lunchOptions} picked={picked}
-            onPick={(v) => w.lunch(date, v)} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />
+          <MealOptions label="Lunch" groups={LUNCH_GROUPS} usage={lunchUsage} options={lunchOptions} picked={lunchChoice ? picked : lunch.source_date && lastNightRecipe ? 'Leftovers' : ''}
+            onPick={(v) => { if (lunchChoice || v !== 'Leftovers') w.lunch(date, v); }} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />
         </OptionsSheet>
       )}
 

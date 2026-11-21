@@ -1352,3 +1352,16 @@ describe('each person against their targets', () => {
     expect(box).toHaveTextContent('Overnight oats now comes with 2 × Boiled egg for You');
   });
 });
+
+test("a planned leftover lunch can be held and swapped for another lunch", async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Tue');
+  const tue = day(/Tuesday/);
+  expect(within(mealCard(tue, 'Lunch')).getByText('Hold for options')).toBeInTheDocument();
+  const row = within(opts(/Tuesday/, 'Lunch')).getByRole('group', { name: 'Lunch options' });
+  expect(within(row).getByRole('button', { name: /Leftover/ })).toHaveAttribute('aria-pressed', 'true');
+  await user().click(within(row).getByRole('button', { name: 'Poke bowl' }));
+  const saved = h.repo.saveSlots.mock.calls.at(-1)![0].find((s: MealSlot) => s.date === '2026-10-20' && s.slot === 'lunch')!;
+  expect(saved).toMatchObject({ mode: 'routine', recipe_id: null, source_date: null });
+  expect(saved.routine_choice).toMatch(/poke bowl/i);
+});
