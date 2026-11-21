@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { decide, fillPrompt, RETRY_MS } from './basketWatchLogic';
+import { decide, fillPrompt, jobFor, nextJob, RETRY_MS } from './basketWatchLogic';
 
 const NOW = Date.parse('2026-11-21T12:00:00Z');
 
@@ -36,5 +36,19 @@ describe('fillPrompt', () => {
 
   test('a file without front matter is used as it is', () => {
     expect(fillPrompt('You fill the trolley.')).toBe('You fill the trolley.');
+  });
+});
+
+describe('jobs', () => {
+  test('Sainsbury\'s requests and Start fresh trolleys are the basket job; syncs and My Week clean-ups are Cookidoo', () => {
+    expect(jobFor('run:a')).toBe('basket');
+    expect(jobFor('fresh:a')).toBe('basket');
+    expect(jobFor('cookidoo:a')).toBe('cookidoo');
+    expect(jobFor('cookidoo-fresh:a')).toBe('cookidoo');
+  });
+
+  test('one job at a time, the oldest kind first, with all its requests', () => {
+    expect(nextJob(['cookidoo:a', 'run:b', 'cookidoo-fresh:c'])).toEqual({ job: 'cookidoo', ids: ['cookidoo:a', 'cookidoo-fresh:c'] });
+    expect(nextJob(['run:b', 'cookidoo:a'])).toEqual({ job: 'basket', ids: ['run:b'] });
   });
 });

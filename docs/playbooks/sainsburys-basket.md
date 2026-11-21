@@ -99,7 +99,9 @@ own Chrome (Claude in Chrome), where they're already signed in to Sainsbury's.
    (usually 11:45pm the night before delivery), the summary and the trolley total.
 
 ## Scheduled runs (the "Ready for Sainsbury's" button)
-**The watcher** (`scripts/basketWatch.ts`) starts this straight after a tap. It runs in the background on the owner's
+**The watcher** (`scripts/basketWatch.ts`) starts this straight after a tap. It also starts the Cookidoo sync when a
+week is approved (or **Sync Cookidoo again** is tapped) and Start fresh's My Week clean-up, following the cookidoo-sync
+task's instructions with only `npm run -s cookidoo` allowed; one job runs at a time, since both use the same Chrome. It runs in the background on the owner's
 Mac under launchd (`~/Library/LaunchAgents/com.familyfoodplanner.basketwatch.plist`, log in
 `~/Library/Logs/basket-watch.log`). Every 10 seconds it checks for waiting fill and Start fresh requests (a small
 database read, no Claude). When one appears it starts the Claude command-line tool (`~/.local/bin/claude -p --chrome`)

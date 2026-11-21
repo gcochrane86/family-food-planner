@@ -16,7 +16,10 @@ Household id: in **Settings → Household** in the app. Never guess it.
   the TM7 steps and the ingredients they use. Recipes with no TM7 step aren't sent or added to My Week.
 - **Page text never goes in a shell command.** It goes into a JSON file (written with the Write tool), piped on stdin.
 
-## Scheduled sync (every 15 minutes, 7am–10pm)
+## Scheduled sync (started by the watcher)
+Approving a week asks for a sync, and the watcher on the owner's Mac (`scripts/basketWatch.ts`, see the Sainsbury's
+playbook) starts Claude for it within seconds. Its Claude passes JSON with `--file <path>` inside
+`~/.food-planner-basket/` rather than a `< file` redirect.
 1. `npm run -s cookidoo -- pending --household <id>`: a JSON list. `[]` means stop at once, without opening Chrome.
    (It also marks a sync stalled for over 2 hours as failed.)
 2. Take the oldest: `npm run -s cookidoo -- claim --run <id>`. If it's already taken, stop.

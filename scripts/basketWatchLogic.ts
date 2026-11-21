@@ -17,3 +17,16 @@ export function fillPrompt(skill: string): string {
   const m = skill.match(/^---\n[\s\S]*?\n---\n/);
   return (m ? skill.slice(m[0].length) : skill).trim();
 }
+
+export type Job = 'basket' | 'cookidoo';
+
+/** Which Claude task handles a waiting request: "run:"/"fresh:" are Sainsbury's, "cookidoo:"/"cookidoo-fresh:" Cookidoo. */
+export function jobFor(id: string): Job {
+  return id.startsWith('cookidoo') ? 'cookidoo' : 'basket';
+}
+
+/** Both tasks drive the same Chrome, so one runs at a time: the kind of the first waiting request, with all of its kind. */
+export function nextJob(ids: string[]): { job: Job; ids: string[] } {
+  const job = jobFor(ids[0]);
+  return { job, ids: ids.filter((id) => jobFor(id) === job) };
+}

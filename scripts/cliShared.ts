@@ -1,4 +1,7 @@
 // Bits shared by the household's CLIs (cookidoo.ts). Runs on the owner's Mac with the service key from .env.
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 // @ts-expect-error plain JS helper
 import { loadEnv } from './env.mjs';
@@ -17,7 +20,16 @@ export function must<T>(r: { data: T | null; error: { message: string } | null }
   return r.data as T;
 }
 
+/** The JSON input: from `--file <path>` (only inside ~/.food-planner-basket/, where the watcher's Claude writes it;
+ *  it can't use a `< file` redirect), or piped on stdin. */
 export async function stdin(): Promise<string> {
+  const file = arg('file');
+  if (file) {
+    const dir = join(homedir(), '.food-planner-basket');
+    const path = resolve(file);
+    if (!path.startsWith(`${dir}/`)) fail('--file must be inside ~/.food-planner-basket/');
+    return readFileSync(path, 'utf8');
+  }
   if (process.stdin.isTTY) fail('Pipe the JSON in, e.g. npm run -s cookidoo -- record-day --run <id> < day.json');
   let data = '';
   for await (const chunk of process.stdin) data += chunk;
