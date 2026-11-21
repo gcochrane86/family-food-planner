@@ -72,8 +72,8 @@ describe('approving opens your shopping', () => {
   test("Send to Sainsbury's asks for both deliveries at once", async () => {
     const sheet = await approve();
     await user().click(await within(sheet).findByRole('button', { name: "Send to Sainsbury's" }));
-    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', false);
-    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'tue', false);
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'tue', true);
     expect(await within(sheet).findByText(/Claude fills both trolleys within 15 minutes/)).toBeInTheDocument();
     await user().click(within(sheet).getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog', { name: 'Your shopping' })).not.toBeInTheDocument();
@@ -1021,7 +1021,7 @@ describe('the approved pop-up', () => {
     expect(sun).toHaveTextContent(/signed out/);
     expect(within(pop).getByRole('group', { name: 'Cookidoo' })).toHaveTextContent('✓ In Cookidoo');
     await user().click(within(sun).getByRole('button', { name: "Send to Sainsbury's again" }));
-    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun');
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
     expect(within(sun).getByText(/waiting for Claude/)).toBeInTheDocument();
   });
 

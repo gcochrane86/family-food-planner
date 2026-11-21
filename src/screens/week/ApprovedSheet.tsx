@@ -71,8 +71,8 @@ export default function ApprovedSheet({ w, onClose }: { w: WeekState; onClose: (
             <>
               <p className="m-0 text-sm">
                 The week goes back to draft so you can change it or replan it with Claude. Anything already added stays in
-                your Sainsbury's trolley and Cookidoo until you approve again (then use Empty and refill on the Shop tab if the
-                shopping changed).
+                your Sainsbury's trolley and Cookidoo until you approve again (sending to Sainsbury's again empties the trolley
+                and refills it).
               </p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={async () => { if (await w.unapprove()) onClose(); }} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink">Yes, back to draft</button>

@@ -58,7 +58,7 @@ test('swap_meal says what follows in an approved week with a filled basket', asy
   const text = await makeChanger(db, 'h1', NOW).swapMeal({ date: '2026-11-17', out: true });
   expect(text).toContain('eating out');
   expect(text).toContain('Cookidoo will re-sync this dinner.');
-  expect(text).toContain('The Sainsbury\'s basket is already filled: use Empty and refill, or a Spar trip.');
+  expect(text).toContain('The Sainsbury\'s basket is already filled: use Fill again (it empties the trolley and refills it), or a Spar trip.');
 });
 
 test('swap_meal writes nothing for an unknown recipe, a missing week or a past day', async () => {

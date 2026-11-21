@@ -143,11 +143,12 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
   }
 
 
-  async function ready(d: Delivery, emptyFirst = false) {
+  /** Every fill empties the trolley first, so nothing from an earlier order is left in it. */
+  async function ready(d: Delivery) {
     if (!data?.chosen?.week) return;
     setBanner(null);
     try {
-      const run = await repo.requestRun(data.chosen.week.id, d, emptyFirst);
+      const run = await repo.requestRun(data.chosen.week.id, d, true);
       setRuns((r) => ({ ...r, [d]: run }));
     } catch {
       setBanner(SAVE_ERROR);
@@ -188,7 +189,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     if (!data?.chosen?.week) return;
     setBanner(null);
     try {
-      const made = await Promise.all(deliveries.map((d) => repo.requestRun(data.chosen!.week!.id, d, false)));
+      const made = await Promise.all(deliveries.map((d) => repo.requestRun(data.chosen!.week!.id, d, true)));
       setRuns((r) => ({ ...r, ...Object.fromEntries(deliveries.map((d, i) => [d, made[i]])) }));
       setSent(true);
     } catch {
@@ -273,7 +274,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
             <>
               <button type="button" disabled={unchecked.length > 0} onClick={() => void sendAll()}
                 className="min-h-12 rounded-2xl bg-accent font-bold text-accent-ink disabled:opacity-50">
-                {sentBefore ? "Send to Sainsbury's again (tops up only)" : "Send to Sainsbury's"}
+                {sentBefore ? "Send to Sainsbury's again" : "Send to Sainsbury's"}
               </button>
               {unchecked.length > 0 && <p className="m-0 text-center text-sm text-muted">Check the freezer first.</p>}
               <button type="button" onClick={onDone} className="min-h-11 font-semibold text-accent">Not now</button>
@@ -334,8 +335,7 @@ export function CupboardCheckList({ checks, answerOf, onAnswer, onConfirmRest }:
   );
 }
 
-function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; onReady: (emptyFirst?: boolean) => void; blocked?: boolean }) {
-  const [confirm, setConfirm] = useState(false);
+function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; onReady: () => void; blocked?: boolean }) {
   if (run?.status === 'requested') {
     return <p className="m-0 rounded-xl bg-evening-soft px-3 py-2 text-sm">
       {run.empty_first ? 'Waiting for Claude to empty and refill your trolley.' : 'Waiting for Claude.'} It starts within 15 minutes while your Mac is on.
@@ -355,22 +355,9 @@ function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; o
           {run?.status === 'failed' && <><b className="text-warn">Basket not finished.</b> <span>{run.summary}</span></>}
           {!run && 'When the list looks right:'}
         </span>
-        <span className="flex flex-wrap gap-2">
-          <button type="button" disabled={blocked} title={blocked ? 'Check the freezer first' : undefined} onClick={() => onReady()} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink disabled:opacity-50">{filledBefore ? 'Fill again (tops up only)' : "Ready for Sainsbury's"}</button>
-          {filledBefore && !confirm && (
-            <button type="button" disabled={blocked} onClick={() => setConfirm(true)} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold disabled:opacity-50">Empty and refill</button>
-          )}
-        </span>
+        <button type="button" disabled={blocked} title={blocked ? 'Check the freezer first' : undefined} onClick={() => onReady()} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-accent-ink disabled:opacity-50">{filledBefore ? 'Fill again' : "Ready for Sainsbury's"}</button>
       </div>
-      {confirm && (
-        <div role="group" aria-label="Empty the trolley?" className="grid gap-2 rounded-lg border border-line bg-surface p-3">
-          <p className="m-0">This removes everything in your Sainsbury's trolley, including things you added yourself, then fills it again from this list.</p>
-          <span className="flex gap-2">
-            <button type="button" onClick={() => { setConfirm(false); onReady(true); }} className="rounded-lg bg-warn px-3 py-1.5 font-semibold text-bg">Yes, empty and refill</button>
-            <button type="button" onClick={() => setConfirm(false)} className="rounded-lg border border-line bg-surface px-3 py-1.5 font-semibold">Cancel</button>
-          </span>
-        </div>
-      )}
+      <p className="m-0 text-xs text-muted">Claude empties your Sainsbury's trolley first, so nothing from an earlier order stays in, then fills it from this list.</p>
     </div>
   );
 }
@@ -378,7 +365,7 @@ function RunStatus({ run, onReady, blocked = false }: { run: BasketRun | null; o
 /** One delivery's list. A top-level component, so ticking doesn't rebuild the list (and lose keyboard focus). */
 export function Section({ d, title, items, isTicked, toggle, run, onReady, products, blocked = false, showRun = true }: {
   d: Delivery; title: string; items: ShopItem[]; isTicked: (d: Delivery, item: ShopItem) => boolean;
-  toggle: (d: Delivery, item: ShopItem) => Promise<void>; run: BasketRun | null; onReady: (d: Delivery, emptyFirst?: boolean) => void;
+  toggle: (d: Delivery, item: ShopItem) => Promise<void>; run: BasketRun | null; onReady: (d: Delivery) => void;
   products: Map<string, Product>;
   blocked?: boolean;
   showRun?: boolean;
@@ -390,7 +377,7 @@ export function Section({ d, title, items, isTicked, toggle, run, onReady, produ
         <h2 className="text-xl font-bold">{title}</h2>
         <span className="text-sm text-muted">{left} to get</span>
       </div>
-      {showRun && <RunStatus run={run} onReady={(emptyFirst) => onReady(d, emptyFirst)} blocked={blocked} />}
+      {showRun && <RunStatus run={run} onReady={() => onReady(d)} blocked={blocked} />}
       {items.length === 0 ? <p className="text-muted">Nothing needed.</p> : (
         // In the order you walk the shop, a heading per part; what's in the trolley drops to the bottom.
         [...AISLES.map((label, n) => ({ label, list: items.filter((i) => !isTicked(d, i) && aisle(i.name) === n) })),

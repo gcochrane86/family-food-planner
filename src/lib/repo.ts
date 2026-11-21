@@ -349,7 +349,7 @@ export const repo = {
   },
   /** Marks a delivery's list as ready for Claude to fill the Sainsbury's basket (again, if it was done before).
    *  With emptyFirst, Claude empties the trolley before filling it. */
-  async requestRun(weekId: string, delivery: 'sun' | 'tue', emptyFirst = false): Promise<BasketRun> {
+  async requestRun(weekId: string, delivery: 'sun' | 'tue', emptyFirst = true): Promise<BasketRun> {
     return must(await db().from('basket_runs').upsert(
       { plan_week_id: weekId, delivery, status: 'requested', empty_first: emptyFirst, requested_at: new Date().toISOString(), finished_at: null, summary: null },
       { onConflict: 'plan_week_id,delivery' },

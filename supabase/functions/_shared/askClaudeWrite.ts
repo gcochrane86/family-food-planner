@@ -21,7 +21,7 @@ const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en
 const str = (v: unknown) => (v === null || v === undefined ? '' : String(v)).trim();
 
 export const COOKIDOO_LINE = 'Cookidoo will re-sync this dinner.';
-export const BASKET_LINE = "The Sainsbury's basket is already filled: use Empty and refill, or a Spar trip.";
+export const BASKET_LINE = "The Sainsbury's basket is already filled: use Fill again (it empties the trolley and refills it), or a Spar trip.";
 export const VERSION_COOKIDOO_LINE = "Tonight's version isn't sent to Cookidoo; Cookidoo keeps the saved recipe.";
 
 /** The week a change on `date` belongs to, if it's today or later and no later than next Sunday (London time). */

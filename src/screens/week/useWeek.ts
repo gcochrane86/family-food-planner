@@ -479,12 +479,12 @@ export function useWeek() {
       if (req.status === 'done') await reload();
       else setData((d) => d && { ...d, [key]: req });
     },
-    /** Asks Claude to fill a delivery's Sainsbury's trolley again (tops up only). */
+    /** Asks Claude to empty a delivery's Sainsbury's trolley and fill it again. */
     async resendBasket(delivery: 'sun' | 'tue') {
       if (!current?.week) return;
       setSaveError(null);
       try {
-        const run = await repo.requestRun(current.week.id, delivery);
+        const run = await repo.requestRun(current.week.id, delivery, true);
         const key = shown === 'next' ? 'nextBaskets' : 'thisBaskets';
         setData((d) => d && { ...d, [key]: [...d[key].filter((r: BasketRun) => r.delivery !== delivery), run] });
       } catch {

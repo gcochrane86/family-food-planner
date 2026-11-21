@@ -71,7 +71,7 @@ describe("Ready for Sainsbury's", () => {
     render(<ShopList />, { wrapper: MemoryRouter });
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     await user().click(within(sunday).getByRole('button', { name: "Ready for Sainsbury's" }));
-    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', false);
+    expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
     expect(await within(sunday).findByText(/Waiting for Claude. It starts within 15 minutes while your Mac is on/)).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Tuesday delivery' })).getByRole('button', { name: "Ready for Sainsbury's" })).toBeInTheDocument();
   });
@@ -82,23 +82,18 @@ describe("Ready for Sainsbury's", () => {
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     expect(within(sunday).getByText(/Basket filled/)).toBeInTheDocument();
     expect(within(sunday).getByText('24 items added; swaps: none')).toBeInTheDocument();
-    expect(within(sunday).getByRole('button', { name: 'Fill again (tops up only)' })).toBeInTheDocument();
+    expect(within(sunday).getByRole('button', { name: 'Fill again' })).toBeInTheDocument();
     expect(within(sunday).queryByRole('button', { name: "Ready for Sainsbury's" })).not.toBeInTheDocument();
   });
 
-  test('after a fill, Empty and refill asks first, then asks Claude to empty the trolley and fill it again', async () => {
+  test('every fill empties the trolley first, and says so', async () => {
     h.repo.getRuns.mockResolvedValue([{ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'done', requested_at: '2026-10-17T09:00:00Z', finished_at: '2026-10-17T09:20:00Z', summary: '24 items added' }]);
     h.repo.requestRun.mockResolvedValueOnce({ id: 'r1', plan_week_id: 'w-next', delivery: 'sun', status: 'requested', empty_first: true, requested_at: '2026-10-17T10:00:00Z', finished_at: null, summary: null });
     render(<ShopList />, { wrapper: MemoryRouter });
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
-    await user().click(within(sunday).getByRole('button', { name: 'Empty and refill' }));
-    expect(h.repo.requestRun).not.toHaveBeenCalled();
-    const confirm = within(sunday).getByRole('group', { name: 'Empty the trolley?' });
-    expect(confirm).toHaveTextContent('removes everything in your Sainsbury\'s trolley, including things you added yourself');
-    await user().click(within(confirm).getByRole('button', { name: 'Cancel' }));
-    expect(within(sunday).queryByRole('group', { name: 'Empty the trolley?' })).not.toBeInTheDocument();
-    await user().click(within(sunday).getByRole('button', { name: 'Empty and refill' }));
-    await user().click(within(sunday).getByRole('button', { name: 'Yes, empty and refill' }));
+    expect(within(sunday).getByText(/Claude empties your Sainsbury's trolley first/)).toBeInTheDocument();
+    expect(within(sunday).queryByRole('button', { name: 'Empty and refill' })).not.toBeInTheDocument();
+    await user().click(within(sunday).getByRole('button', { name: 'Fill again' }));
     expect(h.repo.requestRun).toHaveBeenCalledWith('w-next', 'sun', true);
     expect(await within(sunday).findByText(/Waiting for Claude to empty and refill your trolley/)).toBeInTheDocument();
   });
@@ -108,12 +103,6 @@ describe("Ready for Sainsbury's", () => {
     render(<ShopList />, { wrapper: MemoryRouter });
     const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
     expect(within(sunday).getByText(/Claude is emptying and refilling your trolley now/)).toBeInTheDocument();
-  });
-
-  test('before the first fill there is no Empty and refill', async () => {
-    render(<ShopList />, { wrapper: MemoryRouter });
-    const sunday = await screen.findByRole('region', { name: 'Sunday delivery' });
-    expect(within(sunday).queryByRole('button', { name: 'Empty and refill' })).not.toBeInTheDocument();
   });
 
   test('a run being filled says so and offers no button', async () => {
