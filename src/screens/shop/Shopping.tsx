@@ -39,7 +39,7 @@ export default function Shopping({ weekStart: wanted, inSheet = false, onDone }:
     if (!chosen) return { chosen: null, draft, ticks: new Map<string, boolean>(), runs: [] as BasketRun[], products: new Map<string, Product>(), build: null, freezer: [] as PreparedItem[] };
     // Everyone's snacks and meal partners, as the family's makes.
     const makes = (slots: MealSlot[]) => weekMakes({ week: chosen.week, slots, eats: chosen.eats }, settings, library);
-    const ids = [...new Set([...chosen.slots, ...makes(chosen.slots)].filter((s) => (s.slot === 'dinner' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
+    const ids = [...new Set([...chosen.slots, ...makes(chosen.slots)].filter((s) => (s.slot === 'dinner' || s.slot === 'lunch' || s.slot === 'snack') && s.mode === 'cook' && s.recipe_id).map((s) => s.recipe_id!))];
     // A roast also needs its sides, which are recipes of their own (found by slug).
     const sideSlugs = new Set(chosen.slots.flatMap((s) => { const r = parseRoastChoice(s.roast); return r ? roastPartSlugs(r) : []; }));
     for (const r of library) if (sideSlugs.has(r.slug) && !ids.includes(r.id)) ids.push(r.id);

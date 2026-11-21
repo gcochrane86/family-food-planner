@@ -65,6 +65,7 @@ export function daySummary(date: string, slots: MealSlot[], recipes: Map<string,
   const leftover = lunchLeftover(date, slots, recipes);
   const lunch = l?.mode === 'routine'
     ? homeLunchChoice(l.routine_choice, !!leftover)
+    : l?.mode === 'cook' && title(l.recipe_id) ? title(l.recipe_id)!
     : l?.reason ?? (l?.mode === 'packed' ? 'Packed lunch' : l?.mode === 'reheat' && title(l.recipe_id) ? `Leftover ${title(l.recipe_id)}` : 'Home lunch');
   const roast = d?.mode === 'cook' ? parseRoastChoice(d.roast) : null;
   const dinner = d?.mode === 'out' ? 'Out tonight'

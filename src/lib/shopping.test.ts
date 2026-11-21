@@ -446,3 +446,13 @@ describe('check the cupboard: what the week uses that the pantry says you have',
     expect(tomatoes.staples).toEqual([{ id: 's1', status: 'out' }]);
   });
 });
+
+test('a lunch cooked from a recipe is bought for, at its portions; a home or leftover lunch is not', () => {
+  const lunch = (date: string, recipeId: string | null, mode: MealSlot['mode'], portions: number | null): MealSlot =>
+    ({ ...dinner(date, recipeId, portions, mode), slot: 'lunch' });
+  const list = buildShoppingList([lunch('2026-10-22', 'stew', 'cook', 2), lunch('2026-10-23', 'curry', 'reheat', null), lunch('2026-10-24', null, 'routine', null)], recipes, staples, 1);
+  const beef = list.sun.find((i) => i.name === 'beef')!;
+  expect(beef.qty).toBe(300);
+  expect(beef.forMeals).toEqual(['Thu lunch: stew']);
+  expect(list.sun.find((i) => i.name === 'baby spinach')).toBeUndefined();
+});

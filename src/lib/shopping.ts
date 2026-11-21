@@ -118,6 +118,12 @@ export function buildShoppingList(
       add(r, (slot.portions ?? r.base_portions) / r.base_portions, `${SHORT[weekdayIndex(slot.date)]} snack: ${r.title}`, slot);
       continue;
     }
+    // A lunch cooked from a recipe (shakshuka): bought at its portions. Home and leftover lunches aren't.
+    if (slot.slot === 'lunch' && slot.mode === 'cook' && slot.recipe_id) {
+      const r = recipes.get(slot.recipe_id);
+      if (r) add(r, (slot.portions ?? r.base_portions) / r.base_portions, `${SHORT[weekdayIndex(slot.date)]} lunch: ${r.title}`, slot);
+      continue;
+    }
     if (slot.slot !== 'dinner' || slot.mode !== 'cook' || !slot.recipe_id) continue;
     const saved = recipes.get(slot.recipe_id);
     if (!saved) continue;

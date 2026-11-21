@@ -211,13 +211,14 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
     } else {
       const packed = lunch.mode === 'packed' && !lunch.recipe_id;
       const reheat = lunch.recipe_id ? recipe(lunch.recipe_id) : undefined;
-      const name = packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : w.mealOptions.lunch[0];
+      const cooked = lunch.mode === 'cook' && reheat;
+      const name = cooked ? reheat.title : packed ? 'Burrito bowl (packed)' : reheat ? (lunch.reason ?? `Leftover ${reheat.title}`) : w.mealOptions.lunch[0];
       const r = packed ? routineRecipe('Packed lunch', w.recipes) : reheat ?? routineRecipe(w.mealOptions.lunch[0], w.recipes);
       // Holding it swaps it for one of the lunch options (it then becomes a home lunch).
       lunchCard = (
         <HoldCard label={`Lunch: ${name}`} to={r ? `/recipes/${r.id}?day=${date}&slot=lunch` : undefined} onHold={() => setSheet('lunch')}>
           <MealPhoto recipe={r} alt={name} className="aspect-[16/9]" />
-          {caption(name, undefined, true, numbers('lunch'))}
+          {caption(name, cooked ? `${formatPortions(lunch.portions ?? 0)} portions · ${reheat.finish_minutes} min` : undefined, true, numbers('lunch'))}
         </HoldCard>
       );
     }
@@ -261,6 +262,7 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
         <OptionsSheet title="Lunch options" onClose={closeSheet}>
           <MealOptions label="Lunch" groups={LUNCH_GROUPS} usage={lunchUsage} options={lunchOptions} picked={lunchChoice ? picked : lunch.source_date && lastNightRecipe ? 'Leftovers' : ''}
             onPick={(v) => { if (lunchChoice || v !== 'Leftovers') w.lunch(date, v); }} onAdd={(n, photo) => w.addMealOption('lunch', n, photo)} onRemove={(v) => w.removeMealOption('lunch', v)} />
+          <LunchRecipe recipes={w.recipes} picked={lunch.mode === 'cook' ? lunch.recipe_id : null} onPick={(id) => w.lunchRecipe(date, id)} />
         </OptionsSheet>
       )}
 
@@ -316,5 +318,25 @@ export default function DayCard({ date, w, hideTitle = false, onSwap }: { date: 
         </OptionsSheet>
       )}
     </section>
+  );
+}
+
+/** "Use a recipe": any of the household's meals as lunch (shakshuka), found by name. */
+function LunchRecipe({ recipes, picked, onPick }: { recipes: Map<string, Recipe>; picked: string | null; onPick: (id: string) => void }) {
+  const [find, setFind] = useState('');
+  const q = find.trim().toLowerCase();
+  const matches = q ? [...recipes.values()].filter((r) => r.status === 'active' && r.kind !== 'snack' && r.title.toLowerCase().includes(q)).slice(0, 6) : [];
+  const current = picked ? recipes.get(picked) : undefined;
+  return (
+    <div className="grid gap-2 pt-2">
+      <p className="m-0 text-sm font-semibold">Or a recipe{current ? `: ${current.title}` : ''}</p>
+      <input type="search" aria-label="Use a recipe" placeholder="Use a recipe, e.g. shakshuka" value={find} onChange={(e) => setFind(e.target.value)}
+        className="w-full rounded-xl border border-line bg-surface px-3 py-2.5" />
+      {matches.map((r) => (
+        <button key={r.id} type="button" aria-pressed={r.id === picked} onClick={() => { onPick(r.id); setFind(''); }}
+          className={`rounded-xl px-3 py-2 text-left font-semibold ${r.id === picked ? 'bg-ink text-bg' : 'bg-surface-2'}`}>{r.title}</button>
+      ))}
+      {q && matches.length === 0 && <p className="m-0 text-sm text-muted">No recipe has that in its name.</p>}
+    </div>
   );
 }

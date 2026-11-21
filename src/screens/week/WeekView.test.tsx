@@ -1365,3 +1365,15 @@ test("a planned leftover lunch can be held and swapped for another lunch", async
   expect(saved).toMatchObject({ mode: 'routine', recipe_id: null, source_date: null });
   expect(saved.routine_choice).toMatch(/poke bowl/i);
 });
+
+test('a lunch can be a recipe: found by name in the lunch options, cooked at the household portions', async () => {
+  render(<WeekView />, { wrapper: MemoryRouter });
+  await openDay('Thu');
+  const sheet = opts(/Thursday/, 'Lunch');
+  await user().type(within(sheet).getByRole('searchbox', { name: 'Use a recipe' }), 'honey');
+  await user().click(within(sheet).getByRole('button', { name: /Honey Chilli/ }));
+  const saved = h.repo.saveSlots.mock.calls.at(-1)![0].find((s: MealSlot) => s.date === '2026-10-22' && s.slot === 'lunch')!;
+  expect(saved).toMatchObject({ mode: 'cook', recipe_id: 'r-honey', routine_choice: null, source_date: null });
+  expect(saved.portions).toBeGreaterThan(0);
+  expect(mealCard(day(/Thursday/), 'Lunch').getAttribute('aria-label')).toMatch(/Lunch: Almond-Crusted Honey Chilli/);
+});
