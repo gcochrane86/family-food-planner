@@ -44,7 +44,7 @@ function runClaude(): Promise<number> {
   mkdirSync(workDir, { recursive: true });
   const prompt = `${fillPrompt(readFileSync(taskFile, 'utf8'))}\n\nWrite any JSON files only inside ${workDir}/. You have no way to send a push notification here: put what you would have said in your final message instead.`;
   const args = ['-p', prompt, '--chrome', '--permission-mode', 'dontAsk', '--allowedTools',
-    'Read', 'Glob', 'Grep', 'ToolSearch', `Write(${workDir}/**)`,
+    'Read', 'Glob', 'Grep', 'ToolSearch', `Edit(/${workDir}/**)`,
     'Bash(npm run -s basket:*)', `Bash(cd ${process.cwd()} && npm run -s basket:*)`, 'mcp__claude-in-chrome__*'];
   return new Promise((resolve) => {
     const child = spawn(claude, args, { cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'] });
